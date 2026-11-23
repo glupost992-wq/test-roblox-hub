@@ -487,8 +487,15 @@ local function makeEmitter(parent, def)
     if def.Accel then em.Acceleration = def.Accel end
     if def.Dir then em.EmissionDirection = def.Dir end
     if def.Orient then em.Orientation = def.Orient end
-    if def.Squash then em.Squash = NumberSequence.new(def.Squash) end
+    if def.Squash then
+        em.Squash = type(def.Squash) == "table" and numSeq(def.Squash) or NumberSequence.new(def.Squash)
+    end
+    if def.Rot then em.Rotation = def.Rot end
+    if def.RotSpd then em.RotSpeed = def.RotSpd end
     if def.Drag then em.Drag = def.Drag end
+    if def.VelInherit then em.VelocityInheritance = def.VelInherit end
+    if def.ZOffset then em.ZOffset = def.ZOffset end
+    if def.volShape then pcall(function() em.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume end) end
     em.LightEmission = def.Light ~= nil and def.Light or 1
     if def.Color then em.Color = def.Color end
     em.Size = type(def.Size) == "table" and numSeq(def.Size) or NumberSequence.new(def.Size or 0.2)
@@ -5466,12 +5473,12 @@ end
 local WorldMod = (function()
 local worldOrig = { atm = {} }
 local gradeFx, bloomFx = nil, nil
-local customSky, weatherPart, weatherEmitter, weatherModeCur = nil, nil, nil, nil
-local speedFovSmooth, appliedSpeedKick = 0, 0
+local customSky, weatherPart, weatherEmitter, weatherEmitter2, weatherModeCur = nil, nil, nil, nil, nil
+local speedFovSmooth, appliedSpeedKick, lastWindTick = 0, 0, 0
 
 local function clearWeather()
     if weatherPart then safeDestroy(weatherPart) end
-    weatherPart, weatherEmitter, weatherModeCur = nil, nil, nil
+    weatherPart, weatherEmitter, weatherEmitter2, weatherModeCur = nil, nil, nil, nil
 end
 
 local WEATHER_DEFS = {
@@ -5516,12 +5523,29 @@ local WEATHER_DEFS = {
         Tr = { { 0, 0.9 }, { 0.4, 0.2 }, { 1, 1 } },
     },
     Sakura = {
-        Name = "GlupostWeatherEmitter", vol = true, yOff = 3, rate = 95,
-        LifeMin = 2.6, LifeMax = 4.2, SpdMin = 2.0, SpdMax = 4.5,
-        Dir = Enum.NormalId.Bottom, Spread = v2(48, 48), Accel = v3(1.6, -0.8, 0.8), Drag = 1.4,
-        Size = { { 0, 0.16 }, { 0.5, 0.24 }, { 1, 0.12 } }, Light = 0.65,
-        Color = ColorSequence.new(rgb(255, 195, 225), rgb(255, 125, 185)),
-        Tr = { { 0, 0.85 }, { 0.2, 0.1 }, { 0.85, 0.2 }, { 1, 1 } },
+        Name = "GlupostWeatherEmitter", vol = false, yOff = 6, yVec = v3(0, 6, 0),
+        boxSize = v3(38, 12, 38), lookDist = 14, windSway = true, volShape = true, rate = 140,
+        LifeMin = 3.0, LifeMax = 4.6, SpdMin = 4.8, SpdMax = 8.4,
+        Dir = Enum.NormalId.Bottom, Spread = v2(34, 34), Accel = v3(2.8, -1.6, 1.5), Drag = 0.25, VelInherit = 0.12,
+        Rot = NumberRange.new(0, 360), RotSpd = NumberRange.new(-175, 175),
+        Squash = { { 0, 0.55 }, { 0.5, -0.35 }, { 1, 0.48 } },
+        Size = { { 0, 0.22 }, { 0.18, 0.44 }, { 0.75, 0.38 }, { 1, 0.16 } }, Light = 0.48,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, rgb(255, 228, 242)),
+            ColorSequenceKeypoint.new(0.5, rgb(255, 165, 210)),
+            ColorSequenceKeypoint.new(1, rgb(255, 115, 180)),
+        }),
+        Tr = { { 0, 0.9 }, { 0.15, 0.12 }, { 0.82, 0.18 }, { 1, 1 } },
+        layer2 = {
+            Name = "GlupostWeatherEmitter2", volShape = true, rate = 60,
+            LifeMin = 2.4, LifeMax = 3.8, SpdMin = 2.8, SpdMax = 5.6,
+            Dir = Enum.NormalId.Bottom, Spread = v2(52, 52), Accel = v3(2.0, -1.2, 1.2), Drag = 0.30, VelInherit = 0.10,
+            Rot = NumberRange.new(0, 360), RotSpd = NumberRange.new(-230, 230),
+            Squash = { { 0, -0.45 }, { 0.5, 0.45 }, { 1, -0.35 } },
+            Size = { { 0, 0.16 }, { 0.25, 0.32 }, { 0.8, 0.24 }, { 1, 0 } }, Light = 0.85,
+            Color = ColorSequence.new(rgb(255, 242, 248), rgb(255, 150, 205)),
+            Tr = { { 0, 0.9 }, { 0.2, 0.2 }, { 0.8, 0.28 }, { 1, 1 } },
+        },
     },
     MatrixRain = {
         Name = "GlupostWeatherEmitter", vol = false, yOff = 13, yVec = v3(0, 13, 0), rate = 180,
@@ -5551,13 +5575,30 @@ local WEATHER_DEFS = {
 
 local function ensureWeather(mode, intensity, cam)
     local def = WEATHER_DEFS[mode] or WEATHER_DEFS.CyberDust
-    local rate = floor(def.rate * clamp(intensity, 0.2, 1.5))
+    local mult = clamp(intensity, 0.2, 1.5)
+    local rate = floor(def.rate * mult)
     local yVec = def.yVec or v3(0, def.yOff, 0)
     if not def.yVec then def.yVec = yVec end
-    local targetCF = cfNew(cam.CFrame.Position + cam.CFrame.LookVector * 12 + yVec)
+    local targetCF = cfNew(cam.CFrame.Position + cam.CFrame.LookVector * (def.lookDist or 12) + yVec)
     if weatherPart and weatherPart.Parent and weatherModeCur == mode then
         weatherPart.CFrame = targetCF
         if weatherEmitter and weatherEmitter.Rate ~= rate then weatherEmitter.Rate = rate end
+        if weatherEmitter2 and def.layer2 then
+            local rate2 = floor(def.layer2.rate * mult)
+            if weatherEmitter2.Rate ~= rate2 then weatherEmitter2.Rate = rate2 end
+        end
+        if def.windSway and weatherEmitter then
+            local now = clock()
+            if now - lastWindTick >= 0.08 then
+                lastWindTick = now
+                local wx = 2.8 + sin(now * 0.68) * 2.5
+                local wz = 1.5 + cos(now * 0.52) * 2.1
+                weatherEmitter.Acceleration = v3(wx, -1.6, wz)
+                if weatherEmitter2 then
+                    weatherEmitter2.Acceleration = v3(wx * 0.75 + cos(now * 0.9) * 0.9, -1.2, wz * 0.75 + sin(now * 0.8) * 0.9)
+                end
+            end
+        end
         return
     end
     clearWeather()
@@ -5565,12 +5606,23 @@ local function ensureWeather(mode, intensity, cam)
     local p = Instance.new("Part")
     p.Name, p.Anchored, p.CastShadow, p.Transparency = "GlupostWeatherPart", true, false, 1
     p.CanCollide, p.CanTouch, p.CanQuery = false, false, false
-    p.Size = def.vol and v3(42, 18, 42) or v3(54, 4, 54)
+    p.Size = def.boxSize or (def.vol and v3(42, 18, 42) or v3(54, 4, 54))
     p.CFrame = targetCF
     local em = makeEmitter(p, def)
     em.Rate = rate
+    local em2 = nil
+    if def.layer2 then
+        em2 = makeEmitter(p, def.layer2)
+        em2.Rate = floor(def.layer2.rate * mult)
+    end
     p.Parent = workspace.CurrentCamera or workspace
-    weatherPart, weatherEmitter = p, em
+    if def.windSway then
+        pcall(function()
+            em:Emit(floor(rate * 0.45))
+            if em2 then em2:Emit(floor(em2.Rate * 0.45)) end
+        end)
+    end
+    weatherPart, weatherEmitter, weatherEmitter2 = p, em, em2
 end
 
 local SKY_PROPS = { "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp", "StarCount", "CelestialBodiesShown", "MoonAngularSize", "SunAngularSize" }
