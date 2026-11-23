@@ -1,0 +1,2567 @@
+local getgenv_ = getgenv or function() return shared end
+local loadstring_ = loadstring or load
+local gethui_ = gethui
+
+if getgenv_()._GlupostUnload then pcall(getgenv_()._GlupostUnload) end
+if getgenv_()._GlupostHubActive then return end
+
+if type(loadstring_) ~= "function" then
+    warn("[glupost] нет loadstring/load — Obsidian не загрузить")
+    return
+end
+
+local hasDrawing = (function()
+    local ok, f = pcall(function() return Drawing and Drawing.new end)
+    if not (ok and type(f) == "function") then return false end
+    local ok2 = pcall(function() local t = Drawing.new("Circle") t:Remove() end)
+    return ok2
+end)()
+if not hasDrawing then
+    warn("[glupost] нет рабочего Drawing API")
+    return
+end
+
+getgenv_()._GlupostHubActive = true
+
+local VERSION = "v18.0.1"
+
+local Players      = game:GetService("Players")
+local RunService   = game:GetService("RunService")
+local UIS          = game:GetService("UserInputService")
+local HttpSvc      = game:GetService("HttpService")
+local Lighting     = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
+local Debris       = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+
+local LP = Players.LocalPlayer
+
+local C = {
+    VIS_INTERVAL      = 0.2,
+    VALIDATE_INTERVAL = 1 / 30,
+    TEXT_INTERVAL     = 0.05,
+    POOL_STAT         = 0.5,
+    WATERMARK_TICK    = 0.25,
+}
+
+local BLACK      = Color3.new(0, 0, 0)
+local WHITE      = Color3.new(1, 1, 1)
+local GRAY       = Color3.fromRGB(205, 205, 205)
+local TOOL_COLOR = Color3.fromRGB(150, 200, 255)
+local HP_RED     = Color3.fromRGB(255, 60, 60)
+local HP_GREEN   = Color3.fromRGB(70, 255, 110)
+
+local FONTS = { UI = 0, System = 1, Plex = 2, Monospace = 3 }
+
+local SOUND_PRESETS = {
+    ["Ping (Classic)"] = "rbxassetid://12221990",
+    ["Notification"]   = "rbxassetid://4590657391",
+    ["UI Beep"]        = "rbxassetid://12221967",
+    ["Bass Thump"]     = "rbxassetid://12221831",
+    ["Snap"]           = "rbxassetid://12222140",
+    ["Hit"]            = "rbxassetid://12222046",
+}
+
+local function isPartValid(p)
+    return p ~= nil and typeof(p) == "Instance" and p:IsA("BasePart") and p.Parent ~= nil
+end
+
+local function safeDestroy(o)
+    if not o then return end
+    pcall(function()
+        local t = typeof(o)
+        if t == "Instance" then o:Destroy()
+        elseif t == "RBXScriptConnection" then if o.Connected then o:Disconnect() end
+        elseif t == "RBXScriptSignal" then o:Disconnect()
+        else
+            if o.Remove then o:Remove()
+            elseif o.Destroy then o:Destroy()
+            elseif o.Visible ~= nil then o.Visible = false end
+        end
+    end)
+end
+
+local function clamp(v, a, b) return math.clamp(v, a, b) end
+
+local function healthColor(p) return HP_RED:Lerp(HP_GREEN, clamp(p, 0, 1)) end
+
+local function healthText(fmt, hp, max)
+    hp, max = math.floor(hp), math.max(math.floor(max), 1)
+    if fmt == "Fraction" then return string.format("%d/%d", hp, max)
+    elseif fmt == "Percent" then return string.format("%d%%", math.floor(hp / max * 100))
+    elseif fmt == "Both" then return string.format("%d/%d (%d%%)", hp, max, math.floor(hp / max * 100)) end
+    return string.format("HP %d", hp)
+end
+
+local HAS_RCF = pcall(function()
+    local p = Instance.new("Part")
+    local _ = p:GetRenderCFrame()
+    p:Destroy()
+end)
+local useRCF = false
+local function partCF(p)
+    if useRCF then return p:GetRenderCFrame() end
+    return p.CFrame
+end
+local function partPos(p)
+    if useRCF then return p:GetRenderCFrame().Position end
+    return p.Position
+end
+
+local Profile = {
+    ESP = {
+        Enabled = true, BoxType = "2D", BoxThickness = 2,
+        MinDistance = 0, MaxDistance = 5000,
+        HideTeammates = false, VisibleCheck = true,
+        PriorityTarget = true, ShowThreatScore = false,
+        BoxFit = "Fixed", SmartVisCheck = true, SmoothCF = true,
+        AdaptiveLOD = true, SyncWithESP = true,
+        Outline = true, BoxFill = false, FillOpacity = 0.15,
+        HealthBar = true, HeadDot = false,
+        LookLine = false, LookLength = 6,
+        Rainbow = false, DistanceFade = false,
+        TeamColors = false, HeadDotFilled = false,
+        ShowName = true, ShowHealth = true, ShowDistance = true, ShowTool = false,
+        TextSize = 13, FontName = "Plex",
+        TextOutline = true, NameYOffset = 0, HealthFormat = "HP", HideDefaultTags = false,
+        Skeleton = false, SkeletonThickness = 2,
+        ShowTracer = false, TracerThickness = 1, TracerOrigin = "Bottom",
+        TracerOutline = true, TracerFade = true,
+        OffscreenArrows = true, ArrowSize = 20,
+        Chams = false, ChamsTransparency = 0.5, ShowFPS = false,
+        Colors = {
+            Enemy = Color3.fromRGB(255, 60, 60), Ally = Color3.fromRGB(60, 255, 120),
+            Priority = Color3.fromRGB(255, 215, 0), Visible = Color3.fromRGB(80, 255, 80),
+            Occluded = Color3.fromRGB(255, 190, 60), Skeleton = Color3.fromRGB(255, 70, 70),
+            Tracer = Color3.fromRGB(255, 255, 255), Arrow = Color3.fromRGB(255, 240, 120),
+            Look = Color3.fromRGB(255, 235, 120),
+            ChamsVis = Color3.fromRGB(60, 255, 120), ChamsOcc = Color3.fromRGB(255, 60, 60),
+        },
+    },
+    Radar = {
+        Enabled = false, Size = 120, Range = 150, Position = "BottomLeft",
+        Opacity = 0.5, DotSize = 3,
+    },
+    Crosshair = {
+        Enabled = false, Size = 8, Gap = 4, Thickness = 1,
+        Dot = true, Outline = true, Rainbow = false,
+        Color = Color3.fromRGB(255, 255, 255),
+    },
+    Overlay = {
+        Watermark = false,
+        Accent = Color3.fromRGB(110, 160, 255),
+    },
+    World = {
+        TimeEnabled = false, Time = 14,
+        FOVEnabled = false, FOV = 90,
+        Grading = false, Saturation = 0.2, Contrast = 0.1,
+        Tint = Color3.fromRGB(255, 255, 255),
+    },
+    Objects = {
+        Enabled = false, Filter = "", MaxCount = 40, MaxDistance = 1500,
+        Interval = 3, ShowDistance = true, ShowTracer = false,
+        Color = Color3.fromRGB(13, 255, 227),
+    },
+    SelfChams = {
+        Enabled = false, Style = "Holographic", FillTransparency = 0.42,
+        OutlineTransparency = 0.08, AnimationSpeed = 1.0,
+        FillColor = Color3.fromRGB(80, 220, 255),
+        OutlineColor = Color3.fromRGB(225, 250, 255),
+    },
+    Proximity = {
+        Enabled = false, Distance = 100, SoundPreset = "Ping (Classic)",
+        SoundId = "rbxassetid://12221990",
+        Volume = 0.8, Cooldown = 2.0, Direction = "Any Direction",
+        SpatialSound = true, IgnoreTeammates = false,
+    },
+    ThreatCompass = { Enabled = false, Range = 5000, MaxMarkers = 6, HideTeammates = false },
+    PlayerAura = {
+        Enabled = false, Style = "Aurora", Size = 5, Transparency = 0.58,
+        Particles = true, Color = Color3.fromRGB(80, 220, 255),
+    },
+    ParticleTrail = {
+        Enabled = false, Style = "Holographic", Lifetime = 0.45,
+        Rate = 16, Color = Color3.fromRGB(80, 220, 255),
+    },
+    Afterimage = {
+        Enabled = false, Interval = 0.22, Lifetime = 0.42,
+        Transparency = 0.62, Color = Color3.fromRGB(110, 210, 255),
+    },
+    Misc = { JoinLeave = false },
+    ThreatWeights = { Visibility = 0.4, LookAtMe = 0.3, Distance = 0.2, Health = 0.1 },
+}
+
+local function cfg() return Profile end
+
+local Fx = (function()
+local selfChamsHighlight, selfChamsCharacter
+
+local function selfChamsColor(t)
+    local e = cfg().SelfChams
+    local style = e.Style
+    local phase = t * math.max(e.AnimationSpeed, 0.05)
+
+    if style == "Rainbow" then
+        return Color3.fromHSV((phase * 0.16) % 1, 0.88, 1),
+            Color3.fromHSV((phase * 0.16 + 0.12) % 1, 0.42, 1)
+    elseif style == "Holographic" then
+        local h = (0.53 + math.sin(phase * 0.75) * 0.13) % 1
+        return Color3.fromHSV(h, 0.48, 1), Color3.fromHSV((h + 0.13) % 1, 0.22, 1)
+    elseif style == "Aurora" then
+        local a = Color3.fromRGB(50, 255, 205)
+        local b = Color3.fromRGB(105, 115, 255)
+        local c = Color3.fromRGB(205, 85, 255)
+        local k = (math.sin(phase * 0.65) + 1) * 0.5
+        local fill = k < 0.5 and a:Lerp(b, k * 2) or b:Lerp(c, (k - 0.5) * 2)
+        return fill, Color3.fromRGB(205, 255, 245):Lerp(c, k * 0.35)
+    elseif style == "Cyber" then
+        local k = (math.sin(phase * 1.1) + 1) * 0.5
+        return Color3.fromRGB(0, 245, 255):Lerp(Color3.fromRGB(255, 35, 210), k),
+            Color3.fromRGB(245, 250, 255)
+    elseif style == "Pulse" then
+        local pulse = (math.sin(phase * 2.2) + 1) * 0.5
+        return e.FillColor:Lerp(WHITE, pulse * 0.34), e.OutlineColor:Lerp(WHITE, pulse * 0.2)
+    elseif style == "Glass" then
+        return Color3.fromRGB(115, 205, 255), Color3.fromRGB(220, 245, 255)
+    end
+    return e.FillColor, e.OutlineColor
+end
+
+local function destroySelfChams()
+    if selfChamsHighlight then safeDestroy(selfChamsHighlight) end
+    selfChamsHighlight, selfChamsCharacter = nil, nil
+end
+
+local auraRing, auraAttachment, auraEmitter
+local trailObject, trailAttachments = nil, {}
+local afterimageObjects = {}
+local lastAfterimage = 0
+local lastEffectCharacter
+
+local function effectColors(style, base)
+    if style == "Rainbow" then
+        local h = (os.clock() * 0.16) % 1
+        return Color3.fromHSV(h, 0.82, 1), Color3.fromHSV((h + 0.12) % 1, 0.55, 1)
+    elseif style == "Cyber" then
+        local k = (math.sin(os.clock() * 2) + 1) * 0.5
+        return Color3.fromRGB(0, 235, 255):Lerp(Color3.fromRGB(255, 45, 210), k), Color3.fromRGB(245, 250, 255)
+    elseif style == "Aurora" then
+        local k = (math.sin(os.clock() * 0.8) + 1) * 0.5
+        return Color3.fromRGB(40, 255, 205):Lerp(Color3.fromRGB(145, 85, 255), k), Color3.fromRGB(215, 255, 245)
+    end
+    return base or Color3.fromRGB(80, 220, 255), Color3.fromRGB(225, 250, 255)
+end
+
+local function clearAura()
+    safeDestroy(auraRing)
+    safeDestroy(auraAttachment)
+    auraRing, auraAttachment, auraEmitter = nil, nil, nil
+end
+
+local function clearTrail()
+    safeDestroy(trailObject)
+    for _, a in ipairs(trailAttachments) do safeDestroy(a) end
+    trailObject, trailAttachments = nil, {}
+end
+
+local function clearAfterimages()
+    for obj in pairs(afterimageObjects) do safeDestroy(obj) end
+    table.clear(afterimageObjects)
+end
+
+local function clearLocalEffects()
+    clearAura()
+    clearTrail()
+    clearAfterimages()
+    lastEffectCharacter = nil
+end
+
+local function ensureAura(char, root)
+    if not auraRing or not auraRing.Parent then
+        local ring = Instance.new("Part")
+        ring.Name = "GlupostLocalAuraRing"
+        ring.Shape = Enum.PartType.Cylinder
+        ring.Size = Vector3.new(0.08, 4, 4)
+        ring.Material = Enum.Material.Neon
+        ring.Anchored, ring.CanCollide, ring.CanTouch, ring.CanQuery = true, false, false, false
+        ring.CastShadow = false
+        ring.Parent = workspace
+        auraRing = ring
+    end
+    if not auraAttachment or auraAttachment.Parent ~= root then
+        safeDestroy(auraAttachment)
+        local att = Instance.new("Attachment")
+        att.Name = "GlupostAuraAttachment"
+        att.Parent = root
+        auraAttachment = att
+        local em = Instance.new("ParticleEmitter")
+        em.Name = "GlupostAuraParticles"
+        em.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        em.Rate = 12
+        em.Lifetime = NumberRange.new(0.45, 0.9)
+        em.Speed = NumberRange.new(0.4, 1.8)
+        em.SpreadAngle = Vector2.new(180, 180)
+        em.LightEmission = 0.9
+        em.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0) })
+        em.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.12), NumberSequenceKeypoint.new(1, 1) })
+        em.Parent = att
+        auraEmitter = em
+    end
+end
+
+local function ensureTrail(root)
+    if trailObject and trailObject.Parent == root then return end
+    clearTrail()
+    local a0 = Instance.new("Attachment")
+    a0.Name, a0.Position, a0.Parent = "GlupostTrailA", Vector3.new(-0.55, 0, 0), root
+    local a1 = Instance.new("Attachment")
+    a1.Name, a1.Position, a1.Parent = "GlupostTrailB", Vector3.new(0.55, 0, 0), root
+    local tr = Instance.new("Trail")
+    tr.Name = "GlupostLocalTrail"
+    tr.Attachment0, tr.Attachment1 = a0, a1
+    tr.FaceCamera = true
+    tr.LightEmission = 1
+    tr.MinLength = 0.08
+    tr.Lifetime = cfg().ParticleTrail.Lifetime
+    tr.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 1) })
+    tr.Parent = root
+    trailAttachments, trailObject = { a0, a1 }, tr
+end
+
+local function makeAfterimage(char)
+    local e = cfg().Afterimage
+    local color = e.Color
+    local made = 0
+    for _, src in ipairs(char:GetDescendants()) do
+        if src:IsA("BasePart") and src.Transparency < 1 and made < 16 then
+            local ok, ghost = pcall(function() return src:Clone() end)
+            if ok and ghost then
+                for _, child in ipairs(ghost:GetDescendants()) do
+                    if not child:IsA("SpecialMesh") and not child:IsA("BlockMesh") and not child:IsA("CylinderMesh") then
+                        safeDestroy(child)
+                    end
+                end
+                ghost.Name = "GlupostAfterimage"
+                ghost.Anchored = true
+                ghost.CanCollide, ghost.CanTouch, ghost.CanQuery = false, false, false
+                ghost.Massless = true
+                pcall(function() ghost.LocalTransparencyModifier = 0 end)
+                ghost.Material = Enum.Material.Neon
+                ghost.Color = color
+                pcall(function() ghost.TextureID = "" end)
+                ghost.Transparency = clamp(e.Transparency, 0.15, 0.95)
+                ghost.CFrame = partCF(src)
+                ghost.Parent = workspace
+                afterimageObjects[ghost] = true
+                local tw = TweenService:Create(ghost, TweenInfo.new(e.Lifetime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 })
+                tw.Completed:Connect(function()
+                    afterimageObjects[ghost] = nil
+                    safeDestroy(ghost)
+                end)
+                tw:Play()
+                Debris:AddItem(ghost, e.Lifetime + 0.15)
+                made += 1
+            end
+        end
+    end
+end
+
+local function updateLocalEffects()
+    local char = LP and LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not char or not char.Parent or not isPartValid(root) then
+        if lastEffectCharacter then clearLocalEffects() end
+        return
+    end
+    if lastEffectCharacter ~= char then
+        clearLocalEffects()
+        lastEffectCharacter = char
+    end
+
+    local aura = cfg().PlayerAura
+    if aura.Enabled then
+        ensureAura(char, root)
+        local fill = effectColors(aura.Style, aura.Color)
+        auraRing.Color = fill
+        auraRing.Transparency = clamp(aura.Transparency, 0.1, 0.95)
+        auraRing.Size = Vector3.new(0.08, aura.Size, aura.Size)
+        auraRing.CFrame = partCF(root) * CFrame.new(0, -2.65, 0) * CFrame.Angles(0, 0, math.rad(90))
+        auraEmitter.Enabled = aura.Particles
+        auraEmitter.Color = ColorSequence.new(fill, Color3.fromRGB(230, 250, 255))
+    elseif auraRing or auraAttachment then
+        clearAura()
+    end
+
+    local trail = cfg().ParticleTrail
+    if trail.Enabled then
+        ensureTrail(root)
+        local c1, c2 = effectColors(trail.Style, trail.Color)
+        trailObject.Enabled = true
+        trailObject.Lifetime = clamp(trail.Lifetime, 0.1, 2)
+        trailObject.Color = ColorSequence.new(c1, c2)
+    elseif trailObject then
+        clearTrail()
+    end
+
+    local after = cfg().Afterimage
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if after.Enabled and humanoid and humanoid.MoveDirection.Magnitude > 0.05
+        and os.clock() - lastAfterimage >= clamp(after.Interval, 0.08, 1) then
+        lastAfterimage = os.clock()
+        makeAfterimage(char)
+    end
+end
+
+local function updateSelfChams()
+    local e = cfg().SelfChams
+    local char = LP and LP.Character
+    if not e.Enabled or not char or not char.Parent then
+        if selfChamsHighlight then destroySelfChams() end
+        return
+    end
+
+    if not selfChamsHighlight or selfChamsCharacter ~= char or selfChamsHighlight.Parent ~= char then
+        destroySelfChams()
+        local hl = Instance.new("Highlight")
+        hl.Name = "GlupostSelfVisual"
+        hl.Adornee = char
+        hl.DepthMode = Enum.HighlightDepthMode.Occluded
+        hl.Parent = char
+        selfChamsHighlight, selfChamsCharacter = hl, char
+    end
+
+    local fill, outline = selfChamsColor(os.clock())
+    local fillTransparency = e.FillTransparency
+    if e.Style == "Glass" then fillTransparency = math.max(fillTransparency, 0.68) end
+    selfChamsHighlight.Enabled = true
+    selfChamsHighlight.FillColor = fill
+    selfChamsHighlight.OutlineColor = outline
+    selfChamsHighlight.FillTransparency = clamp(fillTransparency, 0, 1)
+    selfChamsHighlight.OutlineTransparency = clamp(e.OutlineTransparency, 0, 1)
+end
+
+return {
+    updateSelfChams = updateSelfChams, destroySelfChams = destroySelfChams,
+    updateLocalEffects = updateLocalEffects, clearLocalEffects = clearLocalEffects,
+}
+end)()
+
+local playersData, connections, renderData = {}, {}, {}
+local isUnloaded, cleaned = false, false
+
+local lastValidate, lastText = 0, 0
+local lastPoolStat, lastWatermark = 0, 0
+local lastEspOn = Profile.ESP.Enabled
+
+local cameraCF, cameraPos = CFrame.new(), Vector3.new()
+local fpsSum, fpsCount, fps = 0, 0, 60
+local poolUsed, errCount = 0, 0
+local rainbow = Color3.new(1, 0, 0)
+local lastModChars, lastTags = 0, 0
+
+local renderConn, inputBeginConn, playerAddedConn, playerRemovingConn
+
+local function updateRainbow()
+    rainbow = Color3.fromHSV((os.clock() * 0.2) % 1, 0.8, 1)
+end
+
+local POOLS = {}
+for _, cls in ipairs({ "Line", "Text", "Circle", "Square" }) do
+    POOLS[cls] = { cls = cls, free = {}, created = 0 }
+end
+
+local function poolGet(cls)
+    local p = POOLS[cls]
+    local o = table.remove(p.free)
+    if not o then
+        o = Drawing.new(cls)
+        p.created += 1
+    end
+    o.Visible = false
+    return o
+end
+
+local function poolPut(cls, o)
+    if not o then return end
+    o.Visible = false
+    table.insert(POOLS[cls].free, o)
+end
+
+local function poolCreated()
+    local n = 0
+    for _, p in pairs(POOLS) do n += p.created end
+    return n
+end
+
+local KEYCLS = {
+    fill = "Square", outline = "Line", hpbg = "Line",
+    lines = "Line", corners = "Line", lines3d = "Line",
+    skeleton = "Line", look = "Line", tracer = "Line", tracerbg = "Line", arrows = "Line",
+    hpfill = "Line", headdot = "Circle", radar = "Circle", texts = "Text",
+}
+local ZI = {
+    fill = 1, outline = 2, hpbg = 3,
+    tracerbg = 3, lines = 4, corners = 4, lines3d = 4, skeleton = 4, look = 4, tracer = 4, arrows = 4,
+    hpfill = 5, headdot = 5, radar = 5, texts = 6,
+}
+
+local function newObj(key)
+    local o = poolGet(KEYCLS[key])
+    local z = ZI[key]
+    if z then pcall(function() o.ZIndex = z end) end
+    return o
+end
+
+local visParams = RaycastParams.new()
+local okFilter = pcall(function()
+    visParams.FilterType = Enum.RaycastFilterType.Exclude
+end)
+if not okFilter then
+    pcall(function() visParams.FilterType = Enum.RaycastFilterType.Blacklist end)
+end
+local visIgnore = {}
+
+local function rawRay(origin, dir, params)
+    local ok, res = pcall(workspace.Raycast, workspace, origin, dir, params)
+    return ok and res or nil
+end
+
+local Module = (function()
+    local function charInWorkspacePlayers(plr)
+        local f = workspace:FindFirstChild("Players")
+        return f and f:FindFirstChild(plr.Name)
+    end
+    local builtin = {
+        [2950983942] = { CustomCharacter = charInWorkspacePlayers },
+        [4691401390] = { CustomCharacter = charInWorkspacePlayers },
+    }
+    local function pickMod(t) return t and (t[game.PlaceId] or t[game.GameId]) end
+    return pickMod(getgenv_().GlupostModules) or pickMod(builtin) or {}
+end)()
+
+local function getChar(plr)
+    if Module.CustomCharacter then
+        local ok, ch = pcall(Module.CustomCharacter, plr)
+        if ok and ch then return ch end
+    end
+    return plr.Character
+end
+
+local function isTeammate(plr)
+    if plr == LP then return false end
+    if LP.Team and plr.Team and LP.Team == plr.Team then return true end
+    if not LP.Neutral and not plr.Neutral and LP.TeamColor == plr.TeamColor then return true end
+    local a, b = LP:GetAttribute("Team"), plr:GetAttribute("Team")
+    if a and b and a == b then return true end
+    local la, lb = LP:FindFirstChild("leaderstats"), plr:FindFirstChild("leaderstats")
+    if la and lb then
+        local ta, tb = la:FindFirstChild("Team"), lb:FindFirstChild("Team")
+        if ta and tb and ta:IsA("ValueBase") and tb:IsA("ValueBase") and ta.Value == tb.Value then return true end
+    end
+    return false
+end
+
+local function newPlayerData()
+    return { parts = {}, visible = false, lastVis = 0, drawings = {}, highlight = nil }
+end
+
+local function hideAll(pd)
+    if not pd then return end
+    local dr = pd.drawings
+    if dr then
+        for k in pairs(KEYCLS) do
+            local t = dr[k]
+            if t then for _, o in pairs(t) do o.Visible = false end end
+        end
+    end
+    if pd.highlight then pd.highlight.Enabled = false end
+end
+
+local function hideESP(pd)
+    if not pd then return end
+    local dr = pd.drawings
+    if dr then
+        for k in pairs(KEYCLS) do
+            if k ~= "radar" then
+                local t = dr[k]
+                if t then for _, o in pairs(t) do o.Visible = false end end
+            end
+        end
+    end
+    if pd.highlight then pd.highlight.Enabled = false end
+end
+
+local function destroyAll(pd)
+    if not pd then return end
+    local dr = pd.drawings
+    if dr then
+        for k, cls in pairs(KEYCLS) do
+            local t = dr[k]
+            if t then
+                for _, o in pairs(t) do poolPut(cls, o) end
+                dr[k] = nil
+            end
+        end
+    end
+    if pd.highlight then safeDestroy(pd.highlight) pd.highlight = nil end
+end
+
+local function pick(char, ...)
+    for i = 1, select("#", ...) do
+        local name = select(i, ...)
+        local p = char:FindFirstChild(name)
+        if p then return p end
+    end
+    return nil
+end
+
+local function cacheParts(plr, char)
+    if not char then return end
+    local parts = {
+        _player = plr, Character = char,
+        humanoid = char:FindFirstChildOfClass("Humanoid"),
+        Head = char:FindFirstChild("Head"),
+        HumanoidRootPart = char:FindFirstChild(Module.RootPartName or "HumanoidRootPart"),
+        Torso = pick(char, "Torso", "UpperTorso"),
+        LowerTorso = char:FindFirstChild("LowerTorso"),
+        LeftArm = pick(char, "LeftArm", "LeftUpperArm"),
+        LeftLowerArm = char:FindFirstChild("LeftLowerArm"),
+        LeftHand = char:FindFirstChild("LeftHand"),
+        RightArm = pick(char, "RightArm", "RightUpperArm"),
+        RightLowerArm = char:FindFirstChild("RightLowerArm"),
+        RightHand = char:FindFirstChild("RightHand"),
+        LeftLeg = pick(char, "LeftLeg", "LeftUpperLeg"),
+        LeftLowerLeg = char:FindFirstChild("LeftLowerLeg"),
+        LeftFoot = char:FindFirstChild("LeftFoot"),
+        RightLeg = pick(char, "RightLeg", "RightUpperLeg"),
+        RightLowerLeg = char:FindFirstChild("RightLowerLeg"),
+        RightFoot = char:FindFirstChild("RightFoot"),
+    }
+    local d = playersData[plr]
+    if d then d.parts = parts else playersData[plr] = newPlayerData() playersData[plr].parts = parts end
+end
+
+local function syncChams(plr, d)
+    local char = d.parts and d.parts.Character
+    if not char or not char.Parent then return end
+    local e = cfg().ESP
+    if e.Enabled and e.Chams then
+        if not d.highlight or d.highlight.Parent ~= char then
+            if d.highlight then safeDestroy(d.highlight) end
+            local hl = Instance.new("Highlight")
+            hl.Name = HttpSvc:GenerateGUID(false)
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Adornee = char
+            hl.FillColor, hl.OutlineColor = e.Colors.ChamsVis, e.Colors.ChamsOcc
+            hl.FillTransparency = e.ChamsTransparency
+            hl.Parent = char
+            d.highlight = hl
+        else
+            d.highlight.Enabled = true
+            d.highlight.FillColor = e.Colors.ChamsVis
+            d.highlight.OutlineColor = e.Colors.ChamsOcc
+            d.highlight.FillTransparency = e.ChamsTransparency
+        end
+    elseif d.highlight then
+        d.highlight.Enabled = false
+    end
+end
+
+local function setupPlayer(plr)
+    if plr == LP then return end
+    if playersData[plr] then destroyAll(playersData[plr]) end
+    if connections[plr] then for _, c in pairs(connections[plr]) do safeDestroy(c) end end
+
+    playersData[plr] = newPlayerData()
+    connections[plr] = {}
+    renderData[plr] = nil
+
+    connections[plr].added = plr.CharacterAdded:Connect(function(char)
+        task.spawn(function()
+            char:WaitForChild("HumanoidRootPart", 5)
+            char:WaitForChild("Head", 5)
+            if not char.Parent then return end
+            local d = playersData[plr]
+            if not d then return end
+            if d.highlight then safeDestroy(d.highlight) d.highlight = nil end
+            cacheParts(plr, Module.CustomCharacter and getChar(plr) or char)
+            syncChams(plr, d)
+        end)
+    end)
+
+    connections[plr].removing = plr.CharacterRemoving:Connect(function()
+        local d = playersData[plr]
+        if d then
+            if d.highlight then safeDestroy(d.highlight) d.highlight = nil end
+            hideAll(d)
+        end
+        renderData[plr] = nil
+    end)
+
+    local ch0 = getChar(plr)
+    if ch0 then cacheParts(plr, ch0) end
+end
+
+local function refreshModuleChars()
+    if not Module.CustomCharacter then return end
+    local now = os.clock()
+    if now - lastModChars < 0.5 then return end
+    lastModChars = now
+    for plr, d in pairs(playersData) do
+        local ch = getChar(plr)
+        if ch and (not d.parts or d.parts.Character ~= ch) then cacheParts(plr, ch) end
+    end
+end
+
+local softIgnore, lastSoftClear = {}, 0
+
+local function castVisible(origin, delta, part)
+    local smart = cfg().ESP.SmartVisCheck
+    local now = os.clock()
+    if now - lastSoftClear > 5 then
+        table.clear(softIgnore)
+        lastSoftClear = now
+    end
+    for _ = 1, (smart and 4 or 1) do
+        table.clear(visIgnore)
+        visIgnore[1] = workspace.CurrentCamera
+        if LP.Character then visIgnore[2] = LP.Character end
+        for i = 1, #softIgnore do visIgnore[#visIgnore + 1] = softIgnore[i] end
+        visParams.FilterDescendantsInstances = visIgnore
+
+        local res = rawRay(origin, delta, visParams)
+        if not res then return true end
+        local hit = res.Instance
+        if hit:IsDescendantOf(part.Parent) then return true end
+        if not smart or hit:IsA("Terrain") then return false end
+        if hit.Transparency >= 0.3 or not hit.CanCollide then
+            if #softIgnore < 64 then softIgnore[#softIgnore + 1] = hit end
+        else
+            return false
+        end
+    end
+    return false
+end
+
+local function isVisibleCached(d, part)
+    if not d then return false end
+    local now = os.clock()
+    if now - d.lastVis < C.VIS_INTERVAL then return d.visible end
+    d.lastVis = now
+    if not isPartValid(part) then d.visible = false return false end
+
+    local delta = part.Position - cameraPos
+    if delta.Magnitude < 0.001 then d.visible = true return true end
+
+    d.visible = castVisible(cameraPos, delta, part)
+    return d.visible
+end
+
+local function threatScore(plr, parts, d)
+    if not d or not parts then return -1000 end
+    local hum = parts.humanoid
+    if not hum or hum.Health <= 0 then return -1000 end
+    local head = parts.Head
+    if not isPartValid(head) then return -1000 end
+
+    local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position or cameraPos
+    local dist = (myPos - head.Position).Magnitude
+    local vis = isVisibleCached(d, head) and 1 or 0
+    local look = 0
+    if myRoot then
+        local toMe = myRoot.Position - head.Position
+        if toMe.Magnitude > 0.001 then
+            look = (head.CFrame.LookVector:Dot(toMe.Unit) + 1) / 2
+        end
+    end
+
+    local w = cfg().ThreatWeights
+    return vis * w.Visibility
+        + look * w.LookAtMe
+        + (1 - clamp(dist / math.max(cfg().ESP.MaxDistance, 1), 0, 1)) * w.Distance
+        + (1 - hum.Health / math.max(hum.MaxHealth, 1)) * w.Health
+end
+
+local function boxColor(rd)
+    local e = cfg().ESP
+    if rd.priority then return e.Colors.Priority end
+    if e.Rainbow then return rainbow end
+    if e.TeamColors and rd.teamColor then return rd.teamColor end
+    if e.VisibleCheck then return rd.visible and e.Colors.Visible or e.Colors.Occluded end
+    return rd.team and e.Colors.Ally or e.Colors.Enemy
+end
+
+local function ensure(d, key, n)
+    local t = d[key]
+    if not t then
+        t = {}
+        d[key] = t
+    end
+    for i = #t + 1, n do
+        t[i] = newObj(key)
+    end
+    return t
+end
+
+local function hideKey(d, key)
+    local t = d[key]
+    if t then for _, o in pairs(t) do o.Visible = false end end
+end
+
+local BOX_KEYS = { "lines", "corners", "lines3d", "outline", "fill" }
+
+local function hideBox(d, rd)
+    for _, k in ipairs(BOX_KEYS) do hideKey(d, k) end
+    rd.bL, rd.bR, rd.bT, rd.bB, rd.bH = nil, nil, nil, nil, nil
+end
+
+local DYN_NAMES = { "Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg",
+    "LeftHand", "RightHand", "LeftFoot", "RightFoot" }
+
+local function segment(bt, i, l, t, r, b, len)
+    if bt == "2D" then
+        if i == 1 then return l, t, r, t
+        elseif i == 2 then return r, t, r, b
+        elseif i == 3 then return r, b, l, b
+        else return l, b, l, t end
+    end
+    if i == 1 then return l, t, l + len, t
+    elseif i == 2 then return l, t, l, t + len
+    elseif i == 3 then return r, t, r - len, t
+    elseif i == 4 then return r, t, r, t + len
+    elseif i == 5 then return l, b, l + len, b
+    elseif i == 6 then return l, b, l, b - len
+    elseif i == 7 then return r, b, r - len, b
+    else return r, b, r, b - len end
+end
+
+local function drawBox(d, parts, rd)
+    local e = cfg().ESP
+    if not rd.onScreen or not rd.headScreen or not rd.legScreen or not rd.hrpScreen then
+        hideBox(d, rd)
+        return
+    end
+
+    local top, bottom, left, right
+    if rd.dynL then
+        top, bottom, left, right = rd.dynT, rd.dynB, rd.dynL, rd.dynR
+    else
+        top, bottom = rd.headScreen.Y, rd.legScreen.Y
+    end
+    local h = math.abs(bottom - top)
+    if h < 0.1 then hideBox(d, rd) return end
+
+    local w
+    if rd.dynL then
+        w = right - left
+    else
+        w = h * 0.8
+        left, right = rd.hrpScreen.X - w / 2, rd.hrpScreen.X + w / 2
+    end
+
+    local lod = e.AdaptiveLOD
+    if h < 4 then
+        local cx, cy = rd.hrpScreen.X, rd.hrpScreen.Y
+        h, w = 4, 4
+        left, right, top, bottom = cx - 2, cx + 2, cy - 2, cy + 2
+    end
+    rd.bL, rd.bR, rd.bT, rd.bB, rd.bH = left, right, top, bottom, h
+
+    local thick = e.BoxThickness + ((rd.priority and (not lod or h >= 26)) and 2 or 0)
+    if lod then
+        if h < 20 then thick = 1
+        elseif h < 36 then thick = math.min(thick, 2) end
+    end
+
+    local col = boxColor(rd)
+    local alpha = rd.alpha
+    local bt = e.BoxType
+    if lod then
+        if bt == "Corner" and h < 16 then bt = "2D"
+        elseif bt == "3D" and h < 22 then bt = "2D" end
+    end
+
+    if e.BoxFill and bt ~= "3D" and (not lod or h >= 6) then
+        local F = ensure(d, "fill", 1)[1]
+        F.Position, F.Size = Vector2.new(left, top), Vector2.new(w, h)
+        F.Filled, F.Color = true, col
+        F.Transparency, F.Visible = e.FillOpacity * alpha, true
+    else
+        hideKey(d, "fill")
+    end
+
+    if bt == "2D" or bt == "Corner" then
+        hideKey(d, "lines3d")
+        local main, other, n = "lines", "corners", 4
+        if bt == "Corner" then main, other, n = "corners", "lines", 8 end
+        hideKey(d, other)
+        local len = math.min(14, h * 0.25)
+
+        if e.Outline and (not lod or h >= 20) then
+            local O = ensure(d, "outline", n)
+            for i = n + 1, #O do O[i].Visible = false end
+            for i = 1, n do
+                local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len)
+                local o = O[i]
+                o.From, o.To = Vector2.new(x1, y1), Vector2.new(x2, y2)
+                o.Color, o.Thickness, o.Transparency, o.Visible = BLACK, thick + 2, alpha, true
+            end
+        else
+            hideKey(d, "outline")
+        end
+
+        local L = ensure(d, main, n)
+        for i = 1, n do
+            local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len)
+            local o = L[i]
+            o.From, o.To = Vector2.new(x1, y1), Vector2.new(x2, y2)
+            o.Color, o.Thickness, o.Transparency, o.Visible = col, thick, alpha, true
+        end
+    else
+        hideKey(d, "lines") hideKey(d, "corners") hideKey(d, "outline")
+        local hrp, head = parts.HumanoidRootPart, parts.Head
+        if not (isPartValid(hrp) and isPartValid(head)) then hideKey(d, "lines3d") return end
+        local size, cf = hrp.Size, partCF(hrp)
+        local minX, maxX, minY, maxY, minZ, maxZ
+
+        if e.BoxFit == "Dynamic" then
+            minX, minY, minZ = math.huge, math.huge, math.huge
+            maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+            for i = 1, #DYN_NAMES do
+                local p = parts[DYN_NAMES[i]]
+                if isPartValid(p) then
+                    local rel = cf:ToObjectSpace(partCF(p))
+                    local ps = p.Size
+                    local px, py, pz = ps.X / 2, ps.Y / 2, ps.Z / 2
+                    for sx = -1, 1, 2 do
+                        for sy = -1, 1, 2 do
+                            for sz = -1, 1, 2 do
+                                local lp = rel:PointToWorldSpace(Vector3.new(px * sx, py * sy, pz * sz))
+                                if lp.X < minX then minX = lp.X end
+                                if lp.X > maxX then maxX = lp.X end
+                                if lp.Y < minY then minY = lp.Y end
+                                if lp.Y > maxY then maxY = lp.Y end
+                                if lp.Z < minZ then minZ = lp.Z end
+                                if lp.Z > maxZ then maxZ = lp.Z end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if not minX or minX == math.huge then
+            minX, maxX = -size.X, size.X
+            minY, maxY = -size.Y * 1.5, size.Y * 0.5 + head.Size.Y
+            minZ, maxZ = -size.Z * 0.85, size.Z * 0.85
+        end
+
+        local corners, screen = {}, {}
+        for _, cy in ipairs({ maxY, minY }) do
+            for _, cx in ipairs({ minX, maxX }) do
+                for _, cz in ipairs({ minZ, maxZ }) do
+                    table.insert(corners, cf:PointToWorldSpace(Vector3.new(cx, cy, cz)))
+                end
+            end
+        end
+        for i, p in ipairs(corners) do
+            local sp = workspace.CurrentCamera:WorldToViewportPoint(p)
+            if sp.Z <= 0 then hideKey(d, "lines3d") return end
+            screen[i] = Vector2.new(sp.X, sp.Y)
+        end
+        local edges = { {1,2},{3,4},{1,3},{2,4},{5,6},{7,8},{5,7},{6,8},{1,5},{2,6},{3,7},{4,8} }
+        local L = ensure(d, "lines3d", 12)
+        for i, ed in ipairs(edges) do
+            L[i].From, L[i].To = screen[ed[1]], screen[ed[2]]
+            L[i].Color, L[i].Thickness, L[i].Transparency, L[i].Visible = col, thick, alpha, true
+        end
+    end
+end
+
+local function drawHealthBar(d, parts, rd)
+    local e = cfg().ESP
+    local hum = parts.humanoid
+    local h = rd.bH or 0
+    if not e.HealthBar or not hum or not rd.bL or (e.AdaptiveLOD and h < 14) then
+        hideKey(d, "hpbg") hideKey(d, "hpfill") return
+    end
+    local p = clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+    local thin = e.AdaptiveLOD and h < 28
+    local x = rd.bL - (thin and 4 or 6)
+    local top, bottom = rd.bT, rd.bB
+
+    local BG = ensure(d, "hpbg", 1)[1]
+    BG.From, BG.To = Vector2.new(x, bottom + 1), Vector2.new(x, top - 1)
+    BG.Color, BG.Thickness, BG.Transparency, BG.Visible = BLACK, (thin and 2 or 4), rd.alpha, true
+
+    local F = ensure(d, "hpfill", 1)[1]
+    F.From, F.To = Vector2.new(x, bottom), Vector2.new(x, bottom + (top - bottom) * p)
+    F.Color, F.Thickness, F.Transparency, F.Visible = healthColor(p), (thin and 1 or 2), rd.alpha, true
+end
+
+local function drawHeadDot(d, parts, rd)
+    local e = cfg().ESP
+    if not e.HeadDot or not rd.headDotScreen or not rd.headDotR or (e.AdaptiveLOD and (rd.bH or 0) < 16) then
+        hideKey(d, "headdot")
+        return
+    end
+    local c = ensure(d, "headdot", 1)[1]
+    c.Position = rd.headDotScreen
+    c.Radius, c.NumSides, c.Filled, c.Thickness = rd.headDotR, 20, e.HeadDotFilled, 1.5
+    c.Color, c.Transparency, c.Visible = boxColor(rd), rd.alpha, true
+end
+
+local function drawLook(d, parts, rd)
+    local e = cfg().ESP
+    local head = parts.Head
+    if not e.LookLine or not rd.onScreen or not isPartValid(head) or (e.AdaptiveLOD and (rd.bH or 0) < 16) then
+        hideKey(d, "look")
+        return
+    end
+    local cam = workspace.CurrentCamera
+    local p1 = partPos(head)
+    local a = cam:WorldToViewportPoint(p1)
+    local b = cam:WorldToViewportPoint(p1 + partCF(head).LookVector * e.LookLength)
+    if a.Z <= 0 or b.Z <= 0 then hideKey(d, "look") return end
+    local L = ensure(d, "look", 1)[1]
+    L.From, L.To = Vector2.new(a.X, a.Y), Vector2.new(b.X, b.Y)
+    L.Color, L.Thickness, L.Transparency, L.Visible = e.Colors.Look, 1.5, rd.alpha, true
+end
+
+local SKEL = {
+    R15 = {
+        { "Head", "Torso" }, { "Torso", "HumanoidRootPart" },
+        { "Torso", "LeftArm" }, { "Torso", "RightArm" },
+        { "LeftArm", "LeftLowerArm" }, { "RightArm", "RightLowerArm" },
+        { "LeftLowerArm", "LeftHand" }, { "RightLowerArm", "RightHand" },
+        { "Torso", "LeftLeg" }, { "Torso", "RightLeg" },
+        { "LeftLeg", "LeftLowerLeg" }, { "RightLeg", "RightLowerLeg" },
+        { "LeftLowerLeg", "LeftFoot" }, { "RightLowerLeg", "RightFoot" },
+    },
+    R6 = {
+        { "Head", "Torso" }, { "Torso", "HumanoidRootPart" },
+        { "Torso", "LeftArm" }, { "Torso", "RightArm" },
+        { "Torso", "LeftLeg" }, { "Torso", "RightLeg" },
+    },
+}
+
+local function drawSkeleton(d, parts, rd)
+    local e = cfg().ESP
+    local h = rd.bH or 0
+    if not e.Skeleton or not rd.onScreen or (e.AdaptiveLOD and h < 22) then
+        hideKey(d, "skeleton")
+        return
+    end
+    local set = parts.LowerTorso and SKEL.R15 or SKEL.R6
+    local cam = workspace.CurrentCamera
+    local col = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Skeleton)
+    local skThick = (e.AdaptiveLOD and h < 45) and 1 or e.SkeletonThickness
+
+    local S = ensure(d, "skeleton", #set)
+    for i = #set + 1, #S do S[i].Visible = false end
+
+    local function proj(p)
+        if not isPartValid(p) then return nil end
+        local s = cam:WorldToViewportPoint(partPos(p))
+        return s.Z > 0 and Vector2.new(s.X, s.Y) or nil
+    end
+
+    for i, pair in ipairs(set) do
+        local a, b = proj(parts[pair[1]]), proj(parts[pair[2]])
+        local line = S[i]
+        if a and b then
+            line.From, line.To = a, b
+            line.Color, line.Thickness, line.Transparency, line.Visible = col, skThick, rd.alpha, true
+        else
+            line.Visible = false
+        end
+    end
+end
+
+local function drawText(d, parts, rd, doText)
+    local e = cfg().ESP
+    local hum = parts.humanoid
+    if not rd.onScreen or not hum or hum.Health <= 0 or not rd.bL then hideKey(d, "texts") return end
+
+    d.texts = d.texts or {}
+    local T = d.texts
+    local col = boxColor(rd)
+    local cx = math.floor((rd.bL + rd.bR) / 2 + 0.5)
+    local h = rd.bH or 0
+    local lod = e.AdaptiveLOD
+
+    local size = e.TextSize
+    if lod then
+        if h < 16 then size = math.max(10, size - 2)
+        elseif h < 28 then size = math.max(11, size - 1) end
+    end
+    local subSize = math.max(10, size - 1)
+    local font = FONTS[e.FontName] or 2
+    local alpha = rd.alpha
+
+    if doText or not rd._txtReady then
+        rd._txtReady = true
+        if e.ShowName then
+            local name = parts._player.DisplayName
+            if Module.PlayerTag then
+                local okT, tag = pcall(Module.PlayerTag, parts._player)
+                if okT and tag then name = name .. " " .. tostring(tag) end
+            end
+            if e.ShowThreatScore then
+                name = string.format("%s (%d%%)", name,
+                    math.floor(threatScore(parts._player, parts, playersData[parts._player]) * 100))
+            end
+            rd._nameStr = name
+        else
+            rd._nameStr = nil
+        end
+
+        if e.ShowHealth then
+            local p = clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+            rd._hpStr = healthText(e.HealthFormat, hum.Health, hum.MaxHealth)
+            rd._hpCol = healthColor(p)
+        else
+            rd._hpStr = nil
+        end
+
+        rd._distStr = e.ShowDistance and string.format("%d studs", math.floor(rd.distance)) or nil
+
+        if e.ShowTool then
+            local tool = parts.Character and parts.Character:FindFirstChildOfClass("Tool")
+            rd._toolStr = tool and ("[" .. tool.Name .. "]") or nil
+        else
+            rd._toolStr = nil
+        end
+    end
+
+    local function show(key, sz, text, color, y)
+        local t = T[key]
+        if not t then
+            t = newObj("texts")
+            t.Center, t.OutlineColor = true, BLACK
+            T[key] = t
+        end
+        t.Size, t.Font, t.Transparency, t.Outline = sz, font, alpha, e.TextOutline
+        t.Position = Vector2.new(cx, math.floor(y + 0.5))
+        t.Text, t.Color, t.Visible = text, color, true
+    end
+    local function hide(key) if T[key] then T[key].Visible = false end end
+
+    local showHP = rd._hpStr and (not lod or h >= 18)
+    local showDist = rd._distStr and (not lod or h >= 12 or not rd._nameStr)
+    local showTool = rd._toolStr and (not lod or h >= 24)
+
+    local y = rd.bT - size - 6 - e.NameYOffset
+    if rd._nameStr then
+        show("name", size, rd._nameStr, col, y)
+        y -= subSize + 3
+    else hide("name") end
+
+    if showHP then
+        show("hp", subSize, rd._hpStr, rd._hpCol, y)
+    else hide("hp") end
+
+    local yb = rd.bB + 2
+    if showDist then
+        show("dist", subSize, rd._distStr, GRAY, yb)
+        yb += subSize + 2
+    else hide("dist") end
+
+    if showTool then
+        show("tool", subSize, rd._toolStr, TOOL_COLOR, yb)
+    else hide("tool") end
+end
+
+local function drawTracer(d, rd)
+    local e = cfg().ESP
+    if not e.ShowTracer or not rd.onScreen then
+        hideKey(d, "tracer") hideKey(d, "tracerbg") return
+    end
+    local vp = workspace.CurrentCamera.ViewportSize
+    local from
+    if e.TracerOrigin == "Mouse" then from = UIS:GetMouseLocation()
+    elseif e.TracerOrigin == "Center" then from = Vector2.new(vp.X / 2, vp.Y / 2)
+    elseif e.TracerOrigin == "Top" then from = Vector2.new(vp.X / 2, 0)
+    else from = Vector2.new(vp.X / 2, vp.Y) end
+    local to = Vector2.new(rd.hrpScreen.X, rd.hrpScreen.Y + 30)
+    local a = e.TracerFade and clamp(1 - rd.distance / math.max(e.MaxDistance * 0.6, 1), 0.25, 0.9) or rd.alpha
+
+    if e.TracerOutline then
+        local B = ensure(d, "tracerbg", 1)[1]
+        B.From, B.To = from, to
+        B.Color, B.Thickness, B.Transparency, B.Visible = BLACK, e.TracerThickness + 2, a * 0.8, true
+    else
+        hideKey(d, "tracerbg")
+    end
+
+    local T = ensure(d, "tracer", 1)[1]
+    T.From, T.To = from, to
+    T.Color = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Tracer)
+    T.Thickness, T.Transparency, T.Visible = e.TracerThickness, a, true
+end
+
+local function drawArrow(d, rd)
+    local e = cfg().ESP
+    if not e.OffscreenArrows or rd.onScreen then hideKey(d, "arrows") return end
+    local hrp = rd.parts and rd.parts.HumanoidRootPart
+    if not isPartValid(hrp) then hideKey(d, "arrows") return end
+
+    local delta = partPos(hrp) - cameraPos
+    if delta.Magnitude < 0.01 then hideKey(d, "arrows") return end
+    local dir3 = delta.Unit
+    local dir2 = Vector2.new(cameraCF.RightVector:Dot(dir3), -cameraCF.UpVector:Dot(dir3))
+    if dir2.Magnitude < 0.001 then hideKey(d, "arrows") return end
+    local dir = dir2.Unit
+
+    local vp = workspace.CurrentCamera.ViewportSize
+    local base = vp / 2 + dir * (math.min(vp.X, vp.Y) * 0.4)
+    base = Vector2.new(clamp(base.X, e.ArrowSize, vp.X - e.ArrowSize),
+                       clamp(base.Y, e.ArrowSize, vp.Y - e.ArrowSize))
+
+    local A = ensure(d, "arrows", 3)
+    local len = e.ArrowSize
+    local tip = base + dir * len
+    local perp = Vector2.new(-dir.Y, dir.X) * (len * 0.4)
+    local col = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Arrow)
+
+    A[1].From, A[1].To = tip, base - dir * len
+    A[2].From, A[2].To = tip, base + perp - dir * (len * 0.5)
+    A[3].From, A[3].To = tip, base - perp - dir * (len * 0.5)
+    for _, a in ipairs(A) do
+        a.Thickness, a.Color, a.Transparency, a.Visible = 2, col, rd.alpha, true
+    end
+end
+
+local overlayObjs = {}
+local ovState = { rd = false, xh = false, wm = false }
+
+local function ov(name, cls, z)
+    local o = overlayObjs[name]
+    if not o then
+        o = Drawing.new(cls)
+        overlayObjs[name] = o
+        if z then pcall(function() o.ZIndex = z end) end
+    end
+    return o
+end
+
+local function hideGroup(prefix)
+    for name, o in pairs(overlayObjs) do
+        if name:sub(1, #prefix) == prefix then o.Visible = false end
+    end
+end
+
+local radarCX, radarCY = 0, 0
+local radarFwd, radarRight = Vector3.new(0, 0, -1), Vector3.new(1, 0, 0)
+local radarReady = false
+
+local function updateRadarFrame()
+    local R = cfg().Radar
+    if not R.Enabled then
+        if ovState.rd then hideGroup("rd") ovState.rd = false end
+        radarReady = false
+        return
+    end
+    ovState.rd = true
+
+    local vp = workspace.CurrentCamera.ViewportSize
+    local half = R.Size / 2
+    local m = 18
+    local cx, cy
+    if R.Position == "TopLeft" then cx, cy = m + half, 50 + half
+    elseif R.Position == "TopRight" then cx, cy = vp.X - m - half, 60 + half
+    elseif R.Position == "BottomRight" then cx, cy = vp.X - m - half, vp.Y - m - half
+    else cx, cy = m + half, vp.Y - m - half end
+    radarCX, radarCY = cx, cy
+
+    local look = cameraCF.LookVector
+    local f = Vector3.new(look.X, 0, look.Z)
+    if f.Magnitude < 0.01 then f = Vector3.new(0, 0, -1) end
+    radarFwd = f.Unit
+    radarRight = radarFwd:Cross(Vector3.yAxis)
+    radarReady = true
+
+    local center = Vector2.new(cx, cy)
+    local acc = cfg().Overlay.Accent
+
+    local bg = ov("rdBg", "Circle", 1)
+    bg.Position, bg.Radius, bg.NumSides, bg.Filled = center, half, 48, true
+    bg.Color, bg.Transparency, bg.Visible = Color3.fromRGB(12, 12, 16), R.Opacity, true
+
+    local bd = ov("rdBd", "Circle", 2)
+    bd.Position, bd.Radius, bd.NumSides, bd.Filled, bd.Thickness = center, half, 48, false, 2
+    bd.Color, bd.Transparency, bd.Visible = acc, 1, true
+
+    local lh = ov("rdH", "Line", 2)
+    lh.From, lh.To = center - Vector2.new(half, 0), center + Vector2.new(half, 0)
+    lh.Color, lh.Thickness, lh.Transparency, lh.Visible = GRAY, 1, 0.2, true
+    local lv = ov("rdV", "Line", 2)
+    lv.From, lv.To = center - Vector2.new(0, half), center + Vector2.new(0, half)
+    lv.Color, lv.Thickness, lv.Transparency, lv.Visible = GRAY, 1, 0.2, true
+
+    local s, c = math.sin(math.rad(38)) * half, math.cos(math.rad(38)) * half
+    local c1 = ov("rdC1", "Line", 3)
+    c1.From, c1.To = center, center + Vector2.new(-s, -c)
+    c1.Color, c1.Thickness, c1.Transparency, c1.Visible = acc, 1, 0.6, true
+    local c2 = ov("rdC2", "Line", 3)
+    c2.From, c2.To = center, center + Vector2.new(s, -c)
+    c2.Color, c2.Thickness, c2.Transparency, c2.Visible = acc, 1, 0.6, true
+
+    local me = ov("rdMe", "Circle", 4)
+    me.Position, me.Radius, me.NumSides, me.Filled = center, 3, 12, true
+    me.Color, me.Transparency, me.Visible = acc, 1, true
+end
+
+local function drawRadarDot(d, rd)
+    local R = cfg().Radar
+    if not R.Enabled or not radarReady then hideKey(d, "radar") return end
+    local hrp = rd.parts and rd.parts.HumanoidRootPart
+    if not isPartValid(hrp) then hideKey(d, "radar") return end
+
+    local rel = partPos(hrp) - cameraPos
+    local lim = R.Size / 2 - 4
+    local scale = lim / math.max(R.Range, 1)
+    local px, py = rel:Dot(radarRight) * scale, -rel:Dot(radarFwd) * scale
+    local mag = math.sqrt(px * px + py * py)
+    if mag > lim then px, py = px / mag * lim, py / mag * lim end
+
+    local dot = ensure(d, "radar", 1)[1]
+    dot.Position = Vector2.new(radarCX + px, radarCY + py)
+    dot.Radius, dot.NumSides, dot.Filled = R.DotSize, 12, true
+    dot.Color, dot.Transparency, dot.Visible = boxColor(rd), 1, true
+end
+
+local Aware = (function()
+local proximityState = {}
+local proximityAudioObjects = {}
+local proximityLastScan = 0
+
+local function normalizeSoundId(value)
+    local id = tostring(value or ""):match("%d+")
+    if not id or id == "0" then return nil end
+    return "rbxassetid://" .. id
+end
+
+local function playSoundWhenReady(sound)
+    if sound.IsLoaded then
+        sound:Play()
+    else
+        task.spawn(function()
+            local t = os.clock()
+            while not sound.IsLoaded and os.clock() - t < 2.5 do
+                if not sound.Parent then return end
+                task.wait(0.05)
+            end
+            if sound.Parent then sound:Play() end
+        end)
+    end
+end
+
+local function playProximitySound(targetRoot)
+    local e = cfg().Proximity
+    local raw = SOUND_PRESETS[e.SoundPreset] or e.SoundId
+    local soundId = normalizeSoundId(raw)
+    if not soundId then return end
+    if e.SpatialSound and isPartValid(targetRoot) then
+        local emitter = Instance.new("Part")
+        emitter.Name = "GlupostLocalAudioEmitter"
+        emitter.Size = Vector3.new(0.1, 0.1, 0.1)
+        emitter.Transparency = 1
+        emitter.Anchored, emitter.CanCollide, emitter.CanTouch, emitter.CanQuery = true, false, false, false
+        emitter.CFrame = partCF(targetRoot)
+        emitter.Parent = workspace
+        local sound = Instance.new("Sound")
+        sound.SoundId = soundId
+        sound.Volume = clamp(e.Volume, 0, 2)
+        sound.RollOffMode = Enum.RollOffMode.InverseTapered
+        sound.RollOffMinDistance = 4
+        sound.RollOffMaxDistance = math.max(80, e.Distance * 2)
+        sound.EmitterSize = 3
+        sound.Parent = emitter
+        proximityAudioObjects[emitter] = true
+        emitter.Destroying:Connect(function() proximityAudioObjects[emitter] = nil end)
+        playSoundWhenReady(sound)
+        Debris:AddItem(emitter, 8)
+    else
+        local sound = Instance.new("Sound")
+        sound.SoundId = soundId
+        sound.Volume = clamp(e.Volume, 0, 2)
+        sound.Parent = SoundService
+        proximityAudioObjects[sound] = true
+        sound.Destroying:Connect(function() proximityAudioObjects[sound] = nil end)
+        if sound.IsLoaded then
+            SoundService:PlayLocalSound(sound)
+        else
+            task.spawn(function()
+                local t = os.clock()
+                while not sound.IsLoaded and os.clock() - t < 2.5 do
+                    if not sound.Parent then return end
+                    task.wait(0.05)
+                end
+                if sound.Parent then SoundService:PlayLocalSound(sound) end
+            end)
+        end
+        Debris:AddItem(sound, 8)
+    end
+end
+
+local function updateProximityAlert()
+    local e = cfg().Proximity
+    if not e.Enabled then
+        table.clear(proximityState)
+        return
+    end
+    local now = os.clock()
+    if now - proximityLastScan < 0.12 then return end
+    proximityLastScan = now
+    local myChar = LP.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local cam = workspace.CurrentCamera
+    if not isPartValid(myRoot) or not cam then return end
+    local esp = cfg().ESP
+    local ignoreTeams = esp.SyncWithESP and esp.HideTeammates or e.IgnoreTeammates
+    local maxDist = clamp(e.Distance, 5, 2000)
+    local look = myRoot.CFrame.LookVector
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP then
+            local char = getChar(plr)
+            local root = char and char:FindFirstChild(Module.RootPartName or "HumanoidRootPart")
+            local state = proximityState[plr] or { armed = true, last = 0 }
+            proximityState[plr] = state
+            if isPartValid(root) and (not ignoreTeams or not isTeammate(plr)) then
+                local offset = root.Position - myRoot.Position
+                local dist = offset.Magnitude
+                if dist > maxDist + 12 then state.armed = true end
+                local directional = true
+                if dist > 0.01 then
+                    local dot = look:Dot(offset.Unit)
+                    if e.Direction == "Behind Only" then directional = dot <= -0.35
+                    elseif e.Direction == "Front Only" then directional = dot >= 0.35 end
+                end
+                if dist <= maxDist and directional and state.armed and now - state.last >= e.Cooldown then
+                    state.armed = false
+                    state.last = now
+                    playProximitySound(root)
+                end
+            else
+                state.armed = true
+            end
+        end
+    end
+    for plr in pairs(proximityState) do
+        if plr.Parent ~= Players then proximityState[plr] = nil end
+    end
+end
+
+local compassLastScan = 0
+local compassTargets = {}
+local function updateThreatCompass()
+    local e = cfg().ThreatCompass
+    if not e.Enabled then
+        if ovState.tc then hideGroup("tc") ovState.tc = false end
+        table.clear(compassTargets)
+        return
+    end
+    ovState.tc = true
+    local cam = workspace.CurrentCamera
+    if not cam then hideGroup("tc") return end
+    local vp = cam.ViewportSize
+    local center = Vector2.new(math.floor(vp.X * 0.5 + 0.5), 74)
+    local width = math.min(420, vp.X - 40)
+    local left, right = math.floor(center.X - width * 0.5 + 0.5), math.floor(center.X + width * 0.5 + 0.5)
+    local bg = ov("tcBg", "Square", 1)
+    bg.Position, bg.Size, bg.Filled = Vector2.new(left, center.Y - 13), Vector2.new(width, 26), true
+    bg.Color, bg.Transparency, bg.Visible = Color3.fromRGB(12, 14, 20), 0.72, true
+    local base = ov("tcBase", "Line", 2)
+    base.From, base.To = Vector2.new(left, center.Y), Vector2.new(right, center.Y)
+    base.Color, base.Thickness, base.Transparency, base.Visible = cfg().Overlay.Accent, 2, 1, true
+    local centerTick = ov("tcCenter", "Line", 3)
+    centerTick.From, centerTick.To = center + Vector2.new(0, -15), center + Vector2.new(0, 15)
+    centerTick.Color, centerTick.Thickness, centerTick.Transparency, centerTick.Visible = WHITE, 2, 1, true
+    local caption = ov("tcLabel", "Text", 3)
+    caption.Text, caption.Size, caption.Font, caption.Outline = "THREAT COMPASS  |  360°", 12, 2, true
+    caption.Color, caption.Position, caption.Transparency, caption.Visible = WHITE, Vector2.new(left, center.Y - 30), 1, true
+
+    local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not isPartValid(myRoot) then
+        for i = 1, 12 do local m = overlayObjs["tcM" .. i]; if m then m.Visible = false end; local t = overlayObjs["tcT" .. i]; if t then t.Visible = false end end
+        return
+    end
+
+    local esp = cfg().ESP
+    local sync = esp.SyncWithESP
+    local range = sync and esp.MaxDistance or e.Range
+    local minDist = sync and esp.MinDistance or 0
+    local hideTeams = sync and esp.HideTeammates or e.HideTeammates
+    local markerCol = sync and (esp.Rainbow and rainbow or esp.Colors.Enemy) or Color3.fromRGB(255, 105, 115)
+
+    local now = os.clock()
+    if now - compassLastScan >= 0.08 then
+        compassLastScan = now
+        table.clear(compassTargets)
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LP and (not hideTeams or not isTeammate(plr)) then
+                local char = getChar(plr)
+                local root = char and char:FindFirstChild(Module.RootPartName or "HumanoidRootPart")
+                if isPartValid(root) then
+                    local dist = (partPos(root) - partPos(myRoot)).Magnitude
+                    if dist <= range and dist >= minDist then
+                        table.insert(compassTargets, { player = plr, root = root, distance = dist })
+                    end
+                end
+            end
+        end
+        table.sort(compassTargets, function(a, b) return a.distance < b.distance end)
+    end
+
+    local look3 = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+    local right3 = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
+    if look3.Magnitude < 0.001 or right3.Magnitude < 0.001 then return end
+    local look, rightVec = look3.Unit, right3.Unit
+    local myPos = partPos(myRoot)
+    local maxM = clamp(e.MaxMarkers, 1, 12)
+    local shown = 0
+
+    for _, item in ipairs(compassTargets) do
+        if shown >= maxM then break end
+        if isPartValid(item.root) then
+            local delta = partPos(item.root) - myPos
+            local flat = Vector3.new(delta.X, 0, delta.Z)
+            if flat.Magnitude > 0.01 then
+                shown += 1
+                local angle = math.atan2(flat.Unit:Dot(rightVec), flat.Unit:Dot(look))
+                local x = math.floor(center.X + (angle / math.pi) * (width * 0.48) + 0.5)
+                local marker = ov("tcM" .. shown, "Circle", 4)
+                local label = ov("tcT" .. shown, "Text", 4)
+                marker.Position, marker.Radius, marker.NumSides, marker.Filled = Vector2.new(x, center.Y), 4, 12, true
+                marker.Color, marker.Transparency, marker.Visible = markerCol, 1, true
+                label.Text = string.format("%s %dst", string.sub(item.player.DisplayName or item.player.Name, 1, 10), math.floor(delta.Magnitude))
+                label.Size, label.Font, label.Center, label.Outline = 12, 2, true, true
+                label.Color, label.Position, label.Transparency, label.Visible = WHITE, Vector2.new(x, center.Y + 8), 1, true
+            end
+        end
+    end
+    for i = shown + 1, 12 do
+        local m = overlayObjs["tcM" .. i]; if m then m.Visible = false end
+        local t = overlayObjs["tcT" .. i]; if t then t.Visible = false end
+    end
+end
+
+return {
+    updateProximityAlert = updateProximityAlert, updateThreatCompass = updateThreatCompass,
+    playProximitySound = playProximitySound, normalizeSoundId = normalizeSoundId,
+    cleanup = function()
+        table.clear(proximityState)
+        table.clear(compassTargets)
+        for obj in pairs(proximityAudioObjects) do safeDestroy(obj) end
+        table.clear(proximityAudioObjects)
+    end,
+}
+end)()
+
+local XH_DIRS = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+
+local function updateCrosshair()
+    local X = cfg().Crosshair
+    if not X.Enabled then
+        if ovState.xh then hideGroup("xh") ovState.xh = false end
+        return
+    end
+    ovState.xh = true
+
+    local vp = workspace.CurrentCamera.ViewportSize
+    local c = Vector2.new(math.floor(vp.X / 2), math.floor(vp.Y / 2))
+    local col = X.Rainbow and rainbow or X.Color
+    local s, g, th = X.Size, X.Gap, X.Thickness
+
+    for i, dv in ipairs(XH_DIRS) do
+        local dx, dy = dv[1], dv[2]
+        local a = c + Vector2.new(dx * g, dy * g)
+        local b = c + Vector2.new(dx * (g + s), dy * (g + s))
+
+        local o = ov("xhO" .. i, "Line", 1)
+        if X.Outline then
+            o.From, o.To = a - Vector2.new(dx, dy), b + Vector2.new(dx, dy)
+            o.Color, o.Thickness, o.Transparency, o.Visible = BLACK, th + 2, 1, true
+        else
+            o.Visible = false
+        end
+
+        local l = ov("xhL" .. i, "Line", 2)
+        l.From, l.To = a, b
+        l.Color, l.Thickness, l.Transparency, l.Visible = col, th, 1, true
+    end
+
+    local dot = ov("xhD", "Circle", 2)
+    if X.Dot then
+        dot.Position, dot.Radius, dot.NumSides, dot.Filled = c, math.max(1, th), 12, true
+        dot.Color, dot.Transparency, dot.Visible = col, 1, true
+    else
+        dot.Visible = false
+    end
+end
+
+local function updateWatermark()
+    local O = cfg().Overlay
+    if not O.Watermark then
+        if ovState.wm then hideGroup("wm") ovState.wm = false end
+        return
+    end
+    local now = os.clock()
+    if ovState.wm and now - lastWatermark < C.WATERMARK_TICK then return end
+    lastWatermark = now
+    ovState.wm = true
+
+    local txt = string.format("glupost  |  %d fps  |  %d players  |  %s",
+        math.floor(fps + 0.5), #Players:GetPlayers(), os.date("%H:%M:%S"))
+
+    local bg = ov("wmBg", "Square", 1)
+    local line = ov("wmLine", "Line", 2)
+    local t = ov("wmT", "Text", 3)
+
+    t.Text, t.Size, t.Font, t.Outline, t.OutlineColor = txt, 13, 2, true, BLACK
+    t.Color, t.Position, t.Transparency, t.Visible = WHITE, Vector2.new(16, 13), 1, true
+
+    local okb, bounds = pcall(function() return t.TextBounds end)
+    local width = (okb and bounds and bounds.X > 0) and bounds.X or (#txt * 7)
+
+    bg.Position, bg.Size, bg.Filled = Vector2.new(10, 8), Vector2.new(width + 12, 24), true
+    bg.Color, bg.Transparency, bg.Visible = Color3.fromRGB(14, 14, 18), 0.75, true
+
+    line.From, line.To = Vector2.new(10, 8), Vector2.new(10 + width + 12, 8)
+    line.Color, line.Thickness, line.Transparency, line.Visible = O.Accent, 2, 1, true
+end
+
+local function validatePlayers()
+    local e = cfg().ESP
+    local espOn = e.Enabled
+    local radarRange = cfg().Radar.Range
+    for plr, d in pairs(playersData) do
+        local parts = d.parts
+        local hrp = parts and parts.HumanoidRootPart
+        local head = parts and parts.Head
+        local hum = parts and parts.humanoid
+
+        local team = isTeammate(plr)
+        local ok = isPartValid(hrp) and isPartValid(head) and hum and hum.Health > 0
+            and parts.Character and parts.Character.Parent
+            and not (e.HideTeammates and team)
+
+        local dist = 0
+        if ok then
+            dist = (cameraPos - hrp.Position).Magnitude
+            if espOn then
+                if dist > e.MaxDistance or dist < e.MinDistance then ok = false end
+            else
+                if dist > radarRange then ok = false end
+            end
+        end
+
+        if not ok then
+            hideAll(d)
+            renderData[plr] = nil
+        else
+            local rd = renderData[plr] or {}
+            rd.parts = parts
+            rd.distance = dist
+            rd.team = team
+            rd.teamColor = plr.Team and plr.TeamColor.Color or nil
+            rd.visible = (espOn and e.VisibleCheck) and isVisibleCached(d, head) or false
+            rd.alpha = (espOn and e.DistanceFade) and (1 - 0.65 * clamp(dist / math.max(e.MaxDistance, 1), 0, 1)) or 1
+            if not espOn then rd.priority = false end
+            renderData[plr] = rd
+        end
+    end
+
+    if not espOn or not e.PriorityTarget then
+        for _, rd in pairs(renderData) do rd.priority = false end
+        return
+    end
+
+    local vp = workspace.CurrentCamera.ViewportSize
+    local center = vp / 2
+    local best, bestScore = nil, -math.huge
+    for plr, rd in pairs(renderData) do
+        if rd.onScreen and rd.hrpScreen then
+            local score = (rd.visible and 1 or 0)
+                - rd.distance / math.max(e.MaxDistance, 1)
+                - (rd.hrpScreen - center).Magnitude / (vp.X / 2) * 0.5
+            if score > bestScore then best, bestScore = plr, score end
+        end
+    end
+    for plr, rd in pairs(renderData) do rd.priority = (plr == best) end
+end
+
+local function dynamicBounds(cam, parts)
+    local xMin, yMin, xMax, yMax = math.huge, math.huge, -math.huge, -math.huge
+    for i = 1, #DYN_NAMES do
+        local p = parts[DYN_NAMES[i]]
+        if isPartValid(p) then
+            local cf, s = partCF(p), p.Size
+            local hx, hy, hz = s.X / 2, s.Y / 2, s.Z / 2
+            for sx = -1, 1, 2 do
+                for sy = -1, 1, 2 do
+                    for sz = -1, 1, 2 do
+                        local v = cam:WorldToViewportPoint(cf:PointToWorldSpace(Vector3.new(hx * sx, hy * sy, hz * sz)))
+                        if v.Z <= 0 then return nil end
+                        if v.X < xMin then xMin = v.X end
+                        if v.X > xMax then xMax = v.X end
+                        if v.Y < yMin then yMin = v.Y end
+                        if v.Y > yMax then yMax = v.Y end
+                    end
+                end
+            end
+        end
+    end
+    if xMax < xMin then return nil end
+    return xMin, xMax, yMin, yMax
+end
+
+local function projectPlayers()
+    local cam = workspace.CurrentCamera
+    local vp = cam.ViewportSize
+    local m = 300
+    local e = cfg().ESP
+    local wantDot = e.HeadDot
+    local dyn = e.BoxFit == "Dynamic"
+    for _, rd in pairs(renderData) do
+        local parts = rd.parts
+        local hrp, head = parts.HumanoidRootPart, parts.Head
+        rd.headDotScreen, rd.headDotR, rd.dynL = nil, nil, nil
+        if isPartValid(hrp) and isPartValid(head) then
+            local hpos, rpos = partPos(head), partPos(hrp)
+            local h3 = cam:WorldToViewportPoint(hpos + Vector3.new(0, 0.5, 0))
+            local l3 = cam:WorldToViewportPoint(rpos - Vector3.new(0, 3, 0))
+            local r3 = cam:WorldToViewportPoint(rpos)
+            if h3.Z > 0 and l3.Z > 0 then
+                rd.headScreen = Vector2.new(h3.X, h3.Y)
+                rd.legScreen  = Vector2.new(l3.X, l3.Y)
+                rd.hrpScreen  = Vector2.new(r3.X, r3.Y)
+                local cx, cy = rd.hrpScreen.X, rd.hrpScreen.Y
+                rd.onScreen = cx > -m and cx < vp.X + m and cy > -m and cy < vp.Y + m
+                if wantDot then
+                    local hd = cam:WorldToViewportPoint(hpos)
+                    if hd.Z > 0 then
+                        rd.headDotScreen = Vector2.new(hd.X, hd.Y)
+                        local up = partCF(head).UpVector * (head.Size.Y / 2)
+                        local a = cam:WorldToViewportPoint(hpos + up)
+                        local b = cam:WorldToViewportPoint(hpos - up)
+                        rd.headDotR = math.max(2, math.abs(a.Y - b.Y) / 2)
+                    end
+                end
+                if dyn and rd.onScreen and rd.distance <= 400 then
+                    rd.dynL, rd.dynR, rd.dynT, rd.dynB = dynamicBounds(cam, parts)
+                end
+            else
+                rd.onScreen, rd.headScreen, rd.legScreen, rd.hrpScreen = false, nil, nil, nil
+            end
+        else
+            rd.onScreen, rd.headScreen, rd.legScreen, rd.hrpScreen = false, nil, nil, nil
+        end
+    end
+end
+
+local function updateESP()
+    if isUnloaded then return end
+    local espOn = cfg().ESP.Enabled
+    local radarOn = cfg().Radar.Enabled
+    useRCF = HAS_RCF and cfg().ESP.SmoothCF
+
+    if not espOn and not radarOn then
+        lastEspOn = false
+        for _, d in pairs(playersData) do hideAll(d) end
+        return
+    end
+
+    refreshModuleChars()
+
+    if espOn ~= lastEspOn then
+        lastEspOn = espOn
+        lastValidate = 0
+    end
+
+    local now = os.clock()
+    if now - lastValidate >= C.VALIDATE_INTERVAL then
+        lastValidate = now
+        validatePlayers()
+    end
+
+    if not espOn then
+        for plr, d in pairs(playersData) do
+            hideESP(d)
+            local rd = renderData[plr]
+            if rd and d.drawings then
+                drawRadarDot(d.drawings, rd)
+            elseif d.drawings then
+                hideKey(d.drawings, "radar")
+            end
+        end
+        return
+    end
+
+    projectPlayers()
+
+    local doText = (now - lastText >= C.TEXT_INTERVAL)
+    if doText then lastText = now end
+
+    for plr, rd in pairs(renderData) do
+        local d = playersData[plr]
+        if d and rd and d.drawings then
+            local dr = d.drawings
+            drawBox(dr, rd.parts, rd)
+            drawHealthBar(dr, rd.parts, rd)
+            drawHeadDot(dr, rd.parts, rd)
+            drawLook(dr, rd.parts, rd)
+            drawTracer(dr, rd)
+            drawSkeleton(dr, rd.parts, rd)
+            drawText(dr, rd.parts, rd, doText)
+            drawArrow(dr, rd)
+            drawRadarDot(dr, rd)
+            syncChams(plr, d)
+        end
+    end
+end
+
+local Obj = { list = {}, custom = {}, draws = {}, last = 0, scanning = false }
+
+local function resolvePart(inst)
+    if typeof(inst) ~= "Instance" then return nil end
+    if inst:IsA("BasePart") then return inst end
+    if inst:IsA("Model") then
+        return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+    end
+    return nil
+end
+
+local function isPlayerPart(inst)
+    for plr, d in pairs(playersData) do
+        local ch = (d.parts and d.parts.Character) or getChar(plr)
+        if ch and (inst == ch or inst:IsDescendantOf(ch)) then return true end
+    end
+    local lc = getChar(LP) or LP.Character
+    return lc ~= nil and (inst == lc or inst:IsDescendantOf(lc))
+end
+
+local function scanObjects()
+    if Obj.scanning then return end
+    Obj.scanning = true
+    local filter = string.lower(cfg().Objects.Filter or "")
+    local found, matched, n = {}, {}, 0
+    if filter ~= "" then
+        pcall(function()
+            for i, inst in ipairs(workspace:GetDescendants()) do
+                if i % 4000 == 0 then
+                    task.wait()
+                    if isUnloaded then error("unloaded") end
+                end
+                if (inst:IsA("BasePart") or inst:IsA("Model")) and not matched[inst.Parent]
+                    and string.find(string.lower(inst.Name), filter, 1, true)
+                    and not isPlayerPart(inst) then
+                    matched[inst] = true
+                    local part = resolvePart(inst)
+                    if part then
+                        n += 1
+                        found[n] = { part = part, text = inst.Name, dist = (part.Position - cameraPos).Magnitude }
+                        if n >= 300 then break end
+                    end
+                end
+            end
+        end)
+        table.sort(found, function(a, b) return a.dist < b.dist end)
+    end
+    Obj.list = found
+    Obj.scanning = false
+end
+
+local function drawObject(idx, pos, text, color, dist)
+    local cam = workspace.CurrentCamera
+    local sp = cam:WorldToViewportPoint(pos)
+    if sp.Z <= 0 then return false end
+    local e, O = cfg().ESP, cfg().Objects
+
+    local D = Obj.draws[idx]
+    if not D then
+        D = { text = poolGet("Text"), line = poolGet("Line") }
+        pcall(function() D.text.ZIndex, D.line.ZIndex = 6, 4 end)
+        D.text.Center, D.text.OutlineColor = true, BLACK
+        Obj.draws[idx] = D
+    end
+
+    local t = D.text
+    t.Text = O.ShowDistance and string.format("%s [%d]", text, math.floor(dist)) or text
+    t.Size, t.Font, t.Outline = e.TextSize, FONTS[e.FontName] or 2, e.TextOutline
+    t.Position = Vector2.new(math.floor(sp.X + 0.5), math.floor(sp.Y - e.TextSize - 2 + 0.5))
+    t.Color, t.Transparency, t.Visible = color, 1, true
+
+    local l = D.line
+    if O.ShowTracer then
+        local vp = cam.ViewportSize
+        l.From, l.To = Vector2.new(vp.X / 2, vp.Y), Vector2.new(sp.X, sp.Y)
+        l.Color, l.Thickness, l.Transparency, l.Visible = color, 1, 0.6, true
+    else
+        l.Visible = false
+    end
+    return true
+end
+
+local function updateObjects()
+    local O = cfg().Objects
+    local count = 0
+    if O.Enabled then
+        local now = os.clock()
+        if now - Obj.last >= O.Interval then
+            Obj.last = now
+            task.spawn(scanObjects)
+        end
+        for i = 1, #Obj.list do
+            if count >= O.MaxCount then break end
+            local it = Obj.list[i]
+            local part = it.part
+            if part and part.Parent then
+                local pos = partPos(part)
+                local dist = (pos - cameraPos).Magnitude
+                if dist <= O.MaxDistance and drawObject(count + 1, pos, it.text, O.Color, dist) then
+                    count += 1
+                end
+            end
+        end
+        for inst, it in pairs(Obj.custom) do
+            if count >= O.MaxCount then break end
+            if it.part and it.part.Parent then
+                local pos = partPos(it.part)
+                local dist = (pos - cameraPos).Magnitude
+                if dist <= O.MaxDistance and drawObject(count + 1, pos, it.text, it.color or O.Color, dist) then
+                    count += 1
+                end
+            else
+                Obj.custom[inst] = nil
+            end
+        end
+    end
+    for i = count + 1, #Obj.draws do
+        local D = Obj.draws[i]
+        D.text.Visible, D.line.Visible = false, false
+    end
+end
+
+local function destroyObjects()
+    for _, D in pairs(Obj.draws) do
+        poolPut("Text", D.text)
+        poolPut("Line", D.line)
+    end
+    table.clear(Obj.draws)
+    table.clear(Obj.list)
+    table.clear(Obj.custom)
+end
+
+getgenv_().GlupostObjects = {
+    Add = function(inst, text, color)
+        local part = resolvePart(inst)
+        if part then Obj.custom[inst] = { part = part, text = text or inst.Name, color = color } end
+    end,
+    Remove = function(inst) Obj.custom[inst] = nil end,
+    Clear = function() table.clear(Obj.custom) end,
+}
+
+local tagOrig = setmetatable({}, { __mode = "k" })
+
+local function updateDefaultTags()
+    local now = os.clock()
+    if now - lastTags < 1 then return end
+    lastTags = now
+    local hide = cfg().ESP.HideDefaultTags
+    for _, d in pairs(playersData) do
+        local hum = d.parts and d.parts.humanoid
+        if hum and hum.Parent then
+            if hide then
+                if tagOrig[hum] == nil then tagOrig[hum] = hum.DisplayDistanceType end
+                hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+            elseif tagOrig[hum] ~= nil then
+                hum.DisplayDistanceType = tagOrig[hum]
+                tagOrig[hum] = nil
+            end
+        end
+    end
+end
+
+local function restoreTags()
+    for hum, orig in pairs(tagOrig) do
+        pcall(function() hum.DisplayDistanceType = orig end)
+    end
+    table.clear(tagOrig)
+end
+
+local worldOrig = {}
+local gradeFx = nil
+
+local function updateWorld()
+    local W = cfg().World
+    local cam = workspace.CurrentCamera
+
+    if W.TimeEnabled then
+        if worldOrig.time == nil then worldOrig.time = Lighting.ClockTime end
+        Lighting.ClockTime = W.Time
+    elseif worldOrig.time ~= nil then
+        Lighting.ClockTime = worldOrig.time
+        worldOrig.time = nil
+    end
+
+    if cam then
+        if W.FOVEnabled then
+            if worldOrig.fov == nil then worldOrig.fov = cam.FieldOfView end
+            cam.FieldOfView = W.FOV
+        elseif worldOrig.fov ~= nil then
+            cam.FieldOfView = worldOrig.fov
+            worldOrig.fov = nil
+        end
+    end
+
+    if W.Grading then
+        if not gradeFx or not gradeFx.Parent then
+            gradeFx = Instance.new("ColorCorrectionEffect")
+            gradeFx.Name = HttpSvc:GenerateGUID(false)
+            gradeFx.Parent = Lighting
+        end
+        gradeFx.Enabled = true
+        gradeFx.Saturation, gradeFx.Contrast, gradeFx.TintColor = W.Saturation, W.Contrast, W.Tint
+    elseif gradeFx then
+        gradeFx.Enabled = false
+    end
+end
+
+local function worldRestore()
+    pcall(function()
+        if worldOrig.time ~= nil then Lighting.ClockTime = worldOrig.time end
+        local cam = workspace.CurrentCamera
+        if worldOrig.fov ~= nil and cam then cam.FieldOfView = worldOrig.fov end
+    end)
+    worldOrig = {}
+    if gradeFx then safeDestroy(gradeFx) gradeFx = nil end
+end
+
+local fpsGui, fpsLabel, drawLabel, frameLabel
+
+local function makeFPSGui()
+    if fpsGui then return end
+    local gui = Instance.new("ScreenGui")
+    gui.Name = HttpSvc:GenerateGUID(false)
+    gui.ResetOnSpawn = false
+
+    local parent = nil
+    if gethui_ then
+        local ok, h = pcall(gethui_)
+        if ok then parent = h end
+    end
+    if not parent then pcall(function() parent = game:GetService("CoreGui") end) end
+    local ok = parent and pcall(function() gui.Parent = parent end)
+    if not (ok and gui.Parent) then gui.Parent = LP:FindFirstChildOfClass("PlayerGui") end
+
+    local function mk(y, size, col)
+        local l = Instance.new("TextLabel")
+        l.BackgroundTransparency = 1
+        l.Position = UDim2.new(1, -130, 0, y)
+        l.Size = UDim2.new(0, 120, 0, 16)
+        l.TextXAlignment = Enum.TextXAlignment.Right
+        l.TextColor3 = col
+        l.TextStrokeTransparency = 0.6
+        l.Font = Enum.Font.SourceSansBold
+        l.TextSize = size
+        l.Parent = gui
+        return l
+    end
+    fpsLabel = mk(8, 12, Color3.fromRGB(255, 255, 255))
+    drawLabel = mk(24, 11, Color3.fromRGB(190, 190, 190))
+    frameLabel = mk(38, 11, Color3.fromRGB(190, 190, 190))
+    fpsGui = gui
+end
+
+local function trackFPS(dt)
+    if dt <= 0 then return end
+    fpsSum += 1 / dt
+    fpsCount += 1
+    if fpsCount >= 30 then fps, fpsSum, fpsCount = fpsSum / fpsCount, 0, 0 end
+end
+
+local function updateFPS(dt)
+    if dt <= 0 then return end
+    if not cfg().ESP.ShowFPS then
+        if fpsGui then fpsGui.Enabled = false end
+        return
+    end
+    if not fpsGui then makeFPSGui() end
+    fpsGui.Enabled = true
+
+    if os.clock() - lastPoolStat > C.POOL_STAT then poolUsed, lastPoolStat = poolCreated(), os.clock() end
+    fpsLabel.Text = string.format("FPS %.1f", fps)
+    drawLabel.Text = string.format("Draw %d", poolUsed)
+    frameLabel.Text = string.format("%.2f ms", dt * 1000)
+end
+
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local function loadModule(path)
+    local ok, src = pcall(game.HttpGet, game, repo .. path)
+    if not ok or not src then return nil end
+    local fn = loadstring_(src)
+    if not fn then return nil end
+    local ok2, mod = pcall(fn)
+    return ok2 and mod or nil
+end
+
+local Library = loadModule("Library.lua")
+if not Library then
+    warn("[glupost] не удалось загрузить Obsidian")
+    getgenv_().GlupostObjects = nil
+    getgenv_()._GlupostHubActive = false
+    return
+end
+local ThemeManager = loadModule("addons/ThemeManager.lua")
+local SaveManager  = loadModule("addons/SaveManager.lua")
+
+local Window = Library:CreateWindow({
+    Title = "glupost hub", Footer = VERSION, Center = true, AutoShow = true, NotifySide = "Right",
+})
+local Options = Library.Options
+
+local Tabs = {
+    Main      = Window:AddTab("Main", "user"),
+    Visuals   = Window:AddTab("Visuals", "palette"),
+    Overlay   = Window:AddTab("Overlay", "layers"),
+    Objects   = Window:AddTab("Objects", "box"),
+    Awareness = Window:AddTab("Awareness", "radar"),
+    World     = Window:AddTab("World", "globe"),
+    UI        = Window:AddTab("UI Settings", "settings"),
+}
+
+local SYNC = {}
+
+local function getPath(path)
+    local t = cfg()
+    for _, k in ipairs(path) do t = t[k] end
+    return t
+end
+
+local function setPath(path, v)
+    local t = cfg()
+    for i = 1, #path - 1 do t = t[path[i]] end
+    t[path[#path]] = v
+end
+
+local function safeSet(idx, value)
+    local o = Options[idx]
+    if not o then return end
+    pcall(function()
+        if typeof(value) == "Color3" and o.SetValueRGB then o:SetValueRGB(value)
+        elseif o.SetValue then o:SetValue(value) end
+    end)
+end
+
+local function syncUI()
+    for _, e in ipairs(SYNC) do safeSet(e.idx, getPath(e.path)) end
+end
+
+local function addToggle(gb, idx, text, path, cb)
+    gb:AddToggle(idx, { Text = text, Default = getPath(path),
+        Callback = function(v) setPath(path, v) if cb then cb(v) end end })
+    table.insert(SYNC, { idx = idx, path = path })
+end
+
+local function addSlider(gb, idx, text, path, min, max, rounding, cb)
+    gb:AddSlider(idx, { Text = text, Default = getPath(path), Min = min, Max = max, Rounding = rounding,
+        Callback = function(v) setPath(path, v) if cb then cb(v) end end })
+    table.insert(SYNC, { idx = idx, path = path })
+end
+
+local function addDropdown(gb, idx, text, path, values, cb)
+    gb:AddDropdown(idx, { Text = text, Values = values, Default = getPath(path),
+        Callback = function(v) setPath(path, v) if cb then cb(v) end end })
+    table.insert(SYNC, { idx = idx, path = path })
+end
+
+local function addColorPicker(gb, idx, text, path)
+    gb:AddLabel(text):AddColorPicker(idx, { Default = getPath(path),
+        Callback = function(c) setPath(path, c) end })
+end
+
+local function addInput(gb, idx, text, path, placeholder, cb)
+    gb:AddInput(idx, { Text = text, Default = getPath(path), Placeholder = placeholder, Finished = true,
+        Callback = function(v) setPath(path, v) if cb then cb(v) end end })
+    table.insert(SYNC, { idx = idx, path = path })
+end
+
+local function resyncChams()
+    for plr, d in pairs(playersData) do syncChams(plr, d) end
+end
+
+local function applyESPSync()
+    local e = cfg().ESP
+    if not e.SyncWithESP then return end
+    cfg().ThreatCompass.Range = e.MaxDistance
+    cfg().ThreatCompass.HideTeammates = e.HideTeammates
+    cfg().Proximity.IgnoreTeammates = e.HideTeammates
+    safeSet("ThreatRange", e.MaxDistance)
+    safeSet("ThreatTeams", e.HideTeammates)
+    safeSet("ProxTeams", e.HideTeammates)
+end
+
+do
+    local g = Tabs.Main:AddLeftGroupbox("ESP")
+    addToggle(g, "EspOn", "Enable ESP", { "ESP", "Enabled" })
+    addDropdown(g, "BoxType", "Box Type", { "ESP", "BoxType" }, { "2D", "Corner", "3D" })
+    addSlider(g, "BoxThick", "Box Thickness", { "ESP", "BoxThickness" }, 1, 6, 0)
+    addSlider(g, "MaxDist", "Max Distance", { "ESP", "MaxDistance" }, 50, 5000, 0, function(v)
+        if cfg().ESP.MinDistance >= v then
+            cfg().ESP.MinDistance = math.max(0, v - 10)
+            safeSet("MinDist", cfg().ESP.MinDistance)
+        end
+        applyESPSync()
+    end)
+    addSlider(g, "MinDist", "Min Distance", { "ESP", "MinDistance" }, 0, 1000, 0, function(v)
+        if v >= cfg().ESP.MaxDistance then
+            cfg().ESP.MaxDistance = math.min(5000, v + 50)
+            safeSet("MaxDist", cfg().ESP.MaxDistance)
+            applyESPSync()
+        end
+    end)
+    addToggle(g, "TeamHide", "Hide Teammates", { "ESP", "HideTeammates" }, applyESPSync)
+    addToggle(g, "SyncESP", "Sync Settings with ESP", { "ESP", "SyncWithESP" }, applyESPSync)
+    addToggle(g, "VisCheck", "Visible Check", { "ESP", "VisibleCheck" })
+    addToggle(g, "SmartVis", "Smart Check (ignore glass)", { "ESP", "SmartVisCheck" })
+    addToggle(g, "Prio", "Highlight Priority Target", { "ESP", "PriorityTarget" })
+    addToggle(g, "ThreatTxt", "Show Threat %", { "ESP", "ShowThreatScore" })
+    addToggle(g, "FpsOn", "Show FPS Panel", { "ESP", "ShowFPS" })
+
+    local gc = Tabs.Main:AddRightGroupbox("Colors")
+    addColorPicker(gc, "ColEnemy", "Enemy", { "ESP", "Colors", "Enemy" })
+    addColorPicker(gc, "ColAlly", "Ally", { "ESP", "Colors", "Ally" })
+    addColorPicker(gc, "ColPrio", "Priority", { "ESP", "Colors", "Priority" })
+    addColorPicker(gc, "ColVis", "Visible", { "ESP", "Colors", "Visible" })
+    addColorPicker(gc, "ColOcc", "Occluded", { "ESP", "Colors", "Occluded" })
+
+    local gm = Tabs.Main:AddRightGroupbox("Misc")
+    addToggle(gm, "JoinLeave", "Join / Leave Notifications", { "Misc", "JoinLeave" })
+end
+
+do
+    local st = Tabs.Visuals:AddLeftGroupbox("Style")
+    addDropdown(st, "BoxFit", "Box Fit", { "ESP", "BoxFit" }, { "Fixed", "Dynamic" })
+    addToggle(st, "AdaptiveLOD", "Adaptive LOD (far distance)", { "ESP", "AdaptiveLOD" })
+    addToggle(st, "BoxOutline", "Box Outline", { "ESP", "Outline" })
+    addToggle(st, "BoxFill", "Box Fill", { "ESP", "BoxFill" })
+    addSlider(st, "FillOp", "Fill Opacity", { "ESP", "FillOpacity" }, 0.05, 0.8, 2)
+    addToggle(st, "HpBar", "Health Bar", { "ESP", "HealthBar" })
+    addToggle(st, "HeadDot", "Head Dot", { "ESP", "HeadDot" })
+    addToggle(st, "HeadDotFill", "Head Dot Filled", { "ESP", "HeadDotFilled" })
+    addToggle(st, "LookLine", "Look Direction", { "ESP", "LookLine" })
+    addSlider(st, "LookLen", "Look Length", { "ESP", "LookLength" }, 2, 20, 0)
+    addToggle(st, "Rainbow", "Rainbow Mode", { "ESP", "Rainbow" })
+    addToggle(st, "TeamColors", "Use Team Colors", { "ESP", "TeamColors" })
+    addToggle(st, "SmoothCF", "Smooth (Render CFrame)", { "ESP", "SmoothCF" })
+    addToggle(st, "DistFade", "Distance Fade", { "ESP", "DistanceFade" })
+
+    local inf = Tabs.Visuals:AddLeftGroupbox("Info")
+    addToggle(inf, "ShowName", "Names", { "ESP", "ShowName" })
+    addToggle(inf, "ShowHP", "Health Text", { "ESP", "ShowHealth" })
+    addToggle(inf, "ShowDist", "Distance", { "ESP", "ShowDistance" })
+    addToggle(inf, "ShowTool", "Held Tool", { "ESP", "ShowTool" })
+    addSlider(inf, "TextSize", "Text Size", { "ESP", "TextSize" }, 10, 20, 0)
+    addDropdown(inf, "FontName", "Font", { "ESP", "FontName" }, { "UI", "System", "Plex", "Monospace" })
+    addToggle(inf, "TextOutline", "Text Outline", { "ESP", "TextOutline" })
+    addSlider(inf, "NameYOff", "Name Y Offset", { "ESP", "NameYOffset" }, -50, 50, 0)
+    addDropdown(inf, "HpFormat", "Health Format", { "ESP", "HealthFormat" }, { "HP", "Fraction", "Percent", "Both" })
+    addToggle(inf, "HideTags", "Hide Default Nametags", { "ESP", "HideDefaultTags" })
+
+    local ln = Tabs.Visuals:AddRightGroupbox("Lines")
+    addToggle(ln, "ShowSk", "Skeleton", { "ESP", "Skeleton" })
+    addSlider(ln, "SkThick", "Skeleton Thickness", { "ESP", "SkeletonThickness" }, 1, 5, 0)
+    addToggle(ln, "ShowTr", "Tracers", { "ESP", "ShowTracer" })
+    addSlider(ln, "TrThick", "Tracer Thickness", { "ESP", "TracerThickness" }, 1, 4, 0)
+    addDropdown(ln, "TrOrigin", "Tracer Origin", { "ESP", "TracerOrigin" }, { "Bottom", "Center", "Top", "Mouse" })
+    addToggle(ln, "TrOutline", "Tracer Outline", { "ESP", "TracerOutline" })
+    addToggle(ln, "TrFade", "Tracer Distance Fade", { "ESP", "TracerFade" })
+    addToggle(ln, "Arrows", "Offscreen Arrows", { "ESP", "OffscreenArrows" })
+    addSlider(ln, "ArrowSize", "Arrow Size", { "ESP", "ArrowSize" }, 10, 40, 0)
+    addColorPicker(ln, "ColSkel", "Skeleton Color", { "ESP", "Colors", "Skeleton" })
+    addColorPicker(ln, "ColTracer", "Tracer Color", { "ESP", "Colors", "Tracer" })
+    addColorPicker(ln, "ColArrow", "Arrow Color", { "ESP", "Colors", "Arrow" })
+    addColorPicker(ln, "ColLook", "Look Color", { "ESP", "Colors", "Look" })
+
+    local ch = Tabs.Visuals:AddRightGroupbox("Chams")
+    addToggle(ch, "Chams", "Enable Chams", { "ESP", "Chams" }, resyncChams)
+    addSlider(ch, "ChamsTr", "Chams Transparency", { "ESP", "ChamsTransparency" }, 0, 1, 2, function(x)
+        for _, d in pairs(playersData) do if d.highlight then d.highlight.FillTransparency = x end end
+    end)
+    addColorPicker(ch, "ChamsVis", "Visible Chams", { "ESP", "Colors", "ChamsVis" })
+    addColorPicker(ch, "ChamsOcc", "Occluded Chams", { "ESP", "Colors", "ChamsOcc" })
+
+    local self = Tabs.Visuals:AddRightGroupbox("Self Chams / Local Only")
+    addToggle(self, "SelfChamsOn", "Enable Self Chams", { "SelfChams", "Enabled" }, function()
+        if not cfg().SelfChams.Enabled then Fx.destroySelfChams() end
+    end)
+    addDropdown(self, "SelfChamsStyle", "Visual Style", { "SelfChams", "Style" },
+        { "Holographic", "Aurora", "Rainbow", "Cyber", "Glass", "Pulse", "Custom" })
+    addSlider(self, "SelfChamsFillTr", "Fill Transparency", { "SelfChams", "FillTransparency" }, 0, 0.95, 2)
+    addSlider(self, "SelfChamsOutlineTr", "Outline Transparency", { "SelfChams", "OutlineTransparency" }, 0, 1, 2)
+    addSlider(self, "SelfChamsSpeed", "Animation Speed", { "SelfChams", "AnimationSpeed" }, 0.1, 3, 1)
+    addColorPicker(self, "SelfChamsFillColor", "Custom Fill", { "SelfChams", "FillColor" })
+    addColorPicker(self, "SelfChamsOutlineColor", "Custom Outline", { "SelfChams", "OutlineColor" })
+
+    local fx = Tabs.Visuals:AddLeftGroupbox("Local Character Effects")
+    addToggle(fx, "AuraOn", "Player Aura", { "PlayerAura", "Enabled" })
+    addDropdown(fx, "AuraStyle", "Aura Style", { "PlayerAura", "Style" }, { "Aurora", "Rainbow", "Cyber", "Custom" })
+    addSlider(fx, "AuraSize", "Aura Size", { "PlayerAura", "Size" }, 2, 12, 1)
+    addSlider(fx, "AuraTransparency", "Aura Transparency", { "PlayerAura", "Transparency" }, 0.1, 0.95, 2)
+    addToggle(fx, "AuraParticles", "Aura Particles", { "PlayerAura", "Particles" })
+    addColorPicker(fx, "AuraColor", "Aura Color", { "PlayerAura", "Color" })
+    addToggle(fx, "TrailOn", "Particle Trail", { "ParticleTrail", "Enabled" })
+    addDropdown(fx, "TrailStyle", "Trail Style", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Custom" })
+    addSlider(fx, "TrailLife", "Trail Lifetime", { "ParticleTrail", "Lifetime" }, 0.1, 1.5, 2)
+    addColorPicker(fx, "TrailColor", "Trail Color", { "ParticleTrail", "Color" })
+    addToggle(fx, "AfterimageOn", "Afterimage", { "Afterimage", "Enabled" })
+    addSlider(fx, "AfterimageInterval", "Afterimage Interval", { "Afterimage", "Interval" }, 0.08, 0.6, 2)
+    addSlider(fx, "AfterimageLife", "Afterimage Lifetime", { "Afterimage", "Lifetime" }, 0.15, 1, 2)
+    addSlider(fx, "AfterimageTransparency", "Afterimage Transparency", { "Afterimage", "Transparency" }, 0.2, 0.95, 2)
+    addColorPicker(fx, "AfterimageColor", "Afterimage Color", { "Afterimage", "Color" })
+
+    local pf = Tabs.Visuals:AddRightGroupbox("Performance")
+    pf:AddButton({ Text = "Perf: выключить тяжёлое", Func = function()
+        local e = cfg().ESP
+        e.Skeleton, e.ShowTracer, e.Chams = false, false, false
+        e.VisibleCheck, e.BoxType = false, "2D"
+        e.BoxFill, e.HeadDot, e.LookLine, e.Outline = false, false, false, false
+        e.BoxFit = "Fixed"
+        syncUI()
+        resyncChams()
+    end })
+end
+
+do
+    local hud = Tabs.Overlay:AddLeftGroupbox("HUD")
+    addToggle(hud, "Watermark", "Watermark", { "Overlay", "Watermark" })
+    addColorPicker(hud, "Accent", "Accent Color", { "Overlay", "Accent" })
+
+    local rd = Tabs.Overlay:AddLeftGroupbox("Mini Radar")
+    addToggle(rd, "RadarOn", "Enable Radar", { "Radar", "Enabled" })
+    addDropdown(rd, "RadarPos", "Position", { "Radar", "Position" },
+        { "TopLeft", "TopRight", "BottomLeft", "BottomRight" })
+    addSlider(rd, "RadarSize", "Size", { "Radar", "Size" }, 80, 260, 0)
+    addSlider(rd, "RadarRange", "Range (studs)", { "Radar", "Range" }, 50, 5000, 0)
+    addSlider(rd, "RadarOpacity", "Background Opacity", { "Radar", "Opacity" }, 0.1, 1, 2)
+    addSlider(rd, "RadarDot", "Dot Size", { "Radar", "DotSize" }, 2, 6, 0)
+
+    local xh = Tabs.Overlay:AddRightGroupbox("Crosshair")
+    addToggle(xh, "XhOn", "Enable Crosshair", { "Crosshair", "Enabled" })
+    addSlider(xh, "XhSize", "Length", { "Crosshair", "Size" }, 2, 30, 0)
+    addSlider(xh, "XhGap", "Gap", { "Crosshair", "Gap" }, 0, 20, 0)
+    addSlider(xh, "XhThick", "Thickness", { "Crosshair", "Thickness" }, 1, 4, 0)
+    addToggle(xh, "XhDot", "Center Dot", { "Crosshair", "Dot" })
+    addToggle(xh, "XhOutline", "Outline", { "Crosshair", "Outline" })
+    addToggle(xh, "XhRainbow", "Rainbow", { "Crosshair", "Rainbow" })
+    addColorPicker(xh, "XhColor", "Color", { "Crosshair", "Color" })
+end
+
+do
+    local prox = Tabs.Awareness:AddLeftGroupbox("Proximity Sound Alert")
+    addToggle(prox, "ProxOn", "Enable Proximity Alert", { "Proximity", "Enabled" })
+    addSlider(prox, "ProxDistance", "Trigger Distance (studs)", { "Proximity", "Distance" }, 5, 2000, 0)
+    addDropdown(prox, "ProxPreset", "Sound Preset", { "Proximity", "SoundPreset" },
+        { "Ping (Classic)", "Notification", "UI Beep", "Bass Thump", "Snap", "Hit", "Custom" },
+        function(v)
+            local presetId = SOUND_PRESETS[v]
+            if presetId then
+                cfg().Proximity.SoundId = presetId
+                safeSet("ProxSoundId", presetId)
+            end
+        end)
+    addInput(prox, "ProxSoundId", "Sound ID", { "Proximity", "SoundId" }, "rbxassetid://12221990", function(v)
+        local curPreset = cfg().Proximity.SoundPreset
+        if curPreset ~= "Custom" and SOUND_PRESETS[curPreset] ~= v then
+            cfg().Proximity.SoundPreset = "Custom"
+            safeSet("ProxPreset", "Custom")
+        end
+    end)
+    addSlider(prox, "ProxVolume", "Volume", { "Proximity", "Volume" }, 0, 2, 2)
+    addSlider(prox, "ProxCooldown", "Per-player Cooldown", { "Proximity", "Cooldown" }, 0.5, 15, 1)
+    addDropdown(prox, "ProxDirection", "Direction Filter", { "Proximity", "Direction" }, { "Any Direction", "Behind Only", "Front Only" })
+    addToggle(prox, "ProxSpatial", "3D Directional Audio", { "Proximity", "SpatialSound" })
+    addToggle(prox, "ProxTeams", "Ignore Teammates", { "Proximity", "IgnoreTeammates" })
+    prox:AddButton({ Text = "Test Sound", Func = function()
+        local raw = SOUND_PRESETS[cfg().Proximity.SoundPreset] or cfg().Proximity.SoundId
+        if not Aware.normalizeSoundId(raw) then
+            pcall(function()
+                Library:Notify({ Title = "Proximity", Description = "Выбери Sound Preset или укажи Sound ID", Time = 3 })
+            end)
+            return
+        end
+        local char = LP.Character
+        Aware.playProximitySound(char and char:FindFirstChild("HumanoidRootPart"))
+    end })
+
+    local compass = Tabs.Awareness:AddRightGroupbox("Threat Compass")
+    addToggle(compass, "ThreatCompassOn", "Enable Threat Compass", { "ThreatCompass", "Enabled" })
+    addSlider(compass, "ThreatRange", "Detection Range", { "ThreatCompass", "Range" }, 50, 5000, 0)
+    addSlider(compass, "ThreatMax", "Maximum Markers", { "ThreatCompass", "MaxMarkers" }, 1, 12, 0)
+    addToggle(compass, "ThreatTeams", "Hide Teammates", { "ThreatCompass", "HideTeammates" })
+    compass:AddLabel("Mini Radar находится во вкладке Overlay.")
+    compass:AddLabel("Self Chams и эффекты персонажа находятся во вкладке Visuals.")
+end
+
+do
+    local o = Tabs.Objects:AddLeftGroupbox("Object ESP")
+    addToggle(o, "ObjOn", "Enable Object ESP", { "Objects", "Enabled" })
+    addInput(o, "ObjFilter", "Name filter", { "Objects", "Filter" }, "например: chest", function() Obj.last = 0 end)
+    addSlider(o, "ObjMax", "Max Objects", { "Objects", "MaxCount" }, 5, 150, 0)
+    addSlider(o, "ObjDist", "Max Distance", { "Objects", "MaxDistance" }, 50, 5000, 0)
+    addSlider(o, "ObjInt", "Rescan Interval (s)", { "Objects", "Interval" }, 1, 15, 0)
+    addToggle(o, "ObjDistTxt", "Show Distance", { "Objects", "ShowDistance" })
+    addToggle(o, "ObjTracer", "Tracers", { "Objects", "ShowTracer" })
+    addColorPicker(o, "ObjColor", "Color", { "Objects", "Color" })
+    o:AddButton({ Text = "Scan now", Func = function() Obj.last = 0 end })
+end
+
+do
+    local w = Tabs.World:AddLeftGroupbox("World")
+    addToggle(w, "TimeOn", "Custom Time of Day", { "World", "TimeEnabled" })
+    addSlider(w, "TimeVal", "Time (hours)", { "World", "Time" }, 0, 24, 1)
+    addToggle(w, "FovOn", "Custom FOV", { "World", "FOVEnabled" })
+    addSlider(w, "FovVal", "FOV", { "World", "FOV" }, 50, 120, 0)
+
+    local gr = Tabs.World:AddRightGroupbox("Color Grading")
+    addToggle(gr, "GradeOn", "Enable Color Grading", { "World", "Grading" })
+    addSlider(gr, "GradeSat", "Saturation", { "World", "Saturation" }, -1, 1, 2)
+    addSlider(gr, "GradeCon", "Contrast", { "World", "Contrast" }, -1, 1, 2)
+    addColorPicker(gr, "GradeTint", "Tint", { "World", "Tint" })
+end
+
+do
+    local ui = Tabs.UI:AddLeftGroupbox("Menu")
+    ui:AddLabel("Menu Keybind"):AddKeyPicker("MenuKey", {
+        Default = "RightShift", Mode = "Toggle", NoUI = true, Text = "Menu keybind",
+    })
+    ui:AddButton({ Text = "Unload", Func = function()
+        if getgenv_()._GlupostUnload then getgenv_()._GlupostUnload() end
+    end })
+    if Options.MenuKey then Library.ToggleKeybind = Options.MenuKey end
+end
+
+if ThemeManager then pcall(function()
+    ThemeManager:SetLibrary(Library) ThemeManager:SetFolder("glupost_hub") ThemeManager:ApplyToTab(Tabs.UI)
+end) end
+if SaveManager then pcall(function()
+    SaveManager:SetLibrary(Library) SaveManager:SetFolder("glupost_hub/configs")
+    SaveManager:IgnoreThemeSettings() SaveManager:SetIgnoreIndexes({ "MenuKey" })
+    SaveManager:BuildConfigSection(Tabs.UI) SaveManager:LoadAutoloadConfig()
+end) end
+
+local function cleanup()
+    if cleaned then return end
+    cleaned, isUnloaded = true, true
+
+    for _, c in pairs(connections) do for _, conn in pairs(c) do safeDestroy(conn) end end
+    table.clear(connections)
+
+    for _, d in pairs(playersData) do destroyAll(d) end
+    table.clear(playersData)
+    table.clear(renderData)
+
+    destroyObjects()
+    restoreTags()
+    getgenv_().GlupostObjects = nil
+
+    for _, p in pairs(POOLS) do
+        for _, o in ipairs(p.free) do safeDestroy(o) end
+        table.clear(p.free)
+    end
+
+    for _, o in pairs(overlayObjs) do safeDestroy(o) end
+    table.clear(overlayObjs)
+
+    Fx.destroySelfChams()
+    Fx.clearLocalEffects()
+    Aware.cleanup()
+    worldRestore()
+    if fpsGui then safeDestroy(fpsGui) end
+
+    for _, c in ipairs({ renderConn, inputBeginConn, playerAddedConn, playerRemovingConn }) do
+        safeDestroy(c)
+    end
+
+    getgenv_()._GlupostHubActive = false
+end
+
+getgenv_()._GlupostUnload = function()
+    cleanup()
+    pcall(function() Library:Unload() end)
+    getgenv_()._GlupostUnload = nil
+end
+Library:OnUnload(cleanup)
+
+local function notify(title, text)
+    pcall(function() Library:Notify({ Title = title, Description = text, Time = 3 }) end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
+
+playerAddedConn = Players.PlayerAdded:Connect(function(plr)
+    setupPlayer(plr)
+    if cfg().Misc.JoinLeave then notify("Зашёл", plr.DisplayName .. " (@" .. plr.Name .. ")") end
+end)
+
+playerRemovingConn = Players.PlayerRemoving:Connect(function(plr)
+    if cfg().Misc.JoinLeave then notify("Вышел", plr.DisplayName .. " (@" .. plr.Name .. ")") end
+    if connections[plr] then for _, c in pairs(connections[plr]) do safeDestroy(c) end connections[plr] = nil end
+    if playersData[plr] then destroyAll(playersData[plr]) playersData[plr] = nil end
+    renderData[plr] = nil
+end)
+
+inputBeginConn = UIS.InputBegan:Connect(function(input, gp)
+    if gp or isUnloaded then return end
+    if input.KeyCode == Enum.KeyCode.F1 then
+        cfg().ESP.Enabled = not cfg().ESP.Enabled safeSet("EspOn", cfg().ESP.Enabled)
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        local t = { "2D", "Corner", "3D" }
+        local i = (table.find(t, cfg().ESP.BoxType) or 1) % 3 + 1
+        cfg().ESP.BoxType = t[i] safeSet("BoxType", t[i])
+    elseif input.KeyCode == Enum.KeyCode.F3 then
+        cfg().ESP.Skeleton = not cfg().ESP.Skeleton safeSet("ShowSk", cfg().ESP.Skeleton)
+    elseif input.KeyCode == Enum.KeyCode.F4 then
+        cfg().Radar.Enabled = not cfg().Radar.Enabled safeSet("RadarOn", cfg().Radar.Enabled)
+    end
+end)
+
+local function run(name, fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok and errCount < 8 then
+        errCount += 1
+        warn("[glupost] " .. name .. ": " .. tostring(err))
+    end
+end
+
+renderConn = RunService.RenderStepped:Connect(function(dt)
+    if isUnloaded then return end
+
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    cameraCF, cameraPos = cam.CFrame, cam.CFrame.Position
+
+    updateRainbow()
+    trackFPS(dt)
+
+    run("world", updateWorld)
+    run("self chams", Fx.updateSelfChams)
+    run("local effects", Fx.updateLocalEffects)
+    run("proximity alert", Aware.updateProximityAlert)
+    run("threat compass", Aware.updateThreatCompass)
+    run("radar", updateRadarFrame)
+    run("esp", updateESP)
+    run("objects", updateObjects)
+    run("tags", updateDefaultTags)
+    run("crosshair", updateCrosshair)
+    run("watermark", updateWatermark)
+    run("fps", updateFPS, dt)
+end)
+
+syncUI()
+applyESPSync()
+Library:Notify({ Title = "glupost hub", Description = VERSION .. " загружен", Time = 4 })
+print("[glupost hub] " .. VERSION .. " загружен")

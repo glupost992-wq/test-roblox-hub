@@ -1,0 +1,21 @@
+local KEYCLS = {
+    fill = "Square", boxglow = "Line", outline = "Line",
+    hpbg = "Square", hptrail = "Square", hpfill = "Square", hpgrad = "Square", hpgloss = "Line", hptxt = "Text",
+    lines = "Line", corners = "Line", lines3dbg = "Line", lines3d = "Line",
+    skeletonbg = "Line", skeleton = "Line", skeljoints = "Circle",
+    look = "Line", lookdot = "Circle",
+    tracer = "Line", tracerbg = "Line",
+    arrows = "Line", arrowbg = hasTriangle and "Triangle" or "Line", arrowtri = hasTriangle and "Triangle" or "Line",
+    arrowglow = "Line", arrowtxt = "Text",
+    headdot = "Circle", headdotring = "Circle",
+    priomarkbg = "Line", priomark = "Line",
+    radarbg = "Circle", radar = "Circle", radarlook = "Line", radarprio = "Circle", radarelev = "Line",
+    texts = "Text",
+}
+local ZI = {
+    fill = 1, boxglow = 1, outline = 2, lines3dbg = 2,
+    hpbg = 3, tracerbg = 3, skeletonbg = 3, arrowbg = 3, priomarkbg = 3,
+    hptrail = 4, lines = 4, corners = 4, lines3d = 4, skeleton = 4, look = 4, tracer = 4, arrows = 4, arrowtri = 4, headdotring = 4, priomark = 4, radarbg = 4,
+    hpfill = 5, hpgrad = 5, skeljoints = 5, headdot = 5, lookdot = 5, arrowglow = 5, radar = 5, radarlook = 5,
+    hpgloss = 6, hptxt = 6, arrowtxt = 6, texts = 6, radarprio = 6, radarelev = 6,
+}

@@ -133,6 +133,41 @@ local WORLD_PRESETS = {
         AmbientEnabled = true, Ambient = Color3.fromRGB(150, 118, 65), OutdoorAmbient = Color3.fromRGB(195, 155, 88),
         BloomEnabled = true, BloomIntensity = 0.46, BloomSize = 20, BloomThreshold = 1.0,
     },
+    ["Tokyo Neon"] = {
+        TimeEnabled = true, Time = 22.0, Brightness = 1.5, Exposure = 0.10,
+        ColorShiftTop = Color3.fromRGB(0, 195, 255),
+        Grading = true, Saturation = 0.34, Contrast = 0.22, Tint = Color3.fromRGB(202, 234, 255),
+        AmbientEnabled = true, Ambient = Color3.fromRGB(48, 62, 118), OutdoorAmbient = Color3.fromRGB(115, 58, 155),
+        BloomEnabled = true, BloomIntensity = 0.56, BloomSize = 20, BloomThreshold = 0.94,
+    },
+    ["Sakura Dusk"] = {
+        TimeEnabled = true, Time = 17.8, Brightness = 1.92, Exposure = 0.10,
+        ColorShiftTop = Color3.fromRGB(255, 145, 205),
+        Grading = true, Saturation = 0.24, Contrast = 0.12, Tint = Color3.fromRGB(255, 224, 240),
+        AmbientEnabled = true, Ambient = Color3.fromRGB(135, 92, 128), OutdoorAmbient = Color3.fromRGB(185, 128, 168),
+        BloomEnabled = true, BloomIntensity = 0.44, BloomSize = 20, BloomThreshold = 1.02,
+    },
+    ["Crimson Void"] = {
+        TimeEnabled = true, Time = 0.2, Brightness = 1.25, Exposure = -0.02,
+        ColorShiftTop = Color3.fromRGB(190, 25, 55),
+        Grading = true, Saturation = 0.28, Contrast = 0.24, Tint = Color3.fromRGB(255, 175, 190),
+        AmbientEnabled = true, Ambient = Color3.fromRGB(75, 22, 34), OutdoorAmbient = Color3.fromRGB(110, 32, 48),
+        BloomEnabled = true, BloomIntensity = 0.52, BloomSize = 20, BloomThreshold = 0.96,
+    },
+    ["Golden Dawn"] = {
+        TimeEnabled = true, Time = 6.4, Brightness = 1.98, Exposure = 0.12,
+        ColorShiftTop = Color3.fromRGB(255, 195, 110),
+        Grading = true, Saturation = 0.24, Contrast = 0.12, Tint = Color3.fromRGB(255, 236, 205),
+        AmbientEnabled = true, Ambient = Color3.fromRGB(142, 112, 82), OutdoorAmbient = Color3.fromRGB(188, 146, 102),
+        BloomEnabled = true, BloomIntensity = 0.42, BloomSize = 18, BloomThreshold = 1.02,
+    },
+    ["Midnight Mist"] = {
+        TimeEnabled = true, Time = 2.0, Brightness = 1.40, Exposure = 0.04,
+        ColorShiftTop = Color3.fromRGB(75, 110, 210),
+        Grading = true, Saturation = 0.14, Contrast = 0.18, Tint = Color3.fromRGB(198, 218, 255),
+        AmbientEnabled = true, Ambient = Color3.fromRGB(58, 72, 115), OutdoorAmbient = Color3.fromRGB(82, 102, 150),
+        BloomEnabled = true, BloomIntensity = 0.44, BloomSize = 22, BloomThreshold = 1.02,
+    },
 }
 
 local function isPartValid(p)
@@ -229,7 +264,7 @@ local Profile = {
         LookLine = false, LookRaycast = true, LookLength = 5,
         Rainbow = false, DistanceFade = false,
         TeamColors = false, HeadDotFilled = true,
-        ShowName = true, ShowHealth = true, ShowDistance = true, ShowTool = true,
+        ShowName = true, ShowHealth = true, ShowDistance = true, ShowTool = true, ShowState = false,
         DamageNumbers = false,
         TextSize = 13, FontName = "Plex",
         TextOutline = true, NameYOffset = 0, HealthFormat = "HP", HideDefaultTags = false,
@@ -272,6 +307,11 @@ local Profile = {
         DragHUD = false,
         Speedometer = false,
         SpeedometerMax = 65,
+        SpeedLines = false,
+        SpeedLinesMinSpeed = 20,
+        SpeedLinesOpacity = 0.65,
+        SpeedLinesRainbow = false,
+        SpeedLinesColor = Color3.fromRGB(165, 235, 255),
         Accent = Color3.fromRGB(100, 185, 255),
     },
     World = {
@@ -352,7 +392,20 @@ local Profile = {
         MinSpeed = 4, MaxCopies = 14, IncludeAccessories = true,
         Color = Color3.fromRGB(35, 255, 185),
     },
+    Satellites = {
+        Enabled = false, Count = 3, Shape = "Crystal", Style = "Aurora",
+        Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45, Trails = true,
+        Color = Color3.fromRGB(95, 225, 255),
+    },
     Misc = { JoinLeave = false },
+    UI = {
+        BgEnabled = false,
+        BgId = "",
+        BgOpacity = 0.65,
+        BgPanelOpacity = 0.78,
+        BgScale = "Crop",
+        BgTint = Color3.fromRGB(255, 255, 255),
+    },
     ThreatWeights = { Visibility = 0.4, LookAtMe = 0.3, Distance = 0.2, Health = 0.1 },
 }
 
@@ -520,6 +573,18 @@ local function styleColors(style, base, speed, offset)
     elseif style == "Frost" then
         local k = (sin(phase * 0.9) + 1) * 0.5
         return rgb(120, 225, 255):Lerp(rgb(235, 250, 255), k), WHITE
+    elseif style == "Sakura" then
+        local k = (sin(phase * 0.85) + 1) * 0.5
+        return rgb(255, 195, 225):Lerp(rgb(255, 95, 165), k), rgb(255, 240, 248)
+    elseif style == "Matrix" then
+        local k = (sin(phase * 1.25) + 1) * 0.5
+        return rgb(30, 255, 120):Lerp(rgb(15, 165, 85), k), rgb(195, 255, 215)
+    elseif style == "Sunset" then
+        local k = (sin(phase * 0.95) + 1) * 0.5
+        return rgb(255, 190, 75):Lerp(rgb(255, 75, 130), k), rgb(255, 235, 190)
+    elseif style == "Gold" then
+        local k = (sin(phase * 1.05) + 1) * 0.5
+        return rgb(255, 225, 95):Lerp(rgb(255, 165, 35), k), rgb(255, 248, 210)
     end
     local col = base or rgb(80, 220, 255)
     return col, col:Lerp(WHITE, 0.45)
@@ -548,10 +613,17 @@ local lastHatShape = nil
 local jumpRings = {}
 local lastFloorMaterial = nil
 local lastJumpTime = 0
+local satItems, satShapeCur, satCountCur, satTrailsCur, satSizeCur = {}, nil, 0, nil, 0
+local auraSeqC1, auraSeqC2, auraSeq = nil, nil, nil
+local trailSeqC1, trailSeqC2, trailSeq = nil, nil, nil
 local DOWN_14 = Vector3.new(0, -14, 0)
 local UP_005 = Vector3.new(0, 0.05, 0)
 local DEF_DROP = Vector3.new(0, 2.8, 0)
 local VEC3_ONE = Vector3.new(1, 1, 1)
+
+local function colorDelta(a, b)
+    return abs(a.R - b.R) + abs(a.G - b.G) + abs(a.B - b.B)
+end
 
 local function selfChamsColor(t)
     local e = cfg().SelfChams
@@ -663,6 +735,7 @@ local function clearAura()
     safeDestroy(auraAttachment)
     safeDestroy(auraLight)
     auraAttachment, auraEmitter, auraLight = nil, nil, nil
+    auraSeqC1, auraSeqC2, auraSeq = nil, nil, nil
     for _, o in ipairs(auraDrawGlow) do poolPut("Line", o) end
     for _, o in ipairs(auraDrawOuter) do poolPut("Line", o) end
     for _, o in ipairs(auraDrawInner) do poolPut("Line", o) end
@@ -682,6 +755,7 @@ local function clearTrail()
     table.clear(trailAttachments)
     table.clear(trailOrbitPairs)
     trailModeCur, trailPatternCur, trailSparksCur, trailWidthCur = nil, nil, nil, nil
+    trailSeqC1, trailSeqC2, trailSeq = nil, nil, nil
 end
 
 local function clearAfterimages()
@@ -717,12 +791,21 @@ local function clearJumpRings()
     tclear(jumpRings)
 end
 
+local function clearSatellites()
+    for _, item in ipairs(satItems) do
+        safeDestroy(item.part)
+    end
+    tclear(satItems)
+    satShapeCur, satCountCur, satTrailsCur, satSizeCur = nil, 0, nil, 0
+end
+
 local function clearLocalEffects()
     clearAura()
     clearTrail()
     clearAfterimages()
     clearHat()
     clearJumpRings()
+    clearSatellites()
     lastEffectCharacter = nil
     lastFloorMaterial = nil
 end
@@ -735,6 +818,7 @@ local AURA_EM_DEF = {
 local function ensureAuraParticles(root)
     if auraAttachment and auraAttachment.Parent == root then return end
     safeDestroy(auraAttachment)
+    auraSeq = nil
     local att = Instance.new("Attachment")
     att.Name, att.Position, att.Parent = "GlupostAuraAttachment", v3(0, 0.25, 0), root
     auraAttachment = att
@@ -864,6 +948,14 @@ local function sandevistanColor(prog, style, customCol, spawnHue)
         return Color3.fromRGB(0, 245, 255):Lerp(Color3.fromRGB(255, 35, 200), prog)
     elseif style == "Rainbow" then
         return Color3.fromHSV((spawnHue + prog * 0.45) % 1, 0.88, 1)
+    elseif style == "Sakura" then
+        return Color3.fromRGB(255, 225, 240):Lerp(Color3.fromRGB(255, 90, 165), prog)
+    elseif style == "Matrix" then
+        return Color3.fromRGB(145, 255, 180):Lerp(Color3.fromRGB(15, 185, 80), prog)
+    elseif style == "Sunset" then
+        return Color3.fromRGB(255, 215, 90):Lerp(Color3.fromRGB(230, 60, 145), prog)
+    elseif style == "Gold" then
+        return Color3.fromRGB(255, 245, 175):Lerp(Color3.fromRGB(245, 160, 25), prog)
     end
     return customCol or Color3.fromRGB(0, 255, 190)
 end
@@ -927,7 +1019,7 @@ local function makeAfterimage(char)
 
     local baseTr = clamp(e.Transparency, 0.1, 0.92)
     local partBaseTr = isWire and clamp(baseTr + 0.38, 0.62, 0.95) or baseTr
-    local spawnHue = (os.clock() * 0.55) % 1
+    local spawnHue = (clock() * 0.55) % 1
     local startCol = sandevistanColor(0, e.Style, e.Color, spawnHue)
     local clonedParts, boxes = {}, {}
 
@@ -976,7 +1068,7 @@ local function makeAfterimage(char)
         boxes = boxes,
         baseCFs = baseCFs,
         originPos = originPos,
-        born = os.clock(),
+        born = clock(),
         life = clamp(e.Lifetime, 0.12, 2.0),
         baseTr = baseTr,
         isWire = isWire,
@@ -993,7 +1085,7 @@ local function updateAfterimages(cam, root)
         for _, ln in ipairs(afterArcLines) do ln.Visible = false end
         return
     end
-    local now = os.clock()
+    local now = clock()
     local e = cfg().Afterimage
     for i = #afterimages, 1, -1 do
         local item = afterimages[i]
@@ -1098,21 +1190,22 @@ local function rayGroundPos(char, root)
     return origin - DEF_DROP
 end
 
+local function setRingPair(glowArr, lineArr, idx, p1, p2, vis, col, glowCol, alpha, thick)
+    local gl = glowArr[idx]
+    if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 2 end) glowArr[idx] = gl end
+    local ln = lineArr[idx]
+    if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) lineArr[idx] = ln end
+    if vis then
+        gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = p1, p2, glowCol, thick + 3, alpha * 0.24, true
+        ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = p1, p2, col, thick, alpha, true
+    else
+        gl.Visible, ln.Visible = false, false
+    end
+end
+
 local function drawRing(cam, origin, isCF, radius, angleOff, segments, glowArr, lineArr, slotOff, col, glowCol, alpha, thick)
     local step = (math.pi * 2) / segments
     local prevPt, prevOk, firstPt, firstOk = nil, false, nil, false
-    local function setPair(idx, p1, p2, vis)
-        local gl = glowArr[idx]
-        if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 2 end) glowArr[idx] = gl end
-        local ln = lineArr[idx]
-        if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) lineArr[idx] = ln end
-        if vis then
-            gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = p1, p2, glowCol, thick + 3, alpha * 0.24, true
-            ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = p1, p2, col, thick, alpha, true
-        else
-            gl.Visible, ln.Visible = false, false
-        end
-    end
     for i = 0, segments - 1 do
         local a = angleOff + i * step
         local off = v3(cos(a) * radius, 0, sin(a) * radius)
@@ -1122,11 +1215,11 @@ local function drawRing(cam, origin, isCF, radius, angleOff, segments, glowArr, 
         if i == 0 then
             firstPt, firstOk = pt, ok
         else
-            setPair(slotOff + i, prevPt, pt, ok and prevOk)
+            setRingPair(glowArr, lineArr, slotOff + i, prevPt, pt, ok and prevOk, col, glowCol, alpha, thick)
         end
         prevPt, prevOk = pt, ok
     end
-    setPair(slotOff + segments, prevPt, firstPt, prevOk and firstOk)
+    setRingPair(glowArr, lineArr, slotOff + segments, prevPt, firstPt, prevOk and firstOk, col, glowCol, alpha, thick)
 end
 
 local function drawWorldRing(cam, centerPos, radius, angleOff, segments, glowArr, lineArr, col, glowCol, alpha, thick)
@@ -1196,14 +1289,16 @@ local function updateJumpRings(cam, char, root, humanoid)
                 local r2 = 0.3 + (r.maxR * 0.66 - 0.3) * min(ease * 1.15, 1)
                 drawRing(cam, r.pos + v3(0, 0.25 * ease, 0), false, r2, -t * 1.9, C.RING_SEGMENTS, r.glow2, r.lines2, 0, r.glowCol, r.col, alpha * 0.72, 1.1)
                 for _, sp in ipairs(r.sparks) do
-                    local dRad = 0.4 + sp.rad * curR * 0.48
-                    local yB = sp.ht * (t * 0.7)
-                    local yT = yB + sp.ht * 0.55 * (1 - t * 0.6)
-                    local p1 = cam:WorldToViewportPoint(r.pos + Vector3.new(math.cos(sp.ang) * dRad, yB, math.sin(sp.ang) * dRad))
-                    local p2 = cam:WorldToViewportPoint(r.pos + Vector3.new(math.cos(sp.ang) * (dRad * 1.12), yT, math.sin(sp.ang) * (dRad * 1.12)))
+                    local dRad = (0.4 + sp.rad * curR * 0.48) * (1 + ease * 0.16)
+                    local yB = sp.ht * (t * 0.72)
+                    local yT = yB + sp.ht * 0.56 * (1 - t * 0.55)
+                    local cx, sz = cos(sp.ang), sin(sp.ang)
+                    local p1 = cam:WorldToViewportPoint(r.pos + v3(cx * dRad, yB, sz * dRad))
+                    local p2 = cam:WorldToViewportPoint(r.pos + v3(cx * (dRad * (1.12 + ease * 0.18)), yT, sz * (dRad * (1.12 + ease * 0.18))))
                     if p1.Z > 0.1 and p2.Z > 0.1 then
-                        sp.line.From, sp.line.To = Vector2.new(p1.X, p1.Y), Vector2.new(p2.X, p2.Y)
-                        sp.line.Color, sp.line.Thickness, sp.line.Transparency, sp.line.Visible = r.glowCol, 1.5, alpha, true
+                        local sparkCol = (t < 0.25) and WHITE:Lerp(r.glowCol, t / 0.25) or r.glowCol
+                        sp.line.From, sp.line.To = v2(p1.X, p1.Y), v2(p2.X, p2.Y)
+                        sp.line.Color, sp.line.Thickness, sp.line.Transparency, sp.line.Visible = sparkCol, 1.6, alpha, true
                     else
                         sp.line.Visible = false
                     end
@@ -1221,7 +1316,25 @@ local hatSegOrder = {}
 for i = 1, C.HAT_SEGMENTS do
     hatSegOrder[i] = { i = i, j = (i % C.HAT_SEGMENTS) + 1, z = 0 }
 end
+local crownBaseBotPts, crownBaseZ, crownTipZ, crownOrder = {}, {}, {}, {}
+for i = 1, 8 do crownOrder[i] = { i = i, j = (i % 8) + 1, z = 0 } end
+local crysEqPts, crysEqZ, crysEqOk = {}, {}, {}
+local crysFaces = {}
+for i = 1, 8 do crysFaces[i] = { idx = i, upper = (i <= 4), s1 = ((i - 1) % 4) + 1, s2 = (i % 4) + 1, z = 0 } end
 local function sortHatSegDesc(a, b) return a.z > b.z end
+
+local function setHatEdge(idx, a2, b2, cEdge, cGlow, rimAlpha)
+    local gl = hatGlow[idx]
+    if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 18 end) hatGlow[idx] = gl end
+    local ln = hatLines[idx]
+    if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 19 end) hatLines[idx] = ln end
+    if a2 and b2 then
+        gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = a2, b2, cGlow, 4, rimAlpha * 0.28, true
+        ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = a2, b2, cEdge, 1.5, rimAlpha, true
+    else
+        gl.Visible, ln.Visible = false, false
+    end
+end
 
 local function updateChinaHat(cam, char)
     local ch = cfg().ChinaHat
@@ -1236,7 +1349,7 @@ local function updateChinaHat(cam, char)
         return
     end
 
-    local t = os.clock()
+    local t = clock()
     local col, rimCol = styleColors(ch.Style, ch.Color, 1)
     local segs = C.HAT_SEGMENTS
     local step = (math.pi * 2) / segs
@@ -1255,87 +1368,241 @@ local function updateChinaHat(cam, char)
         drawRing(cam, tilt2, true, ch.Size * 0.46, 0, segs, hatGlow, hatLines, segs, col, rimCol, rimAlpha * 0.78, 1.2)
         for idx = segs * 2 + 1, #hatGlow do hatGlow[idx].Visible = false end
         for idx = segs * 2 + 1, #hatLines do hatLines[idx].Visible = false end
-        for n = 1, 4 do
+        local nodeTint = WHITE:Lerp(rimCol, 0.35)
+        for n = 1, 8 do
             local nd = hatNodes[n]
             if not nd then
                 nd = poolGet("Circle")
                 pcall(function() nd.ZIndex = 20 end)
                 hatNodes[n] = nd
             end
-            local na = (n - 1) * (math.pi * 0.5)
-            local np = tilt1:PointToWorldSpace(v3(cos(na) * ch.Size * 0.64, 0, sin(na) * ch.Size * 0.64))
-            local sp = cam:WorldToViewportPoint(np)
+            local isOuter = (n <= 4)
+            local na = ((n - 1) % 4) * (math.pi * 0.5) + (isOuter and 0 or (math.pi * 0.25))
+            local rad = isOuter and (ch.Size * 0.64) or (ch.Size * 0.46)
+            local cf = isOuter and tilt1 or tilt2
+            local sp = cam:WorldToViewportPoint(cf:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)))
             if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.5, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE, rimAlpha, true
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), isOuter and 2.6 or 1.8, 10, true
+                nd.Color, nd.Transparency, nd.Visible = isOuter and nodeTint or col, isOuter and rimAlpha or (rimAlpha * 0.85), true
             else
                 nd.Visible = false
             end
         end
+        for n = 9, #hatNodes do hatNodes[n].Visible = false end
+        return
+    elseif ch.Shape == "CyberRing" then
+        for _, o in ipairs(hatTris) do o.Visible = false end
+        local ringCenter = headPos + v3(0, 0.74 + ch.Height * 0.48 + sin(t * 2.2) * 0.05, 0)
+        local hStep = (math.pi * 2) / 6
+        local rOut, rIn = ch.Size * 0.72, ch.Size * 0.48
+        local isCustom = (ch.Style == "Custom")
+        local cfOut = cfNew(ringCenter) * cfAng(sin(t * 0.9) * 0.12, spin * 1.15, cos(t * 0.8) * 0.10)
+        local cfIn = cfNew(ringCenter + v3(0, 0.12, 0)) * cfAng(-sin(t * 0.9) * 0.14, -spin * 1.65, -cos(t * 0.8) * 0.12)
+        for i = 1, 6 do
+            local a = (i - 1) * hStep
+            local pO = cam:WorldToViewportPoint(cfOut:PointToWorldSpace(v3(cos(a) * rOut, 0, sin(a) * rOut)))
+            local pI = cam:WorldToViewportPoint(cfIn:PointToWorldSpace(v3(cos(a) * rIn, 0, sin(a) * rIn)))
+            crownBasePts[i] = (pO.Z > 0.1) and v2(pO.X, pO.Y) or nil
+            crownTipPts[i] = (pI.Z > 0.1) and v2(pI.X, pI.Y) or nil
+            local nd = hatNodes[i]
+            if not nd then
+                nd = poolGet("Circle")
+                pcall(function() nd.ZIndex = 20 end)
+                hatNodes[i] = nd
+            end
+            if crownBasePts[i] then
+                local _, sr = col, rimCol
+                if not isCustom then _, sr = styleColors(ch.Style, ch.Color, 1, i * 0.35) end
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = crownBasePts[i], 2.4, 10, true
+                nd.Color, nd.Transparency, nd.Visible = sr, rimAlpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        for n = 7, #hatNodes do hatNodes[n].Visible = false end
+        local eIdx = 0
+        for i = 1, 6 do
+            local j = (i % 6) + 1
+            local sc, sr = col, rimCol
+            if not isCustom then sc, sr = styleColors(ch.Style, ch.Color, 1, i * 0.45) end
+            eIdx += 1; setHatEdge(eIdx, crownBasePts[i], crownBasePts[j], sr, sc, rimAlpha)
+            eIdx += 1; setHatEdge(eIdx, crownTipPts[i], crownTipPts[j], sc, sr, rimAlpha * 0.85)
+            eIdx += 1; setHatEdge(eIdx, crownBasePts[i], crownTipPts[i], sr, sc, rimAlpha * 0.65)
+        end
+        for k = eIdx + 1, #hatGlow do hatGlow[k].Visible = false end
+        for k = eIdx + 1, #hatLines do hatLines[k].Visible = false end
         return
     elseif ch.Shape == "Crown" then
-        for _, o in ipairs(hatNodes) do o.Visible = false end
         local cSegs = 8
         local cStep = (math.pi * 2) / cSegs
         local rad = ch.Size * 0.56
-        local baseY = headPos + v3(0, 0.54 + sin(t * 2.2) * 0.04, 0)
-        local spikeH = max(0.35, ch.Height * 0.95)
+        local radBot = rad * 0.94
+        local baseY = headPos + v3(0, 0.58 + sin(t * 2.2) * 0.04, 0)
+        local spikeH = max(0.35, ch.Height * 0.96)
         local fillAlpha = clamp(ch.Opacity, 0.1, 0.9)
         local isCustom = (ch.Style == "Custom")
         for i = 1, cSegs do
             local a = spin + (i - 1) * cStep
-            local bp = cam:WorldToViewportPoint(baseY + v3(cos(a) * rad, 0, sin(a) * rad))
+            local cx, cz = cos(a), sin(a)
+            local bp = cam:WorldToViewportPoint(baseY + v3(cx * rad, 0, cz * rad))
+            crownBaseZ[i] = bp.Z
             crownBasePts[i] = (bp.Z > 0.1) and v2(bp.X, bp.Y) or nil
+            local bb = cam:WorldToViewportPoint(baseY + v3(cx * radBot, -0.12, cz * radBot))
+            crownBaseBotPts[i] = (bb.Z > 0.1) and v2(bb.X, bb.Y) or nil
             local ta = a + cStep * 0.5
-            local tp = cam:WorldToViewportPoint(baseY + v3(cos(ta) * (rad * 1.12), spikeH, sin(ta) * (rad * 1.12)))
+            local isMajor = (i % 2 == 1)
+            local tipH = isMajor and (spikeH * 1.06) or (spikeH * 0.62)
+            local tipR = isMajor and (rad * 1.15) or (rad * 1.07)
+            local tp = cam:WorldToViewportPoint(baseY + v3(cos(ta) * tipR, tipH, sin(ta) * tipR))
+            crownTipZ[i] = tp.Z
             crownTipPts[i] = (tp.Z > 0.1) and v2(tp.X, tp.Y) or nil
-        end
-        local lIdx = 0
-        local function setCrownEdge(a2, b2, cEdge, cGlow)
-            lIdx += 1
-            local gl = hatGlow[lIdx]
-            if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 18 end) hatGlow[lIdx] = gl end
-            local ln = hatLines[lIdx]
-            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 19 end) hatLines[lIdx] = ln end
-            if a2 and b2 then
-                gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = a2, b2, cGlow, 4, rimAlpha * 0.28, true
-                ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = a2, b2, cEdge, 1.5, rimAlpha, true
+
+            local nd = hatNodes[i]
+            if not nd then
+                nd = poolGet("Circle")
+                pcall(function() nd.ZIndex = 20 end)
+                hatNodes[i] = nd
+            end
+            if crownTipPts[i] then
+                local sc, sr = col, rimCol
+                if not isCustom then sc, sr = styleColors(ch.Style, ch.Color, 1, (i - 1) * 0.4) end
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = crownTipPts[i], isMajor and 2.8 or 2.0, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(isMajor and sr or sc, 0.45), rimAlpha, true
             else
-                gl.Visible, ln.Visible = false, false
+                nd.Visible = false
             end
         end
+        for n = cSegs + 1, #hatNodes do hatNodes[n].Visible = false end
+
         for i = 1, cSegs do
-            local j = (i % cSegs) + 1
+            local ord = crownOrder[i]
+            local p1, p2, pt = crownBasePts[i], crownBasePts[ord.j], crownTipPts[i]
+            ord.z = (p1 and p2 and pt) and ((crownBaseZ[i] + crownBaseZ[ord.j] + crownTipZ[i]) / 3) or -9999
+        end
+        table.sort(crownOrder, sortHatSegDesc)
+
+        for rank = 1, cSegs do
+            local ord = crownOrder[rank]
+            local i, j = ord.i, ord.j
             local p1, p2, pt = crownBasePts[i], crownBasePts[j], crownTipPts[i]
             local sc, sr = col, rimCol
             if not isCustom then sc, sr = styleColors(ch.Style, ch.Color, 1, (i - 1) * 0.4) end
             if hasTriangle then
-                local tri = hatTris[i]
+                local tri = hatTris[rank]
                 if not tri then
                     tri = poolGet("Triangle")
-                    pcall(function() tri.ZIndex = 10 + i end)
-                    hatTris[i] = tri
+                    pcall(function() tri.ZIndex = 1 + rank end)
+                    hatTris[rank] = tri
                 elseif shapeChanged then
-                    pcall(function() tri.ZIndex = 10 + i end)
+                    pcall(function() tri.ZIndex = 1 + rank end)
                 end
                 if p1 and p2 and pt then
                     tri.PointA, tri.PointB, tri.PointC = pt, p1, p2
-                    tri.Filled, tri.Color, tri.Transparency, tri.Visible = true, sc, fillAlpha, true
+                    tri.Filled, tri.Color, tri.Transparency, tri.Visible = true, (i % 2 == 1) and sc or sc:Lerp(sr, 0.22), fillAlpha, true
                 else
                     tri.Visible = false
                 end
             end
-            setCrownEdge(p1, p2, sr, sc)
-            setCrownEdge(p1, pt, sr, sc)
-            setCrownEdge(p2, pt, sr, sc)
         end
         for k = cSegs + 1, #hatTris do hatTris[k].Visible = false end
+
+        local lIdx = 0
+        for i = 1, cSegs do
+            local j = (i % cSegs) + 1
+            local p1, p2, pt = crownBasePts[i], crownBasePts[j], crownTipPts[i]
+            local pb1, pb2 = crownBaseBotPts[i], crownBaseBotPts[j]
+            local sc, sr = col, rimCol
+            if not isCustom then sc, sr = styleColors(ch.Style, ch.Color, 1, (i - 1) * 0.4) end
+            lIdx += 1; setHatEdge(lIdx, p1, p2, sr, sc, rimAlpha)
+            lIdx += 1; setHatEdge(lIdx, pb1, pb2, sc, sr, rimAlpha * 0.85)
+            lIdx += 1; setHatEdge(lIdx, p1, pt, sr, sc, rimAlpha)
+            lIdx += 1; setHatEdge(lIdx, p2, pt, sr, sc, rimAlpha)
+        end
         for k = lIdx + 1, #hatGlow do hatGlow[k].Visible = false end
         for k = lIdx + 1, #hatLines do hatLines[k].Visible = false end
         return
+    elseif ch.Shape == "Crystal" then
+        local center = headPos + v3(0, 0.92 + ch.Height * 0.72 + sin(t * 2.5) * 0.08, 0)
+        local rad = ch.Size * 0.44
+        local halfH = max(0.32, ch.Height * 0.82)
+        local topSp = cam:WorldToViewportPoint(center + v3(0, halfH, 0))
+        local botSp = cam:WorldToViewportPoint(center - v3(0, halfH, 0))
+        local midSp = cam:WorldToViewportPoint(center)
+        local topOk, botOk = topSp.Z > 0.1, botSp.Z > 0.1
+        local top2 = topOk and v2(topSp.X, topSp.Y) or nil
+        local bot2 = botOk and v2(botSp.X, botSp.Y) or nil
+        local mid2 = (midSp.Z > 0.1) and v2(midSp.X, midSp.Y) or nil
+        local cSpin = t * 1.15
+        for i = 1, 4 do
+            local a = cSpin + (i - 1) * (math.pi * 0.5)
+            local sp = cam:WorldToViewportPoint(center + v3(cos(a) * rad, 0, sin(a) * rad))
+            crysEqOk[i] = sp.Z > 0.1
+            crysEqZ[i] = sp.Z
+            crysEqPts[i] = crysEqOk[i] and v2(sp.X, sp.Y) or nil
+        end
+        for f = 1, 8 do
+            local cf = crysFaces[f]
+            local az, aOk = cf.upper and topSp.Z or botSp.Z, cf.upper and topOk or botOk
+            cf.z = (aOk and crysEqOk[cf.s1] and crysEqOk[cf.s2]) and ((az + crysEqZ[cf.s1] + crysEqZ[cf.s2]) / 3) or -9999
+        end
+        table.sort(crysFaces, sortHatSegDesc)
+        local fillAlpha = clamp(ch.Opacity, 0.1, 0.9)
+        local isCustom = (ch.Style == "Custom")
+        for rank = 1, 8 do
+            local cf = crysFaces[rank]
+            local pApex = cf.upper and top2 or bot2
+            local p1, p2 = crysEqPts[cf.s1], crysEqPts[cf.s2]
+            if hasTriangle then
+                local tri = hatTris[rank]
+                if not tri then
+                    tri = poolGet("Triangle")
+                    pcall(function() tri.ZIndex = 1 + rank end)
+                    hatTris[rank] = tri
+                elseif shapeChanged then
+                    pcall(function() tri.ZIndex = 1 + rank end)
+                end
+                if pApex and p1 and p2 then
+                    local sc, sr = col, rimCol
+                    if not isCustom then sc, sr = styleColors(ch.Style, ch.Color, 1, cf.idx * 0.35) end
+                    tri.PointA, tri.PointB, tri.PointC = pApex, p1, p2
+                    tri.Filled, tri.Color, tri.Transparency, tri.Visible = true, cf.upper and sc:Lerp(sr, 0.25) or sc, fillAlpha, true
+                else
+                    tri.Visible = false
+                end
+            end
+        end
+        for k = 9, #hatTris do hatTris[k].Visible = false end
+        local eIdx = 0
+        for i = 1, 4 do
+            local j = (i % 4) + 1
+            local sc, sr = col, rimCol
+            if not isCustom then sc, sr = styleColors(ch.Style, ch.Color, 1, i * 0.4) end
+            eIdx += 1; setHatEdge(eIdx, crysEqPts[i], crysEqPts[j], sr, sc, rimAlpha)
+            eIdx += 1; setHatEdge(eIdx, top2, crysEqPts[i], sr, sc, rimAlpha)
+            eIdx += 1; setHatEdge(eIdx, bot2, crysEqPts[i], sr, sc, rimAlpha)
+        end
+        for k = eIdx + 1, #hatGlow do hatGlow[k].Visible = false end
+        for k = eIdx + 1, #hatLines do hatLines[k].Visible = false end
+        local nodeCoords = { top2, bot2, mid2 }
+        for n = 1, 3 do
+            local nd = hatNodes[n]
+            if not nd then
+                nd = poolGet("Circle")
+                pcall(function() nd.ZIndex = 20 end)
+                hatNodes[n] = nd
+            end
+            local np = nodeCoords[n]
+            if np then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = np, (n == 3) and 3.0 or 2.1, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(rimCol, (n == 3) and 0.25 or 0.5), (n == 3) and (rimAlpha * 0.72) or rimAlpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        for n = 4, #hatNodes do hatNodes[n].Visible = false end
+        return
     end
 
-    for _, o in ipairs(hatNodes) do o.Visible = false end
     local apexWorld = headPos + v3(0, 0.55 + ch.Height, 0)
     local apexSp = cam:WorldToViewportPoint(apexWorld)
     if apexSp.Z <= 0.1 then
@@ -1388,19 +1655,21 @@ local function updateChinaHat(cam, char)
             end
         end
 
-        local gl = hatGlow[i]
-        if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 18 end) hatGlow[i] = gl end
-        local ln = hatLines[i]
-        if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 19 end) hatLines[i] = ln end
-        if ok then
-            gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = p1, p2, segCol, 4, rimAlpha * 0.28, true
-            ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = p1, p2, segRim, 1.5, rimAlpha, true
-        else
-            gl.Visible, ln.Visible = false, false
-        end
+        setHatEdge(i, ok and p1 or nil, ok and p2 or nil, segRim, segCol, rimAlpha)
     end
-    for k = segs + 1, #hatGlow do hatGlow[k].Visible = false end
-    for k = segs + 1, #hatLines do hatLines[k].Visible = false end
+    local ribIdx = segs
+    for rib = 0, 3 do
+        local r = 1 + floor(rib * segs / 4)
+        ribIdx += 1
+        setHatEdge(ribIdx, hatOk[r] and apex2 or nil, hatPts[r], rimCol, col, rimAlpha * 0.36)
+    end
+    for k = ribIdx + 1, #hatGlow do hatGlow[k].Visible = false end
+    for k = ribIdx + 1, #hatLines do hatLines[k].Visible = false end
+    local apNd = hatNodes[1]
+    if not apNd then apNd = poolGet("Circle") pcall(function() apNd.ZIndex = 20 end) hatNodes[1] = apNd end
+    apNd.Position, apNd.Radius, apNd.NumSides, apNd.Filled = apex2, 2.3, 10, true
+    apNd.Color, apNd.Transparency, apNd.Visible = WHITE:Lerp(rimCol, 0.35), rimAlpha, true
+    for n = 2, #hatNodes do hatNodes[n].Visible = false end
 end
 
 local function updateAuraShape(cam, char, root, dt, aura)
@@ -1471,17 +1740,206 @@ local function updateAuraShape(cam, char, root, dt, aura)
                 prevPt, prevOk = pt, ok
             end
         end
+        for r = 1, 6 do
+            local ln = auraDrawInner[r]
+            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawInner[r] = ln end
+            local f = r / 7
+            local y = -2.6 + f * 4.8
+            local rad = radBase * (0.65 + 0.35 * sin(f * math.pi))
+            local ang = auraAngle * 2.2 + f * (math.pi * 3.6)
+            local s1 = cam:WorldToViewportPoint(bodyCenter + v3(cos(ang) * rad, y, sin(ang) * rad))
+            local s2 = cam:WorldToViewportPoint(bodyCenter - v3(cos(ang) * rad, -y, sin(ang) * rad))
+            if s1.Z > 0.1 and s2.Z > 0.1 then
+                ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = v2(s1.X, s1.Y), v2(s2.X, s2.Y), c1:Lerp(c2, f), 1.1, alpha * 0.42 * sin(f * math.pi), true
+            else
+                ln.Visible = false
+            end
+        end
+        usedInner = 6
+        for n = 1, 4 do
+            local nd = auraDrawNodes[n]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
+            local strand = (n <= 2) and 0 or 1
+            local f = (n % 2 == 1) and 0.2 or 0.8
+            local y = -2.6 + f * 4.8
+            local rad = radBase * (0.65 + 0.35 * sin(f * math.pi))
+            local ang = auraAngle * 2.2 + f * (math.pi * 3.6) + strand * math.pi
+            local sp = cam:WorldToViewportPoint(bodyCenter + v3(cos(ang) * rad, y, sin(ang) * rad))
+            if sp.Z > 0.1 then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.5, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(strand == 0 and c1 or c2, 0.45), alpha * 0.9, true
+            else
+                nd.Visible = false
+            end
+        end
+        usedNodes = 4
     elseif shape == "Crown" then
-        local r = aura.Size * 0.92 * pulse
+        local r = aura.Size * 0.94 * pulse
         for k = 0, 2 do
             local yaw = auraAngle * 0.85 + k * (math.pi / 3)
             local cf = cfNew(bodyCenter) * cfAng(0, yaw, math.pi * 0.5)
-            drawRing(cam, cf, true, r, k * 0.5, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * 0.85, 1.35)
+            drawRing(cam, cf, true, r, k * 0.5, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * 0.86, 1.35)
+            for m = 1, 2 do
+                local nIdx = k * 2 + m
+                local nd = auraDrawNodes[nIdx]
+                if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[nIdx] = nd end
+                local na = auraAngle * 1.4 + (m == 1 and 0 or math.pi) + k * 0.7
+                local sp = cam:WorldToViewportPoint(cf:PointToWorldSpace(v3(cos(na) * r, 0, sin(na) * r)))
+                if sp.Z > 0.1 then
+                    nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.5, 10, true
+                    nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(k % 2 == 0 and c1 or c2, 0.4), alpha, true
+                else
+                    nd.Visible = false
+                end
+            end
         end
         usedSegs = C.RING_SEGMENTS * 3
+        usedNodes = 6
+        local step = (math.pi * 2) / C.RING_SEGMENTS
+        local bandR = r * 0.84
+        for i = 1, C.RING_SEGMENTS do
+            local ln = auraDrawInner[i]
+            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawInner[i] = ln end
+            if i % 3 ~= 0 then
+                local a1 = -auraAngle * 1.1 + (i - 1) * step
+                local a2 = a1 + step * 0.78
+                local s1 = cam:WorldToViewportPoint(bodyCenter + v3(cos(a1) * bandR, -0.15, sin(a1) * bandR))
+                local s2 = cam:WorldToViewportPoint(bodyCenter + v3(cos(a2) * bandR, -0.15, sin(a2) * bandR))
+                if s1.Z > 0.1 and s2.Z > 0.1 then
+                    ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = v2(s1.X, s1.Y), v2(s2.X, s2.Y), c2, 1.25, alpha * 0.65, true
+                else
+                    ln.Visible = false
+                end
+            else
+                ln.Visible = false
+            end
+        end
+        usedInner = C.RING_SEGMENTS
+    elseif shape == "Sigil" then
+        local gPos = rayGroundPos(char, root)
+        local rOut = aura.Size * pulse
+        local rIn = rOut * 0.78
+        drawRing(cam, gPos, false, rOut, auraAngle * 0.5, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.6)
+        drawRing(cam, gPos + v3(0, 0.04, 0), false, rIn, -auraAngle * 0.7, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.82, 1.2)
+        usedSegs = C.RING_SEGMENTS * 2
+        local starStep = (math.pi * 2) / 6
+        local starR = rOut * 0.96
+        for k = 1, 6 do
+            local a1 = auraAngle * 0.55 + (k - 1) * starStep
+            local a2 = a1 + starStep * 2
+            local cx1, cz1 = cos(a1), sin(a1)
+            local p1 = cam:WorldToViewportPoint(gPos + v3(cx1 * starR, 0.02, cz1 * starR))
+            local p2 = cam:WorldToViewportPoint(gPos + v3(cos(a2) * starR, 0.02, sin(a2) * starR))
+            usedSegs += 1
+            local gl = auraDrawGlow[usedSegs]
+            if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 2 end) auraDrawGlow[usedSegs] = gl end
+            local ln = auraDrawOuter[usedSegs]
+            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawOuter[usedSegs] = ln end
+            if p1.Z > 0.1 and p2.Z > 0.1 then
+                local vA, vB = v2(p1.X, p1.Y), v2(p2.X, p2.Y)
+                gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = vA, vB, c2, 3.8, alpha * 0.25, true
+                ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = vA, vB, c1:Lerp(c2, 0.45), 1.4, alpha * 0.88, true
+            else
+                gl.Visible, ln.Visible = false, false
+            end
+            local spOut = cam:WorldToViewportPoint(gPos + v3(cx1 * (rOut * 1.15), 0.02, cz1 * (rOut * 1.15)))
+            local rLn = auraDrawInner[k]
+            if not rLn then rLn = poolGet("Line") pcall(function() rLn.ZIndex = 3 end) auraDrawInner[k] = rLn end
+            if p1.Z > 0.1 and spOut.Z > 0.1 then
+                rLn.From, rLn.To, rLn.Color, rLn.Thickness, rLn.Transparency, rLn.Visible = v2(p1.X, p1.Y), v2(spOut.X, spOut.Y), c2, 1.25, alpha * 0.72, true
+            else
+                rLn.Visible = false
+            end
+            local nd = auraDrawNodes[k]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[k] = nd end
+            if p1.Z > 0.1 then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(p1.X, p1.Y), 2.5, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.4), alpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        usedInner = 6
+        usedNodes = 6
+    elseif shape == "Galaxy" then
+        local r = aura.Size * pulse
+        local cf1 = cfNew(bodyCenter) * cfAng(0.38, auraAngle * 0.65, 0.22)
+        local cf2 = cfNew(bodyCenter) * cfAng(-0.32, -auraAngle * 1.1, -0.18)
+        local cf3 = cfNew(bodyCenter) * cfAng(0.08, auraAngle * 1.4, -0.1)
+        drawRing(cam, cf1, true, r * 1.18, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.92, 1.7)
+        drawRing(cam, cf2, true, r * 0.78, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.85, 1.3)
+        drawRing(cam, cf3, true, r * 0.96, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.65, 1.0)
+        usedSegs = C.RING_SEGMENTS * 3
+        for n = 1, 6 do
+            local nd = auraDrawNodes[n]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
+            local ringCF = (n <= 3) and cf1 or cf2
+            local rad = (n <= 3) and (r * 1.18) or (r * 0.78)
+            local na = ((n - 1) % 3) * ((math.pi * 2) / 3)
+            local sp = cam:WorldToViewportPoint(ringCF:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)))
+            if sp.Z > 0.1 then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), (n <= 3) and 2.8 or 2.2, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.4), alpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        usedNodes = 6
+    elseif shape == "Vortex" then
+        local rBase = aura.Size * pulse
+        for k = 0, 2 do
+            local prog = ((t * 0.65 + k / 3) % 1)
+            local yOff = -2.1 + prog * 4.0
+            local rad = rBase * (0.48 + prog * 0.72)
+            local fade = sin(prog * math.pi)
+            local cf = cfNew(bodyCenter + v3(0, yOff, 0)) * cfAng(sin(t * 1.2 + k) * 0.14, auraAngle * (1.2 + k * 0.35), 0)
+            drawRing(cam, cf, true, rad, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * clamp(fade * 1.15, 0.12, 1), 1.5)
+        end
+        usedSegs = C.RING_SEGMENTS * 3
+        for n = 1, 6 do
+            local nd = auraDrawNodes[n]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
+            local prog = ((t * 0.65 + (n - 1) / 6) % 1)
+            local yOff = -2.0 + prog * 3.8
+            local rad = rBase * (0.52 + prog * 0.66)
+            local na = auraAngle * 2.1 + n * 1.05
+            local sp = cam:WorldToViewportPoint(bodyCenter + v3(cos(na) * rad, yOff, sin(na) * rad))
+            if sp.Z > 0.1 then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.4, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.35), alpha * sin(prog * math.pi), true
+            else
+                nd.Visible = false
+            end
+        end
+        usedNodes = 6
+    elseif shape == "Atom" then
+        local r = aura.Size * 0.98 * pulse
+        local tilt1 = cfNew(bodyCenter) * cfAng(0.68, auraAngle * 0.4, 0.25)
+        local tilt2 = cfNew(bodyCenter) * cfAng(-0.68, -auraAngle * 0.4, 0.85)
+        local tilt3 = cfNew(bodyCenter) * cfAng(0.18, auraAngle * 0.5, -0.95)
+        drawRing(cam, tilt1, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.9, 1.45)
+        drawRing(cam, tilt2, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.9, 1.45)
+        drawRing(cam, tilt3, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.85, 1.35)
+        usedSegs = C.RING_SEGMENTS * 3
+        for n = 1, 6 do
+            local nd = auraDrawNodes[n]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
+            local orbitIdx = ((n - 1) % 3) + 1
+            local ringCF = (orbitIdx == 1) and tilt1 or ((orbitIdx == 2) and tilt2 or tilt3)
+            local na = auraAngle * 2.4 + (n > 3 and math.pi or 0) + orbitIdx * 1.1
+            local sp = cam:WorldToViewportPoint(ringCF:PointToWorldSpace(v3(cos(na) * r, 0, sin(na) * r)))
+            if sp.Z > 0.1 then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 3.0, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(orbitIdx == 2 and c1 or c2, 0.35), alpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        usedNodes = 6
     else
         local gPos = rayGroundPos(char, root)
-        drawRing(cam, gPos, false, aura.Size * pulse, auraAngle, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.6)
+        local outerR = aura.Size * pulse
+        drawRing(cam, gPos, false, outerR, auraAngle, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.6)
         usedSegs = C.RING_SEGMENTS
         local step = (math.pi * 2) / C.RING_SEGMENTS
         local innerR = aura.Size * 0.62 * pulse
@@ -1499,10 +1957,31 @@ local function updateAuraShape(cam, char, root, dt, aura)
                     ln.Visible = false
                 end
             else
-                ln.Visible = false
+                local ta = auraAngle + (i - 1) * step
+                local cx, cz = cos(ta), sin(ta)
+                local s1 = cam:WorldToViewportPoint(gPos + v3(cx * (innerR * 0.94), 0, cz * (innerR * 0.94)))
+                local s2 = cam:WorldToViewportPoint(gPos + v3(cx * (outerR * 0.98), 0, cz * (outerR * 0.98)))
+                if s1.Z > 0.1 and s2.Z > 0.1 then
+                    ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = v2(s1.X, s1.Y), v2(s2.X, s2.Y), c1:Lerp(c2, 0.5), 1.15, alpha * 0.55, true
+                else
+                    ln.Visible = false
+                end
             end
         end
         usedInner = C.RING_SEGMENTS
+        for n = 1, 4 do
+            local nd = auraDrawNodes[n]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
+            local na = auraAngle + (n - 1) * (math.pi * 0.5)
+            local sp = cam:WorldToViewportPoint(gPos + v3(cos(na) * outerR, 0, sin(na) * outerR))
+            if sp.Z > 0.1 then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.5, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.4), alpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        usedNodes = 4
     end
 
     for k = usedSegs + 1, #auraDrawGlow do auraDrawGlow[k].Visible = false end
@@ -1513,7 +1992,11 @@ local function updateAuraShape(cam, char, root, dt, aura)
     if aura.Particles then
         ensureAuraParticles(root)
         auraEmitter.Enabled = true
-        auraEmitter.Color = ColorSequence.new(c1, c2)
+        if not auraSeq or colorDelta(c1, auraSeqC1) > 0.015 or colorDelta(c2, auraSeqC2) > 0.015 then
+            auraSeqC1, auraSeqC2 = c1, c2
+            auraSeq = ColorSequence.new(c1, c2)
+            auraEmitter.Color = auraSeq
+        end
     elseif auraEmitter then
         auraEmitter.Enabled = false
     end
@@ -1564,42 +2047,47 @@ local function updateLocalEffects(dt)
         ensureTrail(char, root, mode, pattern, width, life, withSparks)
         local spd = clamp(trail.Speed or 1.0, 0.25, 3.0)
         local c1, c2 = styleColors(trail.Style, trail.Color, spd)
-        local cs = ColorSequence.new(c1, c2)
+        local seqChanged = not trailSeq or colorDelta(c1, trailSeqC1) > 0.015 or colorDelta(c2, trailSeqC2) > 0.015
+        if seqChanged then
+            trailSeqC1, trailSeqC2 = c1, c2
+            trailSeq = ColorSequence.new(c1, c2)
+        end
         if #trailOrbitPairs > 0 then
-            local tNow = os.clock() * 3.4 * spd
+            local tNow = clock() * 3.4 * spd
             for k, pair in ipairs(trailOrbitPairs) do
                 if pair.a0 and pair.a0.Parent and pair.a1 and pair.a1.Parent then
-                    local pos
+                    local ang, pos
                     if pair.kind == "Helix" then
-                        local ang = tNow * 1.35 + pair.phase
+                        ang = tNow * 1.35 + pair.phase
                         local rad = 1.45
-                        local y = math.sin(tNow * 0.75 + pair.phase) * 2.2
-                        pos = Vector3.new(math.cos(ang) * rad, y, math.sin(ang) * rad)
+                        local y = sin(tNow * 0.75 + pair.phase) * 2.2
+                        pos = v3(cos(ang) * rad, y, sin(ang) * rad)
                     elseif pair.kind == "Halo" then
-                        local ang = tNow * 1.6 + pair.phase
+                        ang = tNow * 1.6 + pair.phase
                         local rad = 1.18
-                        local y = 2.25 + math.sin(tNow * 1.2 + k) * 0.22
-                        pos = Vector3.new(math.cos(ang) * rad, y, math.sin(ang) * rad)
+                        local y = 2.25 + sin(tNow * 1.2 + k) * 0.22
+                        pos = v3(cos(ang) * rad, y, sin(ang) * rad)
                     else
-                        local ang = tNow + pair.phase
-                        local rad = 2.15 + math.sin(tNow * 0.7 + k) * 0.3
+                        ang = tNow + pair.phase
+                        local rad = 2.15 + sin(tNow * 0.7 + k) * 0.3
                         local tilt = (k == 1) and 0.45 or ((k == 2) and -0.45 or 0.15)
-                        local y = math.sin(ang) * math.sin(tilt) * rad + math.cos(tNow * 0.8 + k) * 0.55
-                        pos = Vector3.new(math.cos(ang) * rad, y, math.sin(ang) * rad)
+                        local y = sin(ang) * sin(tilt) * rad + cos(tNow * 0.8 + k) * 0.55
+                        pos = v3(cos(ang) * rad, y, sin(ang) * rad)
                     end
-                    pair.a0.Position = pos + Vector3.new(0, pair.hw, 0)
-                    pair.a1.Position = pos - Vector3.new(0, pair.hw, 0)
+                    local wOff = v3(-cos(ang) * pair.hw * 0.4, pair.hw, -sin(ang) * pair.hw * 0.4)
+                    pair.a0.Position = pos + wOff
+                    pair.a1.Position = pos - wOff
                 end
             end
         end
         for _, tr in ipairs(trailObjects) do
-            tr.Lifetime = life
-            tr.Color = cs
-            tr.Enabled = true
+            if tr.Lifetime ~= life then tr.Lifetime = life end
+            if seqChanged or not tr.Enabled then tr.Color = trailSeq end
+            if not tr.Enabled then tr.Enabled = true end
         end
         for _, em in ipairs(trailEmitters) do
-            em.Enabled = true
-            em.Color = cs
+            if seqChanged or not em.Enabled then em.Color = trailSeq end
+            if not em.Enabled then em.Enabled = true end
         end
     elseif #trailObjects > 0 then
         clearTrail()
@@ -1622,8 +2110,9 @@ local function updateLocalEffects(dt)
                 shouldSpawn = (minSpd > 0 and spd >= minSpd)
                     or (minSpd == 0 and (spd > 0.6 or (humanoid and humanoid.MoveDirection.Magnitude > 0.05)))
             end
-            if shouldSpawn and os.clock() - lastAfterimage >= clamp(after.Interval, 0.03, 0.8) then
-                lastAfterimage = os.clock()
+            local nowAfter = clock()
+            if shouldSpawn and nowAfter - lastAfterimage >= clamp(after.Interval, 0.03, 0.8) then
+                lastAfterimage = nowAfter
                 makeAfterimage(char)
             end
         end
@@ -1634,6 +2123,108 @@ local function updateLocalEffects(dt)
 
     updateChinaHat(cam, char)
     updateJumpRings(cam, char, root, humanoid)
+
+    local sat = cfg().Satellites
+    if sat.Enabled and (not humanoid or humanoid.Health > 0) then
+        local cnt = clamp(floor(sat.Count or 3), 1, 6)
+        local shape = sat.Shape or "Crystal"
+        local sz = clamp(sat.Size or 0.45, 0.2, 1.2)
+        local withTrails = sat.Trails ~= false
+        local needBuild = (#satItems ~= cnt or satShapeCur ~= shape or satTrailsCur ~= withTrails or abs(satSizeCur - sz) > 0.005)
+        if not needBuild then
+            for _, item in ipairs(satItems) do
+                if not item.part or not item.part.Parent then needBuild = true break end
+            end
+        end
+        local rootPos = partPos(root)
+        if needBuild then
+            clearSatellites()
+            satShapeCur, satCountCur, satTrailsCur, satSizeCur = shape, cnt, withTrails, sz
+            local par = workspace.CurrentCamera or workspace
+            for i = 1, cnt do
+                local p = Instance.new("Part")
+                p.Name, p.Anchored, p.CastShadow, p.Massless = "GlupostSatellite", true, false, true
+                p.CanCollide, p.CanTouch, p.CanQuery = false, false, false
+                p.Material, p.Transparency = Enum.Material.Neon, 0.14
+                if shape == "Orb" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz, sz, sz)
+                elseif shape == "Blade" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.28, sz * 0.2, sz * 1.85)
+                elseif shape == "Shard" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.34, sz * 1.65, sz * 0.34)
+                elseif shape == "Disc" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 1.45, sz * 0.16, sz * 1.45)
+                else
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.62, sz * 1.12, sz * 0.62)
+                end
+                local sb = nil
+                if shape == "Crystal" or shape == "Shard" or shape == "Disc" or shape == "Blade" then
+                    sb = Instance.new("SelectionBox")
+                    sb.Name, sb.Adornee = "GlupostSatBox", p
+                    sb.LineThickness = (shape == "Blade") and 0.014 or clamp(sz * 0.04, 0.015, 0.032)
+                    sb.Transparency = (shape == "Blade") and 0.32 or 0.14
+                    sb.SurfaceTransparency = (shape == "Blade") and 0.93 or 0.84
+                    sb.Parent = p
+                end
+                local tr = nil
+                if withTrails then
+                    local a0 = Instance.new("Attachment")
+                    a0.Name, a0.Position, a0.Parent = "GlupostSatA", v3(0, sz * 0.24, 0), p
+                    local a1 = Instance.new("Attachment")
+                    a1.Name, a1.Position, a1.Parent = "GlupostSatB", v3(0, -sz * 0.24, 0), p
+                    tr = Instance.new("Trail")
+                    tr.Name, tr.Attachment0, tr.Attachment1 = "GlupostSatTrail", a0, a1
+                    tr.FaceCamera, tr.LightEmission, tr.MinLength, tr.Lifetime = true, 1, 0.02, 0.40
+                    tr.WidthScale = numSeq({ { 0, 1.1 }, { 0.45, 0.65 }, { 1, 0 } })
+                    tr.Transparency = numSeq({ { 0, 0.14 }, { 0.7, 0.55 }, { 1, 1 } })
+                    tr.Parent = p
+                end
+                p.CFrame = cfNew(rootPos)
+                p.Parent = par
+                satItems[i] = {
+                    part = p, box = sb, trail = tr,
+                    phase = (i - 1) * ((math.pi * 2) / cnt),
+                    tilt = ((i % 2 == 0) and 1 or -1) * (0.28 + (i % 3) * 0.12),
+                }
+            end
+        end
+        local spd = clamp(sat.Speed or 1.4, 0.2, 4.0)
+        local radBase = clamp(sat.Radius or 3.2, 1.2, 8.0)
+        local hOff = clamp(sat.Height or 0.8, -3.0, 5.0)
+        local tNow = clock()
+        for _, item in ipairs(satItems) do
+            local ang = tNow * spd * 1.85 + item.phase
+            local r = radBase + sin(tNow * 2.1 + item.phase) * 0.22
+            local oy = hOff + sin(ang + item.phase) * r * sin(item.tilt) + cos(tNow * 2.6 + item.phase) * 0.2
+            local pos = rootPos + v3(cos(ang) * r, oy, sin(ang) * r)
+            local c1, c2 = styleColors(sat.Style, sat.Color, spd, item.phase * 0.6)
+            local shimmer = (sin(tNow * 3.4 + item.phase) + 1) * 0.5
+            item.part.Color = (shape == "Orb") and c1:Lerp(c2, shimmer * 0.45) or c1
+            item.part.Transparency = 0.08 + shimmer * 0.12
+            if shape == "Blade" then
+                local tx, tz = -sin(ang), cos(ang)
+                item.part.CFrame = cfNew(pos, pos + v3(tx, cos(ang + item.phase) * sin(item.tilt) * 0.6, tz)) * cfAng(0, 0, item.tilt * 0.75)
+            elseif shape == "Crystal" then
+                item.part.CFrame = cfNew(pos) * cfAng(0.65 + tNow * 0.85, ang * 1.35, 0.78)
+            elseif shape == "Shard" then
+                item.part.CFrame = cfNew(pos) * cfAng(0.35, ang * 2.2, tNow * 2.1)
+            elseif shape == "Disc" then
+                item.part.CFrame = cfNew(pos) * cfAng(0.24, ang * 2.8, item.tilt)
+            else
+                item.part.CFrame = cfNew(pos)
+            end
+            if item.box then
+                item.box.Color3, item.box.SurfaceColor3 = c2, c1
+            end
+            if item.trail and (not item.cs or colorDelta(c1, item.c1) > 0.015 or colorDelta(c2, item.c2) > 0.015) then
+                item.c1, item.c2 = c1, c2
+                item.cs = ColorSequence.new(c1, c2)
+                item.trail.Color = item.cs
+            end
+        end
+    elseif #satItems > 0 then
+        clearSatellites()
+    end
 end
 
 local function syncVMHighlights(cam, e, fill, outline, ft, ot)
@@ -1722,7 +2313,7 @@ local function applySelfPartMaterial(p, mat, col, tr, refl)
 end
 
 local function applySelfMaterials(char, cam, e, isGlass, fill)
-    local now = os.clock()
+    local now = clock()
     local phase = now * math.max(e.AnimationSpeed, 0.05)
     local mat = isGlass and Enum.Material.Glass or Enum.Material.ForceField
     local tr = isGlass and clamp(e.FillTransparency, 0.25, 0.92) or clamp(e.FillTransparency, 0.05, 0.85)
@@ -1877,7 +2468,8 @@ local function updateSelfChams()
         selfChamsHighlight, selfChamsCharacter = hl, char
     end
 
-    local fill, outline = selfChamsColor(os.clock())
+    local now = clock()
+    local fill, outline = selfChamsColor(now)
     if useMat then
         applySelfMaterials(char, cam, e, isGlass, fill)
     elseif scHasSaved then
@@ -1886,9 +2478,15 @@ local function updateSelfChams()
         restoreSelfMaterials()
     end
 
+    local phase = now * math.max(e.AnimationSpeed, 0.05)
     local ft = useMat and (isGlass and 0.90 or 0.93)
-        or (e.Style == "Energy Rim" and clamp(0.72 + e.FillTransparency * 0.28, 0.72, 1) or clamp(e.FillTransparency, 0, 1))
-    local ot = clamp(e.OutlineTransparency, 0, 1)
+        or (e.Style == "Energy Rim" and clamp(0.72 + e.FillTransparency * 0.28, 0.72, 1)
+        or (e.Style == "Scanline" and clamp(e.FillTransparency + sin(phase * 4.2) * 0.14, 0.05, 0.95)
+        or (e.Style == "Pulse" and clamp(e.FillTransparency + sin(phase * 2.2) * 0.10, 0.05, 0.95)
+        or clamp(e.FillTransparency, 0, 1))))
+    local ot = (e.Style == "Energy Rim")
+        and clamp(e.OutlineTransparency - (sin(phase * 2.6) + 1) * 0.08, 0, 1)
+        or clamp(e.OutlineTransparency, 0, 1)
     if not selfChamsHighlight.Enabled then selfChamsHighlight.Enabled = true end
     if selfChamsHighlight.FillColor ~= fill then selfChamsHighlight.FillColor = fill end
     if selfChamsHighlight.OutlineColor ~= outline then selfChamsHighlight.OutlineColor = outline end
@@ -2097,7 +2695,7 @@ local function refreshModuleChars()
     end
 end
 
-local softIgnore, lastSoftClear = {}, 0
+local softIgnore, lastSoftClear, lastSoftPrune = {}, 0, 0
 
 local function pruneSoftIgnore()
     for i = #softIgnore, 1, -1 do
@@ -2108,44 +2706,48 @@ local function pruneSoftIgnore()
     end
 end
 
-local function castOnce(origin, delta)
+local function buildVisIgnore()
     table.clear(visIgnore)
     local cam = workspace.CurrentCamera
     if cam then visIgnore[#visIgnore + 1] = cam end
     if LP.Character then visIgnore[#visIgnore + 1] = LP.Character end
     for i = 1, #softIgnore do visIgnore[#visIgnore + 1] = softIgnore[i] end
     visParams.FilterDescendantsInstances = visIgnore
-    return rawRay(origin, delta, visParams)
 end
 
 local function castVisible(origin, delta, part)
     local smart = cfg().ESP.SmartVisCheck
-    local now = os.clock()
+    local now = clock()
     if now - lastSoftClear > 5 then
         table.clear(softIgnore)
         lastSoftClear = now
-    elseif #softIgnore > 0 then
+        lastSoftPrune = now
+    elseif #softIgnore > 0 and now - lastSoftPrune >= 0.2 then
+        lastSoftPrune = now
         pruneSoftIgnore()
     end
+    buildVisIgnore()
     for _ = 1, (smart and 6 or 1) do
-        local res = castOnce(origin, delta)
+        local res = rawRay(origin, delta, visParams)
         if not res then return true end
         local hit = res.Instance
         if hit:IsDescendantOf(part.Parent) then return true end
         if not smart or hit:IsA("Terrain") then return false end
         if hit.Transparency >= 0.3 or not hit.CanCollide then
             if #softIgnore < 64 then softIgnore[#softIgnore + 1] = hit end
+            visIgnore[#visIgnore + 1] = hit
+            visParams.FilterDescendantsInstances = visIgnore
         else
             return false
         end
     end
-    local res = castOnce(origin, delta)
+    local res = rawRay(origin, delta, visParams)
     return res == nil or res.Instance:IsDescendantOf(part.Parent)
 end
 
 local function isVisibleCached(d, part)
     if not d then return false end
-    local now = os.clock()
+    local now = clock()
     if now - d.lastVis < C.VIS_INTERVAL then return d.visible end
     d.lastVis = now
     if not isPartValid(part) then d.visible = false return false end
@@ -2662,11 +3264,30 @@ local function drawText(d, parts, rd, doText)
         else
             rd._toolStr = nil
         end
+
+        if e.ShowState then
+            if hum.Sit then
+                rd._stateStr, rd._stateCol = "[СИДИТ]", rgb(255, 200, 100)
+            elseif hum.FloorMaterial == Enum.Material.Air then
+                rd._stateStr, rd._stateCol = "[ПРЫЖОК]", rgb(130, 225, 255)
+            else
+                local hrp = parts.HumanoidRootPart
+                local vel = isPartValid(hrp) and (hrp.AssemblyLinearVelocity or hrp.Velocity)
+                if vel and (vel.X * vel.X + vel.Z * vel.Z) > 324 then
+                    rd._stateStr, rd._stateCol = "[БЕГ]", rgb(145, 255, 175)
+                else
+                    rd._stateStr = nil
+                end
+            end
+        else
+            rd._stateStr = nil
+        end
     end
 
     local showHP = rd._hpStr and (not lod or h >= 18)
     local showDist = rd._distStr and (not lod or h >= 12 or not rd._nameStr)
     local showTool = rd._toolStr and (not lod or h >= 24)
+    local showState = rd._stateStr and (not lod or h >= 26)
     local outline = e.TextOutline
 
     local yt = rd.bT - size - 5 - e.NameYOffset
@@ -2687,7 +3308,12 @@ local function drawText(d, parts, rd, doText)
 
     if showTool then
         showEspText(T, "tool", subSize, rd._toolStr, TOOL_COLOR, yb, font, alpha, outline, cx)
+        yb += subSize + 2
     elseif T.tool then T.tool.Visible = false end
+
+    if showState then
+        showEspText(T, "state", subSize, rd._stateStr, rd._stateCol, yb, font, alpha, outline, cx)
+    elseif T.state then T.state.Visible = false end
 end
 
 local function drawTracer(d, rd)
@@ -2837,7 +3463,7 @@ local function spawnKillBurst(pos, col)
     for s = 1, 10 do
         local phi = (s - 1) * 0.6283 + (math.random() - 0.5) * 0.35
         local vy = -0.35 + math.random() * 1.35
-        local v = Vector3.new(math.cos(phi), vy, math.sin(phi)).Unit
+        local v = v3(math.cos(phi), vy, math.sin(phi)).Unit
         dirs[s] = v
         local ln = poolGet("Line")
         pcall(function() ln.ZIndex = 7 end)
@@ -2851,7 +3477,7 @@ local function spawnKillBurst(pos, col)
     table.insert(killBursts, {
         pos = pos,
         col = col,
-        born = os.clock(),
+        born = clock(),
         life = 0.58,
         dirs = dirs,
         lines = lines,
@@ -2879,18 +3505,24 @@ local function trackDamagePopup(plr, d, parts)
                 local old = table.remove(damagePopups, 1)
                 poolPut("Text", old.text)
             end
+            local isCrit = dmg >= 35
             local t = poolGet("Text")
             pcall(function() t.ZIndex = 7 end)
             t.Center, t.Outline, t.OutlineColor = true, true, BLACK
             t.Font = FONTS[cfg().ESP.FontName] or 2
-            t.Size = cfg().ESP.TextSize + 2
+            local baseSz = cfg().ESP.TextSize + (isCrit and 5 or 2)
+            t.Size = baseSz
             local jx = (math.random() - 0.5) * 1.4
             local jz = (math.random() - 0.5) * 1.4
             table.insert(damagePopups, {
                 worldPos = partPos(head) + Vector3.new(jx, 1.3, jz),
-                str = "-" .. tostring(dmg),
-                born = os.clock(),
-                life = 1.05,
+                vx = (math.random() - 0.5) * 1.8,
+                vz = (math.random() - 0.5) * 1.8,
+                isCrit = isCrit,
+                baseSize = baseSz,
+                str = isCrit and ("-" .. tostring(dmg) .. "!") or ("-" .. tostring(dmg)),
+                born = clock(),
+                life = isCrit and 1.2 or 1.05,
                 text = t,
             })
         end
@@ -2900,7 +3532,7 @@ local function trackDamagePopup(plr, d, parts)
             local rd = renderData[plr]
             local aimed = dist > 0.1 and dist <= 650 and cameraCF.LookVector:Dot(delta.Unit) >= 0.88
             if aimed or (rd and rd.priority) then
-                local now = os.clock()
+                local now = clock()
                 if cfg().Hitmarker.Enabled then
                     hitmarkerState.born = now
                     hitmarkerState.isKill = (cur <= 0)
@@ -3000,10 +3632,12 @@ local function updateDamagePopups()
             tremove(damagePopups, i)
         else
             local prog = elapsed / p.life
-            local sp = cam:WorldToViewportPoint(p.worldPos + v3(0, elapsed * 2.1, 0))
+            local sp = cam:WorldToViewportPoint(p.worldPos + v3(p.vx * elapsed, elapsed * 2.4 - elapsed * elapsed * 0.75, p.vz * elapsed))
             if sp.Z > 0.1 then
                 local t = p.text
-                t.Text, t.Color = p.str, col
+                t.Text = p.str
+                t.Color = p.isCrit and rgb(255, 215, 70):Lerp(col, 0.35) or col
+                t.Size = p.baseSize
                 t.Position = v2(floor(sp.X + 0.5), floor(sp.Y + 0.5))
                 t.Transparency, t.Visible = 1 - prog * prog, true
             else
@@ -3014,7 +3648,7 @@ local function updateDamagePopups()
 end
 
 local overlayObjs = {}
-local ovState = { rd = false, xh = false, wm = false, la = false, th = false, kb = false, hm = false, sp = false, vg = false }
+local ovState = { rd = false, xh = false, wm = false, la = false, th = false, kb = false, hm = false, sp = false, vg = false, sl = false }
 
 local function ov(name, cls, z)
     local o = overlayObjs[name]
@@ -3212,8 +3846,8 @@ local function playSoundWhenReady(sound, useLocal)
         trigger()
     else
         task.spawn(function()
-            local t = os.clock()
-            while not sound.IsLoaded and os.clock() - t < 2.5 do
+            local t = clock()
+            while not sound.IsLoaded and clock() - t < 2.5 do
                 if not sound.Parent then return end
                 task.wait(0.05)
             end
@@ -3267,7 +3901,7 @@ local function updateProximityAlert()
         table.clear(proximityState)
         return
     end
-    local now = os.clock()
+    local now = clock()
     if now - proximityLastScan < 0.12 then return end
     proximityLastScan = now
     local myChar = LP.Character
@@ -3383,7 +4017,7 @@ local function updateLookingAlert()
 
     local vp = cam.ViewportSize
     local center = Vector2.new(math.floor(vp.X * 0.5), math.floor(vp.Y * 0.5))
-    local pulse = 0.72 + 0.28 * math.sin(os.clock() * 7)
+    local pulse = 0.72 + 0.28 * math.sin(clock() * 7)
     local radius = clamp(L.Radius or 76, 45, 180)
     local segs = 5
     local shown = math.min(count, 4)
@@ -3576,10 +4210,43 @@ end
 local SP_B, SP_L = {}, {}
 for i = 1, 18 do SP_B[i], SP_L[i] = "spB" .. i, "spL" .. i end
 local KB_L, KB_R = {}, {}
-for i = 1, 20 do KB_L[i], KB_R[i] = "kbL" .. i, "kbR" .. i end
+for i = 1, 24 do KB_L[i], KB_R[i] = "kbL" .. i, "kbR" .. i end
+local SL_COUNT = 20
+local SL_KEYS = {}
+for i = 1, SL_COUNT do SL_KEYS[i] = "sl" .. i end
 
+local XH_VDIRS = { v2(-1, 0), v2(1, 0), v2(0, -1), v2(0, 1) }
+local HM_UDIRS = { v2(-1, -1).Unit, v2(1, -1).Unit, v2(-1, 1).Unit, v2(1, 1).Unit }
 local xhDynGap = 0
 local xhSpinAng = 0
+
+local function rotV(vx, vy, cosA, sinA)
+    return v2(vx * cosA - vy * sinA, vx * sinA + vy * cosA)
+end
+
+local function drawXhSeg(idx, a, b, col, th, hasOutline)
+    local d = b - a
+    local dirV = d.Magnitude > 0.01 and d.Unit or v2(1, 0)
+    local o = ov(XH_O[idx], "Line", 1)
+    if hasOutline then
+        o.From, o.To = a - dirV, b + dirV
+        o.Color, o.Thickness, o.Transparency, o.Visible = BLACK, th + 2, 1, true
+    else
+        o.Visible = false
+    end
+    local l = ov(XH_L[idx], "Line", 2)
+    l.From, l.To = a, b
+    l.Color, l.Thickness, l.Transparency, l.Visible = col, th, 1, true
+end
+
+local function drawHmLine(idx, a, b, dirV, segTh, segCol, tr)
+    local bg = ov(HM_O[idx], "Line", 4)
+    bg.From, bg.To = a - dirV, b + dirV
+    bg.Color, bg.Thickness, bg.Transparency, bg.Visible = BLACK, segTh + 2, tr * 0.85, true
+    local ln = ov(HM_L[idx], "Line", 5)
+    ln.From, ln.To = a, b
+    ln.Color, ln.Thickness, ln.Transparency, ln.Visible = segCol, segTh, tr, true
+end
 
 local function updateCrosshair(dt)
     local X = cfg().Crosshair
@@ -3590,9 +4257,9 @@ local function updateCrosshair(dt)
     ovState.xh = true
 
     local vp = workspace.CurrentCamera.ViewportSize
-    local c = Vector2.new(math.floor(vp.X / 2), math.floor(vp.Y / 2))
+    local c = v2(floor(vp.X / 2), floor(vp.Y / 2))
     local col = X.Rainbow and rainbow or X.Color
-    local s, th = X.Size, X.Thickness
+    local s, th, hasOut = X.Size, X.Thickness, X.Outline
 
     local targetDyn = 0
     if X.Dynamic then
@@ -3603,7 +4270,7 @@ local function updateCrosshair(dt)
         end
     end
     xhDynGap = xhDynGap + (targetDyn - xhDynGap) * clamp((dt or 0.016) * 12, 0, 1)
-    local hitAgo = os.clock() - hitmarkerState.born
+    local hitAgo = clock() - hitmarkerState.born
     local hitPop = (hitAgo >= 0 and hitAgo < 0.12) and ((1 - hitAgo / 0.12) * 3.5) or 0
     local g = X.Gap + xhDynGap + hitPop
 
@@ -3612,32 +4279,12 @@ local function updateCrosshair(dt)
     else
         xhSpinAng = 0
     end
-    local cosA, sinA = math.cos(xhSpinAng), math.sin(xhSpinAng)
-    local function rotV(vx, vy)
-        return Vector2.new(vx * cosA - vy * sinA, vx * sinA + vy * cosA)
-    end
+    local cosA, sinA = cos(xhSpinAng), sin(xhSpinAng)
 
     local usedLines = 0
-    local function drawXhSeg(a, b)
-        usedLines += 1
-        local idx = usedLines
-        local d = (b - a)
-        local dirV = d.Magnitude > 0.01 and d.Unit or Vector2.new(1, 0)
-        local o = ov(XH_O[idx], "Line", 1)
-        if X.Outline then
-            o.From, o.To = a - dirV, b + dirV
-            o.Color, o.Thickness, o.Transparency, o.Visible = BLACK, th + 2, 1, true
-        else
-            o.Visible = false
-        end
-        local l = ov(XH_L[idx], "Line", 2)
-        l.From, l.To = a, b
-        l.Color, l.Thickness, l.Transparency, l.Visible = col, th, 1, true
-    end
-
     if X.Style == "Circle" then
         local ro = ov("xhRO", "Circle", 1)
-        if X.Outline then
+        if hasOut then
             ro.Position, ro.Radius, ro.NumSides, ro.Filled, ro.Thickness = c, g + s * 0.5, 32, false, th + 2
             ro.Color, ro.Transparency, ro.Visible = BLACK, 0.85, true
         else
@@ -3652,37 +4299,55 @@ local function updateCrosshair(dt)
 
         if X.Style == "Brackets" then
             local r = g + s * 0.55
-            local arm = math.min(math.max(3, s * 0.55), math.max(1.5, r * 0.85))
+            local arm = min(max(3, s * 0.55), max(1.5, r * 0.85))
             for _, cs in ipairs(HM_DIRS) do
                 local vx, vy = cs[1] * r, cs[2] * r
-                local corner = c + rotV(vx, vy)
-                drawXhSeg(corner, c + rotV(vx - cs[1] * arm, vy))
-                drawXhSeg(corner, c + rotV(vx, vy - cs[2] * arm))
+                local corner = c + rotV(vx, vy, cosA, sinA)
+                usedLines += 1; drawXhSeg(usedLines, corner, c + rotV(vx - cs[1] * arm, vy, cosA, sinA), col, th, hasOut)
+                usedLines += 1; drawXhSeg(usedLines, corner, c + rotV(vx, vy - cs[2] * arm, cosA, sinA), col, th, hasOut)
             end
         elseif X.Style == "Chevron" then
-            local apex = c + rotV(0, -g * 0.35)
-            local w = math.max(4, s * 0.85)
+            local apex = c + rotV(0, -g * 0.35, cosA, sinA)
+            local w = max(4, s * 0.85)
             local h = g * 0.35 + s * 0.72
-            drawXhSeg(apex, c + rotV(-w, h))
-            drawXhSeg(apex, c + rotV(w, h))
+            usedLines += 1; drawXhSeg(usedLines, apex, c + rotV(-w, h, cosA, sinA), col, th, hasOut)
+            usedLines += 1; drawXhSeg(usedLines, apex, c + rotV(w, h, cosA, sinA), col, th, hasOut)
             local wingIn, wingOut = g + s * 0.45, g + s * 0.95
-            drawXhSeg(c + rotV(-wingOut, 0), c + rotV(-wingIn, 0))
-            drawXhSeg(c + rotV(wingIn, 0), c + rotV(wingOut, 0))
+            usedLines += 1; drawXhSeg(usedLines, c + rotV(-wingOut, 0, cosA, sinA), c + rotV(-wingIn, 0, cosA, sinA), col, th, hasOut)
+            usedLines += 1; drawXhSeg(usedLines, c + rotV(wingIn, 0, cosA, sinA), c + rotV(wingOut, 0, cosA, sinA), col, th, hasOut)
         elseif X.Style == "Diamond" then
             local r = g + s * 0.65
-            local top = c + rotV(0, -r)
-            local right = c + rotV(r, 0)
-            local bot = c + rotV(0, r)
-            local left = c + rotV(-r, 0)
-            drawXhSeg(top, right)
-            drawXhSeg(right, bot)
-            drawXhSeg(bot, left)
-            drawXhSeg(left, top)
+            local top = c + rotV(0, -r, cosA, sinA)
+            local right = c + rotV(r, 0, cosA, sinA)
+            local bot = c + rotV(0, r, cosA, sinA)
+            local left = c + rotV(-r, 0, cosA, sinA)
+            usedLines += 1; drawXhSeg(usedLines, top, right, col, th, hasOut)
+            usedLines += 1; drawXhSeg(usedLines, right, bot, col, th, hasOut)
+            usedLines += 1; drawXhSeg(usedLines, bot, left, col, th, hasOut)
+            usedLines += 1; drawXhSeg(usedLines, left, top, col, th, hasOut)
+        elseif X.Style == "X-Cross" then
+            for i = 1, 4 do
+                local u = HM_UDIRS[i]
+                local dirV = rotV(u.X, u.Y, cosA, sinA)
+                usedLines += 1; drawXhSeg(usedLines, c + dirV * g, c + dirV * (g + s), col, th, hasOut)
+            end
+        elseif X.Style == "Sniper" then
+            local outer = g + max(8, s * 1.45)
+            local tickDist = g + s * 0.55
+            local tickHalf = max(2, s * 0.28)
+            for i = 1, 4 do
+                local dv = XH_DIRS[i]
+                local dirV = rotV(dv[1], dv[2], cosA, sinA)
+                local perpV = rotV(-dv[2], dv[1], cosA, sinA)
+                usedLines += 1; drawXhSeg(usedLines, c + dirV * g, c + dirV * outer, col, th, hasOut)
+                local mid = c + dirV * tickDist
+                usedLines += 1; drawXhSeg(usedLines, mid - perpV * tickHalf, mid + perpV * tickHalf, col, max(1, th - 0.3), hasOut)
+            end
         else
             for i, dv in ipairs(XH_DIRS) do
                 if not (X.Style == "T-Cross" and i == 3) then
-                    local dirV = rotV(dv[1], dv[2])
-                    drawXhSeg(c + dirV * g, c + dirV * (g + s))
+                    local dirV = rotV(dv[1], dv[2], cosA, sinA)
+                    usedLines += 1; drawXhSeg(usedLines, c + dirV * g, c + dirV * (g + s), col, th, hasOut)
                 end
             end
         end
@@ -3696,13 +4361,13 @@ local function updateCrosshair(dt)
     local dotOut = ov("xhDO", "Circle", 1)
     local dot = ov("xhD", "Circle", 2)
     if X.Dot then
-        if X.Outline then
-            dotOut.Position, dotOut.Radius, dotOut.NumSides, dotOut.Filled = c, math.max(1, th) + 1.2, 12, true
+        if hasOut then
+            dotOut.Position, dotOut.Radius, dotOut.NumSides, dotOut.Filled = c, max(1, th) + 1.2, 12, true
             dotOut.Color, dotOut.Transparency, dotOut.Visible = BLACK, 0.9, true
         else
             dotOut.Visible = false
         end
-        dot.Position, dot.Radius, dot.NumSides, dot.Filled = c, math.max(1, th), 12, true
+        dot.Position, dot.Radius, dot.NumSides, dot.Filled = c, max(1, th), 12, true
         dot.Color, dot.Transparency, dot.Visible = col, 1, true
     else
         dotOut.Visible = false
@@ -3712,7 +4377,7 @@ end
 
 local function updateHitmarker()
     local H = cfg().Hitmarker
-    local elapsed = os.clock() - hitmarkerState.born
+    local elapsed = clock() - hitmarkerState.born
     local dur = clamp(H.Duration, 0.1, 0.8)
     if not H.Enabled or elapsed < 0 or elapsed >= dur then
         if ovState.hm then hideGroup("hm") ovState.hm = false end
@@ -3720,7 +4385,7 @@ local function updateHitmarker()
     end
     ovState.hm = true
     local vp = workspace.CurrentCamera.ViewportSize
-    local c = Vector2.new(math.floor(vp.X * 0.5), math.floor(vp.Y * 0.5))
+    local c = v2(floor(vp.X * 0.5), floor(vp.Y * 0.5))
     local prog = clamp(elapsed / dur, 0, 1)
     local alpha = 1 - prog * prog
     local spread = 4 + prog * 7
@@ -3730,34 +4395,64 @@ local function updateHitmarker()
     local style = H.Style or "Cross"
 
     local used = 0
-    local function drawHmSeg(dirV, s0, s1, segTh, segCol, tr)
-        used += 1
-        local idx = used
-        local a, b = c + dirV * s0, c + dirV * s1
-        local bg = ov(HM_O[idx], "Line", 4)
-        bg.From, bg.To = a - dirV, b + dirV
-        bg.Color, bg.Thickness, bg.Transparency, bg.Visible = BLACK, segTh + 2, tr * 0.85, true
-        local ln = ov(HM_L[idx], "Line", 5)
-        ln.From, ln.To = a, b
-        ln.Color, ln.Thickness, ln.Transparency, ln.Visible = segCol, segTh, tr, true
-    end
-
-    for _, dv in ipairs(HM_DIRS) do
-        drawHmSeg(Vector2.new(dv[1], dv[2]).Unit, spread, spread + sz, th, col, alpha)
-    end
-    if style == "Double" then
-        local inCol = col:Lerp(WHITE, 0.35)
-        local inSpread = 1.8 + prog * 3.2
-        local inSz = math.max(2, sz * 0.48)
-        for _, dv in ipairs(HM_DIRS) do
-            drawHmSeg(Vector2.new(dv[1], dv[2]).Unit, inSpread, inSpread + inSz, math.max(1, th * 0.85), inCol, alpha * 0.9)
+    if style == "Circle" then
+        local r = 3 + prog * (sz + 4)
+        local co = ov("hmCO", "Circle", 4)
+        co.Position, co.Radius, co.NumSides, co.Filled, co.Thickness = c, r, 32, false, th + 2
+        co.Color, co.Transparency, co.Visible = BLACK, alpha * 0.85, true
+        local cl = ov("hmC", "Circle", 5)
+        cl.Position, cl.Radius, cl.NumSides, cl.Filled, cl.Thickness = c, r, 32, false, th
+        cl.Color, cl.Transparency, cl.Visible = col, alpha, true
+        local tickLen = max(2.5, sz * 0.35)
+        for i = 1, 4 do
+            local u = HM_UDIRS[i]
+            used += 1; drawHmLine(used, c + u * (r + 2), c + u * (r + 2 + tickLen), u, max(1, th * 0.85), col:Lerp(WHITE, 0.25), alpha * 0.9)
         end
-    elseif style == "Star" then
-        local cardCol = col:Lerp(WHITE, 0.25)
-        local cardSpread = spread * 0.85
-        local cardSz = math.max(2, sz * 0.6)
-        for _, dv in ipairs(XH_DIRS) do
-            drawHmSeg(Vector2.new(dv[1], dv[2]), cardSpread, cardSpread + cardSz, math.max(1, th * 0.8), cardCol, alpha * 0.9)
+    else
+        local co = overlayObjs["hmCO"]; if co then co.Visible = false end
+        local cl = overlayObjs["hmC"]; if cl then cl.Visible = false end
+        if style == "Diamond" then
+            local r = spread + sz * 0.85
+            local pts = {
+                c + v2(0, -r),
+                c + v2(r, 0),
+                c + v2(0, r),
+                c + v2(-r, 0),
+            }
+            for i = 1, 4 do
+                local j = (i % 4) + 1
+                local d = pts[j] - pts[i]
+                local u = d.Magnitude > 0.01 and d.Unit or v2(1, 0)
+                used += 1; drawHmLine(used, pts[i], pts[j], u, th, col, alpha)
+            end
+            local inCol = col:Lerp(WHITE, 0.35)
+            local inR = max(2, sz * 0.42)
+            for i = 1, 4 do
+                local u = HM_UDIRS[i]
+                used += 1; drawHmLine(used, c + u * 2.5, c + u * (2.5 + inR), u, max(1, th * 0.8), inCol, alpha * 0.88)
+            end
+        else
+            for i = 1, 4 do
+                local u = HM_UDIRS[i]
+                used += 1; drawHmLine(used, c + u * spread, c + u * (spread + sz), u, th, col, alpha)
+            end
+            if style == "Double" then
+                local inCol = col:Lerp(WHITE, 0.35)
+                local inSpread = 1.8 + prog * 3.2
+                local inSz = max(2, sz * 0.48)
+                for i = 1, 4 do
+                    local u = HM_UDIRS[i]
+                    used += 1; drawHmLine(used, c + u * inSpread, c + u * (inSpread + inSz), u, max(1, th * 0.85), inCol, alpha * 0.9)
+                end
+            elseif style == "Star" then
+                local cardCol = col:Lerp(WHITE, 0.25)
+                local cardSpread = spread * 0.85
+                local cardSz = max(2, sz * 0.6)
+                for i = 1, 4 do
+                    local u = XH_VDIRS[i]
+                    used += 1; drawHmLine(used, c + u * cardSpread, c + u * (cardSpread + cardSz), u, max(1, th * 0.8), cardCol, alpha * 0.9)
+                end
+            end
         end
     end
     for i = used + 1, 8 do
@@ -3912,6 +4607,50 @@ local function updateSpeedometer()
     lbl.Size, lbl.Font, lbl.Center, lbl.Outline = 11, 2, true, true
     lbl.Color, lbl.OutlineColor = sandeActive and cyanCol or WHITE, BLACK
     lbl.Position, lbl.Transparency, lbl.Visible = v2(c.X, c.Y + radius + 6), 0.95, true
+end
+
+local slPhase = 0
+local function updateSpeedLines(dt)
+    local O = cfg().Overlay
+    local cam, root = workspace.CurrentCamera, getRootPart(LP and LP.Character)
+    if not O.SpeedLines or not cam or not isPartValid(root) then
+        if ovState.sl then hideGroup("sl") ovState.sl = false end
+        return
+    end
+    local spd = (root.AssemblyLinearVelocity or root.Velocity).Magnitude
+    local minSpd = max(O.SpeedLinesMinSpeed or 20, 4)
+    if spd < minSpd then
+        if ovState.sl then hideGroup("sl") ovState.sl = false end
+        return
+    end
+    ovState.sl = true
+    slPhase = slPhase + (dt or 0.016) * 16
+    local intensity = clamp((spd - minSpd) / max(minSpd * 0.85, 16), 0.12, 1)
+    local vp = cam.ViewportSize
+    local cx, cy = vp.X * 0.5, vp.Y * 0.5
+    local maxR = sqrt(cx * cx + cy * cy)
+    local innerBase = min(cx, cy) * (0.76 - intensity * 0.24)
+    local col = O.SpeedLinesRainbow and rainbow or O.SpeedLinesColor
+    local op = clamp(O.SpeedLinesOpacity or 0.65, 0.1, 1)
+    local step = (math.pi * 2) / SL_COUNT
+    for i = 1, SL_COUNT do
+        local ln = ov(SL_KEYS[i], "Line", 1)
+        if sin(slPhase * 1.7 + i * 2.3) > -0.45 then
+            local ang = (i - 1) * step + sin(i * 4.1 + floor(slPhase * 0.8) * 0.35) * 0.09
+            local dx, dy = cos(ang), sin(ang)
+            local pulse = 0.5 + 0.5 * sin(slPhase * 2.1 + i * 1.7)
+            local rIn = innerBase + pulse * (min(cx, cy) * 0.18)
+            local rOut = maxR * 1.05
+            ln.From = v2(cx + dx * rOut, cy + dy * rOut)
+            ln.To = v2(cx + dx * rIn, cy + dy * rIn)
+            ln.Color = (i % 3 == 0) and col:Lerp(WHITE, 0.35) or col
+            ln.Thickness = 1 + pulse * 1.5 * intensity
+            ln.Transparency = clamp(op * intensity * (0.45 + 0.55 * pulse), 0.05, 0.95)
+            ln.Visible = true
+        else
+            ln.Visible = false
+        end
+    end
 end
 
 local cachedPing, lastPingPoll = 0, 0
@@ -4091,7 +4830,9 @@ local KB_DEFS = {
     { function() return cfg().SelfChams.Enabled end, "Чамсы на себя" },
     { function() return cfg().ChinaHat.Enabled end, "Шляпа / Нимб" },
     { function() return cfg().PlayerAura.Enabled end, "Аура" },
+    { function() return cfg().Satellites.Enabled end, "Спутники" },
     { function() return cfg().ParticleTrail.Enabled end, "Ленты (Trail)" },
+    { function() return cfg().Overlay.SpeedLines end, "Линии скорости" },
     { function() return cfg().Objects.Enabled end, "Object ESP" },
 }
 local function updateKeybindsHUD()
@@ -4160,7 +4901,7 @@ local function updateKeybindsHUD()
         end
         v.Color, v.Position, v.Transparency, v.Visible = acc, v2(x + w - 8 - tw, ry + 1), 1, true
     end
-    for i = n + 1, 20 do
+    for i = n + 1, 24 do
         local l = overlayObjs[KB_L[i]]; if l then l.Visible = false end
         local v = overlayObjs[KB_R[i]]; if v then v.Visible = false end
     end
@@ -4171,6 +4912,7 @@ return {
     updateHitmarker = updateHitmarker,
     updateVignette = updateVignette,
     updateSpeedometer = updateSpeedometer,
+    updateSpeedLines = updateSpeedLines,
     updateWatermark = updateWatermark,
     updateTargetHUD = updateTargetHUD,
     updateKeybindsHUD = updateKeybindsHUD,
@@ -4330,38 +5072,42 @@ local function projectPlayers()
     local wantDot = e.HeadDot
     local dyn = e.BoxFit == "Dynamic"
     for _, rd in pairs(renderData) do
-        local parts = rd.parts
-        local hrp, head = parts.HumanoidRootPart, parts.Head
         rd.headDotScreen, rd.headDotR, rd.dynL = nil, nil, nil
-        if isPartValid(hrp) and isPartValid(head) then
-            local hpos, rpos = partPos(head), partPos(hrp)
-            local h3 = cam:WorldToViewportPoint(hpos + Vector3.new(0, 0.5, 0))
-            local l3 = cam:WorldToViewportPoint(rpos - Vector3.new(0, 3, 0))
-            local r3 = cam:WorldToViewportPoint(rpos)
-            if h3.Z > 0.1 and l3.Z > 0.1 then
-                rd.headScreen = Vector2.new(h3.X, h3.Y)
-                rd.legScreen  = Vector2.new(l3.X, l3.Y)
-                rd.hrpScreen  = Vector2.new(r3.X, r3.Y)
-                local cx, cy = rd.hrpScreen.X, rd.hrpScreen.Y
-                rd.onScreen = cx > -m and cx < vp.X + m and cy > -m and cy < vp.Y + m
-                if wantDot then
-                    local hd = cam:WorldToViewportPoint(hpos)
-                    if hd.Z > 0.1 then
-                        rd.headDotScreen = Vector2.new(hd.X, hd.Y)
-                        local up = partCF(head).UpVector * (head.Size.Y / 2)
-                        local a = cam:WorldToViewportPoint(hpos + up)
-                        local b = cam:WorldToViewportPoint(hpos - up)
-                        rd.headDotR = math.max(2, math.abs(a.Y - b.Y) / 2)
+        if not rd.inEsp then
+            rd.onScreen, rd.headScreen, rd.legScreen, rd.hrpScreen = false, nil, nil, nil
+        else
+            local parts = rd.parts
+            local hrp, head = parts.HumanoidRootPart, parts.Head
+            if isPartValid(hrp) and isPartValid(head) then
+                local hpos, rpos = partPos(head), partPos(hrp)
+                local h3 = cam:WorldToViewportPoint(hpos + v3(0, 0.5, 0))
+                local l3 = cam:WorldToViewportPoint(rpos - v3(0, 3, 0))
+                local r3 = cam:WorldToViewportPoint(rpos)
+                if h3.Z > 0.1 and l3.Z > 0.1 then
+                    rd.headScreen = v2(h3.X, h3.Y)
+                    rd.legScreen  = v2(l3.X, l3.Y)
+                    rd.hrpScreen  = v2(r3.X, r3.Y)
+                    local cx, cy = rd.hrpScreen.X, rd.hrpScreen.Y
+                    rd.onScreen = cx > -m and cx < vp.X + m and cy > -m and cy < vp.Y + m
+                    if wantDot then
+                        local hd = cam:WorldToViewportPoint(hpos)
+                        if hd.Z > 0.1 then
+                            rd.headDotScreen = v2(hd.X, hd.Y)
+                            local up = partCF(head).UpVector * (head.Size.Y / 2)
+                            local a = cam:WorldToViewportPoint(hpos + up)
+                            local b = cam:WorldToViewportPoint(hpos - up)
+                            rd.headDotR = max(2, abs(a.Y - b.Y) / 2)
+                        end
                     end
-                end
-                if dyn and rd.onScreen and rd.distance <= 400 then
-                    rd.dynL, rd.dynR, rd.dynT, rd.dynB = dynamicBounds(cam, parts)
+                    if dyn and rd.onScreen and rd.distance <= 400 then
+                        rd.dynL, rd.dynR, rd.dynT, rd.dynB = dynamicBounds(cam, parts)
+                    end
+                else
+                    rd.onScreen, rd.headScreen, rd.legScreen, rd.hrpScreen = false, nil, nil, nil
                 end
             else
                 rd.onScreen, rd.headScreen, rd.legScreen, rd.hrpScreen = false, nil, nil, nil
             end
-        else
-            rd.onScreen, rd.headScreen, rd.legScreen, rd.hrpScreen = false, nil, nil, nil
         end
     end
 end
@@ -4627,7 +5373,7 @@ local function updateObj()
     local O = cfg().Objects
     local count = 0
     if O.Enabled then
-        local now = os.clock()
+        local now = clock()
         if now - state.last >= O.Interval then
             state.last = now
             task.spawn(scanObjects)
@@ -4769,15 +5515,49 @@ local WEATHER_DEFS = {
         Color = ColorSequence.new(rgb(0, 235, 255), rgb(220, 65, 255)),
         Tr = { { 0, 0.9 }, { 0.4, 0.2 }, { 1, 1 } },
     },
+    Sakura = {
+        Name = "GlupostWeatherEmitter", vol = true, yOff = 3, rate = 95,
+        LifeMin = 2.6, LifeMax = 4.2, SpdMin = 2.0, SpdMax = 4.5,
+        Dir = Enum.NormalId.Bottom, Spread = v2(48, 48), Accel = v3(1.6, -0.8, 0.8), Drag = 1.4,
+        Size = { { 0, 0.16 }, { 0.5, 0.24 }, { 1, 0.12 } }, Light = 0.65,
+        Color = ColorSequence.new(rgb(255, 195, 225), rgb(255, 125, 185)),
+        Tr = { { 0, 0.85 }, { 0.2, 0.1 }, { 0.85, 0.2 }, { 1, 1 } },
+    },
+    MatrixRain = {
+        Name = "GlupostWeatherEmitter", vol = false, yOff = 13, yVec = v3(0, 13, 0), rate = 180,
+        LifeMin = 0.65, LifeMax = 1.05, SpdMin = 26, SpdMax = 38,
+        Dir = Enum.NormalId.Bottom, Spread = v2(2, 2), Orient = Enum.ParticleOrientation.VelocityParallel,
+        Squash = -1.6, Size = 0.26, Light = 1,
+        Color = ColorSequence.new(rgb(130, 255, 175), rgb(25, 215, 95)),
+        Tr = { { 0, 0.25 }, { 1, 0.9 } },
+    },
+    Starfall = {
+        Name = "GlupostWeatherEmitter", vol = false, yOff = 14, yVec = v3(0, 14, 0), rate = 75,
+        LifeMin = 0.75, LifeMax = 1.25, SpdMin = 30, SpdMax = 44,
+        Dir = Enum.NormalId.Bottom, Spread = v2(16, 16), Accel = v3(-14, -4, -8),
+        Orient = Enum.ParticleOrientation.VelocityParallel, Squash = -2.2, Size = 0.30, Light = 1,
+        Color = ColorSequence.new(rgb(135, 235, 255), rgb(255, 225, 130)),
+        Tr = { { 0, 0.15 }, { 0.75, 0.35 }, { 1, 1 } },
+    },
+    BloodRain = {
+        Name = "GlupostWeatherEmitter", vol = false, yOff = 13, yVec = v3(0, 13, 0), rate = 220,
+        LifeMin = 0.50, LifeMax = 0.80, SpdMin = 44, SpdMax = 58,
+        Dir = Enum.NormalId.Bottom, Spread = v2(6, 6), Orient = Enum.ParticleOrientation.VelocityParallel,
+        Squash = -1.8, Size = 0.28, Light = 0.75,
+        Color = ColorSequence.new(rgb(255, 70, 90), rgb(185, 20, 45)),
+        Tr = { { 0, 0.25 }, { 1, 0.88 } },
+    },
 }
 
 local function ensureWeather(mode, intensity, cam)
     local def = WEATHER_DEFS[mode] or WEATHER_DEFS.CyberDust
     local rate = floor(def.rate * clamp(intensity, 0.2, 1.5))
-    local targetCF = cfNew(cam.CFrame.Position + cam.CFrame.LookVector * 12 + v3(0, def.yOff, 0))
+    local yVec = def.yVec or v3(0, def.yOff, 0)
+    if not def.yVec then def.yVec = yVec end
+    local targetCF = cfNew(cam.CFrame.Position + cam.CFrame.LookVector * 12 + yVec)
     if weatherPart and weatherPart.Parent and weatherModeCur == mode then
         weatherPart.CFrame = targetCF
-        if weatherEmitter then weatherEmitter.Rate = rate end
+        if weatherEmitter and weatherEmitter.Rate ~= rate then weatherEmitter.Rate = rate end
         return
     end
     clearWeather()
@@ -4828,15 +5608,15 @@ local function applySkyPreset(presetName)
     if lastSkyRef == sky and lastSkyMode == presetName then return end
     lastSkyRef, lastSkyMode = sky, presetName
 
-    if presetName == "Clean Night" or presetName == "Cyberpunk" or presetName == "Blood Moon" or presetName == "Emerald Matrix" then
+    if presetName == "Clean Night" or presetName == "Cyberpunk" or presetName == "Blood Moon" or presetName == "Emerald Matrix" or presetName == "Tokyo Neon" or presetName == "Crimson Void" or presetName == "Midnight Mist" then
         pcall(function()
             sky.SkyboxBk, sky.SkyboxDn, sky.SkyboxFt = "", "", ""
             sky.SkyboxLf, sky.SkyboxRt, sky.SkyboxUp = "", "", ""
-            sky.StarCount = (presetName == "Cyberpunk" or presetName == "Emerald Matrix") and 3800 or 5000
+            sky.StarCount = (presetName == "Cyberpunk" or presetName == "Emerald Matrix" or presetName == "Tokyo Neon") and 4200 or 5000
             sky.CelestialBodiesShown = true
-            sky.MoonAngularSize = (presetName == "Blood Moon") and 22 or 12
+            sky.MoonAngularSize = (presetName == "Blood Moon" or presetName == "Crimson Void") and 22 or 12
         end)
-    elseif presetName == "Cold Frost" or presetName == "Warm Sunset" or presetName == "Solar Gold" then
+    elseif presetName == "Cold Frost" or presetName == "Warm Sunset" or presetName == "Solar Gold" or presetName == "Sakura Dusk" or presetName == "Golden Dawn" then
         if sky == customSky then
             safeDestroy(customSky)
             customSky = Instance.new("Sky")
@@ -4854,7 +5634,7 @@ local function applySkyPreset(presetName)
         pcall(function()
             sky.StarCount = 1800
             sky.CelestialBodiesShown = true
-            sky.SunAngularSize = (presetName == "Solar Gold") and 26 or ((presetName == "Warm Sunset") and 24 or 16)
+            sky.SunAngularSize = (presetName == "Solar Gold") and 26 or ((presetName == "Warm Sunset" or presetName == "Sakura Dusk" or presetName == "Golden Dawn") and 24 or 16)
         end)
     end
 end
@@ -4870,9 +5650,9 @@ local function update(dt)
             worldOrig.exposure = Lighting.ExposureCompensation
             worldOrig.shiftTop = Lighting.ColorShift_Top
         end
-        Lighting.Brightness = preset.Brightness
-        Lighting.ExposureCompensation = preset.Exposure
-        Lighting.ColorShift_Top = preset.ColorShiftTop
+        if Lighting.Brightness ~= preset.Brightness then Lighting.Brightness = preset.Brightness end
+        if Lighting.ExposureCompensation ~= preset.Exposure then Lighting.ExposureCompensation = preset.Exposure end
+        if Lighting.ColorShift_Top ~= preset.ColorShiftTop then Lighting.ColorShift_Top = preset.ColorShiftTop end
     elseif worldOrig.brightness ~= nil then
         Lighting.Brightness = worldOrig.brightness
         Lighting.ExposureCompensation = worldOrig.exposure
@@ -4895,7 +5675,7 @@ local function update(dt)
 
     if W.TimeEnabled then
         if worldOrig.time == nil then worldOrig.time = Lighting.ClockTime end
-        Lighting.ClockTime = W.Time
+        if abs(Lighting.ClockTime - W.Time) > 0.005 then Lighting.ClockTime = W.Time end
     elseif worldOrig.time ~= nil then
         Lighting.ClockTime = worldOrig.time
         worldOrig.time = nil
@@ -4927,7 +5707,7 @@ local function update(dt)
             local gameZooming = applied ~= nil and (curFov < applied - 2) and (curFov < (worldOrig.fov or 70) - 2)
             if not gameZooming then
                 local target = clamp(W.FOV + kick, 40, 120)
-                cam.FieldOfView = target
+                if curFov ~= target then cam.FieldOfView = target end
                 worldOrig.appliedFOV = target
                 appliedSpeedKick = kick
             end
@@ -4947,7 +5727,7 @@ local function update(dt)
                     worldOrig.fov = curFov
                 end
                 local target = clamp(baseFov + kick, 40, 120)
-                cam.FieldOfView = target
+                if curFov ~= target then cam.FieldOfView = target end
                 worldOrig.appliedFOV = target
                 appliedSpeedKick = kick
             end
@@ -4976,7 +5756,7 @@ local function update(dt)
         if worldOrig.fogStart == nil then worldOrig.fogStart = Lighting.FogStart end
         if Lighting.FogStart ~= 1e5 then Lighting.FogStart = 1e5 end
         if Lighting.FogEnd ~= 1e6 then Lighting.FogEnd = 1e6 end
-        local now = os.clock()
+        local now = clock()
         if now - lastAtmScan >= 0.5 then
             lastAtmScan = now
             for _, child in ipairs(Lighting:GetChildren()) do
@@ -5009,8 +5789,8 @@ local function update(dt)
     if W.AmbientEnabled then
         if worldOrig.ambient == nil then worldOrig.ambient = Lighting.Ambient end
         if worldOrig.outdoor == nil then worldOrig.outdoor = Lighting.OutdoorAmbient end
-        Lighting.Ambient = W.Ambient
-        Lighting.OutdoorAmbient = W.OutdoorAmbient
+        if Lighting.Ambient ~= W.Ambient then Lighting.Ambient = W.Ambient end
+        if Lighting.OutdoorAmbient ~= W.OutdoorAmbient then Lighting.OutdoorAmbient = W.OutdoorAmbient end
     elseif worldOrig.ambient ~= nil then
         Lighting.Ambient = worldOrig.ambient
         Lighting.OutdoorAmbient = worldOrig.outdoor
@@ -5023,9 +5803,11 @@ local function update(dt)
             gradeFx.Name = HttpSvc:GenerateGUID(false)
             gradeFx.Parent = Lighting
         end
-        gradeFx.Enabled = true
-        gradeFx.Saturation, gradeFx.Contrast, gradeFx.TintColor = W.Saturation, W.Contrast, W.Tint
-    elseif gradeFx then
+        if not gradeFx.Enabled then gradeFx.Enabled = true end
+        if gradeFx.Saturation ~= W.Saturation then gradeFx.Saturation = W.Saturation end
+        if gradeFx.Contrast ~= W.Contrast then gradeFx.Contrast = W.Contrast end
+        if gradeFx.TintColor ~= W.Tint then gradeFx.TintColor = W.Tint end
+    elseif gradeFx and gradeFx.Enabled then
         gradeFx.Enabled = false
     end
 
@@ -5035,11 +5817,11 @@ local function update(dt)
             bloomFx.Name = HttpSvc:GenerateGUID(false)
             bloomFx.Parent = Lighting
         end
-        bloomFx.Enabled = true
-        bloomFx.Intensity = W.BloomIntensity
-        bloomFx.Size = W.BloomSize
-        bloomFx.Threshold = W.BloomThreshold
-    elseif bloomFx then
+        if not bloomFx.Enabled then bloomFx.Enabled = true end
+        if bloomFx.Intensity ~= W.BloomIntensity then bloomFx.Intensity = W.BloomIntensity end
+        if bloomFx.Size ~= W.BloomSize then bloomFx.Size = W.BloomSize end
+        if bloomFx.Threshold ~= W.BloomThreshold then bloomFx.Threshold = W.BloomThreshold end
+    elseif bloomFx and bloomFx.Enabled then
         bloomFx.Enabled = false
     end
 end
@@ -5087,6 +5869,7 @@ end)()
 local ThirdPerson = (function()
 local tpOrig = nil
 local tpChar, tpBodyParts, tpBodyConn = nil, {}, nil
+local tpLastOffX, tpLastOffY, tpLastOffVec = nil, nil, nil
 
 local function clearTpBodyCache()
     if tpBodyConn then safeDestroy(tpBodyConn) tpBodyConn = nil end
@@ -5151,8 +5934,12 @@ local function update()
         end)
     end
     if hum then
-        local off = Vector3.new(T.OffsetX or 0, T.OffsetY or 0, 0)
-        if hum.CameraOffset ~= off then hum.CameraOffset = off end
+        local ox, oy = T.OffsetX or 0, T.OffsetY or 0
+        if ox ~= tpLastOffX or oy ~= tpLastOffY or not tpLastOffVec then
+            tpLastOffX, tpLastOffY = ox, oy
+            tpLastOffVec = v3(ox, oy, 0)
+        end
+        if hum.CameraOffset ~= tpLastOffVec then hum.CameraOffset = tpLastOffVec end
     end
     if T.ShowBody and char then
         if tpChar ~= char then rebuildTpBodyCache(char) end
@@ -5245,6 +6032,381 @@ local Tabs = {
 local SYNC = {}
 local isSyncingUI = false
 
+local UiBg = {}
+do
+    local SCALE_MODES = {
+        Crop = Enum.ScaleType.Crop,
+        Stretch = Enum.ScaleType.Stretch,
+        Fit = Enum.ScaleType.Fit,
+        Tile = Enum.ScaleType.Tile,
+    }
+    local BG_ROOT = "glupost_hub"
+    local BG_DIR = "glupost_hub/backgrounds"
+    local CACHE_EXTS = { ".png", ".jpg", ".jpeg", ".webp", ".gif" }
+
+    local screenGuiRef, mainFrameRef, bgLayer
+    local origTransp = {}
+    local urlAssetCache, urlPending, urlFailed = {}, {}, {}
+
+    local function getCustomAssetFn()
+        local g = getgenv_()
+        return getcustomasset or getsynasset or g.getcustomasset or g.getsynasset
+    end
+
+    local function getRequestFn()
+        local g = getgenv_()
+        return request or http_request or g.request or g.http_request
+            or (g.syn and g.syn.request) or (g.http and g.http.request)
+    end
+
+    local function ensureBgDir()
+        if not (isfolder and makefolder) then return false end
+        if not isfolder(BG_ROOT) then pcall(makefolder, BG_ROOT) end
+        if not isfolder(BG_DIR) then pcall(makefolder, BG_DIR) end
+        return isfolder(BG_DIR)
+    end
+
+    local function hashUrl(u)
+        local h = 5381
+        for i = 1, #u do
+            h = ((h * 131) + string.byte(u, i)) % 4294967296
+        end
+        return string.format("%08x", floor(h))
+    end
+
+    local function detectImageExt(bytes, url)
+        if type(bytes) ~= "string" or #bytes < 64 then return nil end
+        local b4 = bytes:sub(1, 4)
+        if b4 == "\137PNG" then return ".png" end
+        if bytes:sub(1, 3) == "\255\216\255" then return ".jpg" end
+        if b4 == "RIFF" and bytes:sub(9, 12) == "WEBP" then return ".webp" end
+        if b4 == "GIF8" then return ".gif" end
+        local head = string.lower(bytes:sub(1, 96))
+        if head:match("^%s*<!doctype") or head:match("^%s*<html") or head:match("^%s*<%?xml") or head:match("^%s*{") then
+            return nil
+        end
+        local ext = url and url:match("^[^?#]+%.([%a]+)")
+        if ext then
+            ext = "." .. string.lower(ext)
+            if ext == ".png" or ext == ".jpg" or ext == ".jpeg" or ext == ".webp" or ext == ".gif" then
+                return ext
+            end
+        end
+        return ".png"
+    end
+
+    local function findCachedAsset(url)
+        if urlAssetCache[url] then return urlAssetCache[url] end
+        local assetFn = getCustomAssetFn()
+        if type(assetFn) ~= "function" or type(isfile) ~= "function" then return nil end
+        local h = hashUrl(url)
+        for _, ext in ipairs(CACHE_EXTS) do
+            local path = BG_DIR .. "/" .. h .. ext
+            if isfile(path) then
+                local ok, id = pcall(assetFn, path)
+                if ok and type(id) == "string" and id ~= "" then
+                    urlAssetCache[url] = id
+                    return id
+                end
+            end
+        end
+        return nil
+    end
+
+    local function fetchUrlBytes(url)
+        local req = getRequestFn()
+        if type(req) == "function" then
+            local ok, res = pcall(req, {
+                Url = url,
+                Method = "GET",
+                Headers = { ["User-Agent"] = "Mozilla/5.0" },
+            })
+            if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body > 0 then
+                if not res.StatusCode or (res.StatusCode >= 200 and res.StatusCode < 300) then
+                    return res.Body
+                end
+            end
+        end
+        local ok2, body = pcall(game.HttpGet, game, url)
+        if ok2 and type(body) == "string" and #body > 0 then return body end
+        return nil
+    end
+
+    local function downloadUrlAsync(url)
+        if urlPending[url] or urlFailed[url] then return end
+        local assetFn = getCustomAssetFn()
+        if type(assetFn) ~= "function" or type(writefile) ~= "function" then
+            urlFailed[url] = true
+            pcall(function()
+                Library:Notify({
+                    Title = "Фон UI",
+                    Description = "Экзекутор не поддерживает getcustomasset/writefile для URL — используйте Roblox ID",
+                    Time = 4,
+                })
+            end)
+            return
+        end
+        urlPending[url] = true
+        task.spawn(function()
+            local body = fetchUrlBytes(url)
+            local ext = body and detectImageExt(body, url)
+            if not ext then
+                urlPending[url] = nil
+                urlFailed[url] = true
+                pcall(function()
+                    Library:Notify({
+                        Title = "Фон UI",
+                        Description = "Не удалось загрузить картинку: нужна прямая ссылка на PNG/JPG/WEBP",
+                        Time = 4,
+                    })
+                end)
+                return
+            end
+            ensureBgDir()
+            local path = BG_DIR .. "/" .. hashUrl(url) .. ext
+            local okW = pcall(writefile, path, body)
+            local okA, assetId = false, nil
+            if okW then okA, assetId = pcall(assetFn, path) end
+            urlPending[url] = nil
+            if okA and type(assetId) == "string" and assetId ~= "" then
+                urlAssetCache[url] = assetId
+                urlFailed[url] = nil
+                local cur = cfg().UI
+                local curTrim = type(cur.BgId) == "string" and (cur.BgId:match("^%s*(.-)%s*$") or "") or ""
+                if cur.BgEnabled and curTrim == url then
+                    pcall(UiBg.apply)
+                    pcall(function()
+                        Library:Notify({ Title = "Фон UI", Description = "Картинка по ссылке загружена", Time = 3 })
+                    end)
+                end
+            else
+                urlFailed[url] = true
+                pcall(function()
+                    Library:Notify({ Title = "Фон UI", Description = "Ошибка создания custom asset из файла", Time = 4 })
+                end)
+            end
+        end)
+    end
+
+    function UiBg.normalizeId(raw)
+        if type(raw) ~= "string" then return nil, false end
+        local s = raw:match("^%s*(.-)%s*$") or ""
+        if s == "" then return nil, false end
+        if s:match("^rbxthumb://") or s:match("^rbxasset://") then return s, false end
+        local isRobloxHost = (not s:match("^https?://")) or (string.lower(s):match("^https?://[^/]*roblox%.com/") ~= nil)
+        local asset = s:match("^rbxassetid://(%d+)$") or s:match("^(%d+)$")
+        if not asset and isRobloxHost then
+            asset = s:match("[?&]id=(%d+)")
+                or s:match("/asset/(%d+)")
+                or s:match("/library/(%d+)")
+                or s:match("/catalog/(%d+)")
+        end
+        if asset then return "rbxassetid://" .. asset, false end
+        if s:match("^rbxassetid://") then return s, false end
+        if s:match("^https?://") then return s, true end
+        return nil, false
+    end
+
+    local function findScreenGui()
+        if screenGuiRef and screenGuiRef.Parent then return screenGuiRef end
+        if Library and typeof(Library.ScreenGui) == "Instance" and Library.ScreenGui:IsA("ScreenGui") then
+            screenGuiRef = Library.ScreenGui
+            return screenGuiRef
+        end
+        for _, src in ipairs({ Tabs and Tabs.UI, Window }) do
+            if type(src) == "table" then
+                for _, v in pairs(src) do
+                    if typeof(v) == "Instance" then
+                        local sg = v:FindFirstAncestorWhichIsA("ScreenGui")
+                        if sg then
+                            screenGuiRef = sg
+                            return sg
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    local function findMainFrame()
+        if mainFrameRef and mainFrameRef.Parent then return mainFrameRef end
+        local sg = findScreenGui()
+        if not sg then return nil end
+        if type(Window) == "table" then
+            for _, key in ipairs({ "Holder", "MainFrame", "Container", "Frame", "Root", "Base", "WindowFrame" }) do
+                local inst = Window[key]
+                if typeof(inst) == "Instance" and inst:IsA("GuiObject") and inst:IsDescendantOf(sg) then
+                    while inst.Parent and inst.Parent ~= sg do
+                        if inst.Parent:IsA("GuiObject") then inst = inst.Parent else break end
+                    end
+                    mainFrameRef = inst
+                    return inst
+                end
+            end
+        end
+        if Tabs and type(Tabs.UI) == "table" then
+            for _, v in pairs(Tabs.UI) do
+                if typeof(v) == "Instance" and v:IsDescendantOf(sg) then
+                    local cur = v
+                    while cur.Parent and cur.Parent ~= sg do
+                        if cur.Parent:IsA("GuiObject") then cur = cur.Parent else break end
+                    end
+                    if cur:IsA("GuiObject") then
+                        mainFrameRef = cur
+                        return cur
+                    end
+                end
+            end
+        end
+        local best, bestArea = nil, 0
+        for _, ch in ipairs(sg:GetChildren()) do
+            if ch:IsA("GuiObject") and (ch:IsA("Frame") or ch:IsA("CanvasGroup")) then
+                local area = ch.AbsoluteSize.X * ch.AbsoluteSize.Y
+                if area > bestArea and ch.AbsoluteSize.X >= 320 and ch.AbsoluteSize.Y >= 220 then
+                    best, bestArea = ch, area
+                end
+            end
+        end
+        mainFrameRef = best
+        return best
+    end
+
+    local function isPanelCandidate(inst)
+        if not inst:IsA("Frame") and not inst:IsA("CanvasGroup") and not inst:IsA("ScrollingFrame") then
+            return false
+        end
+        if inst == bgLayer then return false end
+        local sz = inst.Size
+        local abs = inst.AbsoluteSize
+        local wideEnough = sz.X.Scale >= 0.35 or sz.X.Offset >= 140 or abs.X >= 140
+        if not wideEnough then return false end
+        if inst.AutomaticSize == Enum.AutomaticSize.Y or inst.AutomaticSize == Enum.AutomaticSize.XY then
+            return true
+        end
+        return sz.Y.Scale >= 0.15 or sz.Y.Offset >= 44 or abs.Y >= 44
+    end
+
+    local function collectPanels(root)
+        for _, ch in ipairs(root:GetDescendants()) do
+            if isPanelCandidate(ch) and origTransp[ch] == nil then
+                if ch.BackgroundTransparency < 0.95 then
+                    origTransp[ch] = ch.BackgroundTransparency
+                end
+            end
+        end
+    end
+
+    local function restorePanels()
+        for inst, tr in pairs(origTransp) do
+            if inst and inst.Parent then
+                pcall(function() inst.BackgroundTransparency = tr end)
+            end
+        end
+    end
+
+    local function ensureBgLayer(mf, sg)
+        if bgLayer and bgLayer.Parent then return bgLayer end
+        if mf:FindFirstChildWhichIsA("UIListLayout") or mf:FindFirstChildWhichIsA("UIGridLayout") then
+            return nil
+        end
+        local img = Instance.new("ImageLabel")
+        img.Name = "GlupostCustomBg"
+        img.Size = UDim2.fromScale(1, 1)
+        img.Position = UDim2.fromScale(0, 0)
+        img.BackgroundTransparency = 1
+        img.BorderSizePixel = 0
+        img.ClipsDescendants = true
+        img.Visible = false
+        local minZ = 1
+        for _, ch in ipairs(mf:GetChildren()) do
+            if ch:IsA("GuiObject") and ch.Size.X.Scale <= 1.01 and ch.Size.Y.Scale <= 1.01 then
+                if ch.ZIndex < minZ then minZ = ch.ZIndex end
+            end
+        end
+        if sg and sg.ZIndexBehavior == Enum.ZIndexBehavior.Sibling then
+            img.ZIndex = math.min(0, minZ - 1)
+        else
+            img.ZIndex = mf.ZIndex
+        end
+        local srcCorner = mf:FindFirstChildWhichIsA("UICorner")
+        if srcCorner then
+            local c = Instance.new("UICorner")
+            c.CornerRadius = srcCorner.CornerRadius
+            c.Parent = img
+        end
+        img.Parent = mf
+        bgLayer = img
+        return img
+    end
+
+    function UiBg.clearFailures()
+        table.clear(urlFailed)
+    end
+
+    function UiBg.apply()
+        local U = cfg().UI
+        local sg = findScreenGui()
+        local mf = findMainFrame()
+        if not mf then return end
+
+        local source, isUrl = nil, false
+        if U and U.BgEnabled then
+            source, isUrl = UiBg.normalizeId(U.BgId)
+        end
+
+        local asset = nil
+        if source then
+            if isUrl then
+                asset = findCachedAsset(source)
+                if not asset then
+                    downloadUrlAsync(source)
+                end
+            else
+                asset = source
+            end
+        end
+
+        if not asset then
+            if bgLayer and bgLayer.Parent then bgLayer.Visible = false end
+            restorePanels()
+            return
+        end
+
+        local img = ensureBgLayer(mf, sg)
+        if not img then return end
+        collectPanels(mf)
+
+        local panelTransp = 1 - clamp(U.BgPanelOpacity or 0.78, 0.05, 1)
+        for inst, orig in pairs(origTransp) do
+            if inst and inst.Parent then
+                pcall(function()
+                    inst.BackgroundTransparency = math.max(orig, panelTransp)
+                end)
+            end
+        end
+
+        local scale = SCALE_MODES[U.BgScale] or Enum.ScaleType.Crop
+        img.Image = asset
+        img.ImageColor3 = U.BgTint or Color3.new(1, 1, 1)
+        img.ImageTransparency = 1 - clamp(U.BgOpacity or 0.65, 0.05, 1)
+        img.ScaleType = scale
+        if scale == Enum.ScaleType.Tile then
+            img.TileSize = UDim2.fromOffset(256, 256)
+        end
+        img.Visible = true
+    end
+
+    function UiBg.destroy()
+        restorePanels()
+        table.clear(origTransp)
+        table.clear(urlPending)
+        table.clear(urlFailed)
+        if bgLayer then pcall(function() bgLayer:Destroy() end) bgLayer = nil end
+        mainFrameRef, screenGuiRef = nil, nil
+    end
+end
+
 local function safeSet(idx, value)
     local o = (Toggles and Toggles[idx]) or (Options and Options[idx])
     if not o then return end
@@ -5263,6 +6425,7 @@ local function syncUI()
         safeSet(e.idx, t)
     end
     isSyncingUI = false
+    if UiBg and UiBg.apply then pcall(UiBg.apply) end
 end
 
 local function applyESPSync()
@@ -5325,9 +6488,9 @@ local function addDropdown(gb, idx, text, path, values, tip, cb)
     regSearch(text, tip)
 end
 
-local function addColorPicker(gb, idx, text, path)
+local function addColorPicker(gb, idx, text, path, cb)
     gb:AddLabel(text):AddColorPicker(idx, { Default = getPath(path), Title = text,
-        Callback = function(c) setPath(path, c) end })
+        Callback = function(c) setPath(path, c) if cb then cb(c) end end })
     table.insert(SYNC, { idx = idx, path = path })
     regSearch(text, "Цвет: " .. text)
 end
@@ -5476,8 +6639,10 @@ do
         "Показывать расстояние до игрока в стадах.")
     addToggle(inf, "ShowTool", "Предмет в руках", { "ESP", "ShowTool" },
         "Показывать название оружия или инструмента, который сейчас держит игрок.")
+    addToggle(inf, "ShowState", "Статус игрока ([ПРЫЖОК]/[БЕГ])", { "ESP", "ShowState" },
+        "Показывает под целью её текущее состояние: бег, прыжок или сидение.")
     addToggle(inf, "DmgPopups", "Всплывающий урон", { "ESP", "DamageNumbers" },
-        "При потере HP врагом над ним всплывают цифры полученного урона.")
+        "При потере HP врагом над ним всплывают цифры полученного урона (крупный урон >= 35 выделяется золотым критом).")
     addSlider(inf, "TextSize", "Размер текста", { "ESP", "TextSize" }, 10, 20, 0,
         "Размер шрифта всех подписей ВХ в пикселях.")
     addDropdown(inf, "FontName", "Шрифт ВХ", { "ESP", "FontName" }, { "UI", "System", "Plex", "Monospace" },
@@ -5570,7 +6735,7 @@ do
             e.Skeleton, e.ShowTracer, e.Chams = false, false, false
             e.VisibleCheck, e.BoxType = false, "2D"
             e.BoxFill, e.HeadDot, e.LookLine, e.Outline = false, false, false, false
-            e.DamageNumbers, e.HealthTrail, e.SkeletonOutline = false, false, false
+            e.DamageNumbers, e.HealthTrail, e.SkeletonOutline, e.ShowState = false, false, false, false
             e.BoxFit = "Fixed"
             syncUI()
             resyncChams()
@@ -5589,8 +6754,8 @@ do
         end)
     withDep(self, "SelfChamsOn", true, function(d)
         addDropdown(d, "SelfChamsStyle", "Визуальный стиль", { "SelfChams", "Style" },
-            { "Liquid Glass", "Energy Rim", "Scanline", "ForceField", "Holographic", "Aurora", "Rainbow", "Cyber", "Pulse", "Custom" },
-            "Liquid Glass — стекло; Energy Rim — яркий контур по живому скину; Scanline — волновой перелив; Aurora/Cyber/Pulse — анимированные стили.")
+            { "Liquid Glass", "Energy Rim", "Scanline", "ForceField", "Holographic", "Aurora", "Rainbow", "Cyber", "Pulse", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+            "Liquid Glass — стекло; Energy Rim — неон-контур по скину; Scanline — сканирующая волна; Aurora/Cyber/Sakura/Matrix/Sunset/Gold — анимированные палитры.")
         addSlider(d, "SelfChamsFillTr", "Прозрачность стекла/заливки", { "SelfChams", "FillTransparency" }, 0, 0.95, 2,
             "Насколько прозрачным становится тело персонажа внутри обводки.")
         addSlider(d, "SelfChamsOutlineTr", "Прозрачность контура", { "SelfChams", "OutlineTransparency" }, 0, 1, 2,
@@ -5605,15 +6770,16 @@ do
         addColorPicker(d, "SelfChamsOutlineColor", "Цвет контура / блика", { "SelfChams", "OutlineColor" })
     end)
 
+    local leftFxTabs = Tabs.SelfFX:AddLeftTabbox()
     CUR_GROUP = "Шлейф Sandevistan"
-    local snd = Tabs.SelfFX:AddLeftGroupbox("Шлейф Sandevistan (Клоны)")
+    local snd = leftFxTabs:AddTab("Шлейф Sandevistan")
     addToggle(snd, "AfterimageOn", "Включить Sandevistan", { "Afterimage", "Enabled" },
         "Оставляет за вашим персонажем светящиеся силуэты при движении или рывках. Можно комбинировать с лентами.")
     withDep(snd, "AfterimageOn", true, function(d)
         addDropdown(d, "AfterimageTrig", "Условие срабатывания", { "Afterimage", "TriggerMode" }, { "Moving", "Dash/Air", "Always" },
             "Moving — при ходьбе/беге выше мин. скорости; Dash/Air — только в прыжке, падении или быстром рывке; Always — постоянно.")
-        addDropdown(d, "AfterimageStyle", "Стиль силуэтов", { "Afterimage", "Style" }, { "Sandevistan", "Phantom", "Inferno", "Void", "Cyber", "Rainbow", "Custom" },
-            "Sandevistan — киберпанк-радуга; Phantom — призрачный лед; Inferno — пламя; Void — неон-пустота; Cyber/Rainbow/Custom.")
+        addDropdown(d, "AfterimageStyle", "Стиль силуэтов", { "Afterimage", "Style" }, { "Sandevistan", "Phantom", "Inferno", "Void", "Cyber", "Rainbow", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+            "Цветовая палитра клонов: Sandevistan, Phantom, Inferno, Void, Cyber, Rainbow, Sakura, Matrix, Sunset, Gold или Custom.")
         addDropdown(d, "AfterimageFade", "Режим исчезновения", { "Afterimage", "FadeMode" }, { "Static", "Ascend", "Expand", "Implode", "Glitch", "Spiral" },
             "Static — на месте; Ascend — всплытие; Expand/Implode — разлёт или сжатие; Glitch — цифровое мерцание; Spiral — вихрь.")
         addDropdown(d, "AfterimageMat", "Материал / Вид силуэта", { "Afterimage", "Material" }, { "Neon", "ForceField", "Glass", "Wireframe", "SmoothPlastic" },
@@ -5638,7 +6804,7 @@ do
     end)
 
     CUR_GROUP = "Энергетические ленты"
-    local tr = Tabs.SelfFX:AddLeftGroupbox("Энергетические ленты (Ribbons)")
+    local tr = leftFxTabs:AddTab("Ленты (Ribbons)")
     addToggle(tr, "TrailOn", "Включить ленты / шлейф", { "ParticleTrail", "Enabled" },
         "Рисует светящиеся ленты (Trail) и шлейфы с разными узорами вокруг тела, за головой, спиной или конечностями.")
     withDep(tr, "TrailOn", true, function(d)
@@ -5646,7 +6812,7 @@ do
             "Orbit — 3 орбиты вокруг тела; Helix — двойная спираль; Void Slash — 4-ленточный плащ; Spiral Halo — витки над головой; Hands/Feet/Wings/Full.")
         addDropdown(d, "TrailPattern", "Узор / фактура ленты", { "ParticleTrail", "Pattern" }, { "Smooth", "Pulse", "Starlight", "Blade", "Neon Core" },
             "Smooth — классика; Pulse — прерывистый лазер; Starlight — звёздная дорожка; Blade — острый шлейф катаны; Neon Core — плотный неон.")
-        addDropdown(d, "TrailStyle", "Цветовой стиль лент", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Custom" },
+        addDropdown(d, "TrailStyle", "Цветовой стиль лент", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Цветовая палитра свечения шлейфа и искр.")
         addSlider(d, "TrailLife", "Длительность шлейфа", { "ParticleTrail", "Lifetime" }, 0.1, 1.5, 2,
             "Как долго лента держится в воздухе за персонажем (в секундах).")
@@ -5678,19 +6844,20 @@ do
             "Включите, если сама игра жёстко фиксирует камеру на голове персонажа и обычное отдаление не срабатывает.")
     end)
 
+    local rightFxTabs = Tabs.SelfFX:AddRightTabbox()
     CUR_GROUP = "Китайская шляпа / Нимб"
-    local hat = Tabs.SelfFX:AddRightGroupbox("Китайская шляпа / Нимб")
+    local hat = rightFxTabs:AddTab("Шляпа / Нимб")
     addToggle(hat, "HatOn", "Включить шляпу / нимб / корону", { "ChinaHat", "Enabled" },
-        "Рисует объёмный градиентный конус, двойной парящий нимб или кибер-корону прямо над головой.")
+        "Рисует объёмный градиентный конус, двойной парящий нимб, кибер-корону, 3D-кристалл или двойной гекса-обруч CyberRing над головой.")
     withDep(hat, "HatOn", true, function(d)
-        addDropdown(d, "HatShape", "Форма", { "ChinaHat", "Shape" }, { "Cone", "Halo", "Crown" },
-            "Cone — конус с плавным переливом; Halo — двойной наклонный нимб с узлами; Crown — 8-лучевая корона.")
-        addDropdown(d, "HatStyle", "Цветовой стиль", { "ChinaHat", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Custom" },
+        addDropdown(d, "HatShape", "Форма", { "ChinaHat", "Shape" }, { "Cone", "Halo", "Crown", "Crystal", "CyberRing" },
+            "Cone — конус; Halo — двойной наклонный нимб; Crown — 8-лучевая корона; Crystal — 3D-кристалл; CyberRing — двойной гексагон.")
+        addDropdown(d, "HatStyle", "Цветовой стиль", { "ChinaHat", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Выбор градиента или своего цвета для шляпы/нимба/короны.")
         addSlider(d, "HatSize", "Радиус", { "ChinaHat", "Size" }, 1, 3.2, 2,
             "Ширина украшения в стадах.")
         addSlider(d, "HatHeight", "Высота конуса / короны", { "ChinaHat", "Height" }, 0.3, 1.4, 2,
-            "Высота вершины конуса или шипов короны.")
+            "Высота вершины конуса, кристалла или шипов короны.")
         addSlider(d, "HatOpacity", "Непрозрачность", { "ChinaHat", "Opacity" }, 0.1, 0.9, 2,
             "Плотность цвета заливки и линий.")
         addToggle(d, "HatHideFP", "Скрывать от 1-го лица", { "ChinaHat", "HideFirstPerson" },
@@ -5699,13 +6866,13 @@ do
     end)
 
     CUR_GROUP = "Аура персонажа"
-    local au = Tabs.SelfFX:AddRightGroupbox("Аура персонажа")
+    local au = rightFxTabs:AddTab("Аура")
     addToggle(au, "AuraOn", "Включить ауру", { "PlayerAura", "Enabled" },
-        "Создаёт объёмную энергетическую ауру вокруг всего персонажа (3D-орбиты, двойная спираль, меридианы или кольца у земли).")
+        "Создаёт объёмную энергетическую ауру вокруг персонажа (Orbitals, Helix, Crown, Ground, Sigil, Galaxy, Vortex или Atom).")
     withDep(au, "AuraOn", true, function(d)
-        addDropdown(d, "AuraShape", "Форма ауры", { "PlayerAura", "Shape" }, { "Orbitals", "Helix", "Crown", "Ground" },
-            "Orbitals — 3 наклонных 3D-кольца вокруг тела; Helix — двойная спираль снизу вверх; Crown — сфера; Ground — у ног.")
-        addDropdown(d, "AuraStyle", "Стиль ауры", { "PlayerAura", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Custom" },
+        addDropdown(d, "AuraShape", "Форма ауры", { "PlayerAura", "Shape" }, { "Orbitals", "Helix", "Crown", "Ground", "Sigil", "Galaxy", "Vortex", "Atom" },
+            "Orbitals/Helix/Crown/Ground; Sigil — печать на земле; Galaxy — кольца Сатурна; Vortex — восходящий вихрь; Atom — электронные орбитали.")
+        addDropdown(d, "AuraStyle", "Стиль ауры", { "PlayerAura", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Цветовая схема свечения и частиц ауры.")
         addSlider(d, "AuraSize", "Размер ауры", { "PlayerAura", "Size" }, 1.8, 8, 1,
             "Радиус объёмной ауры вокруг персонажа.")
@@ -5718,12 +6885,36 @@ do
         addColorPicker(d, "AuraColor", "Свой цвет ауры", { "PlayerAura", "Color" })
     end)
 
+    CUR_GROUP = "Орбитальные спутники"
+    local sat = rightFxTabs:AddTab("Спутники")
+    addToggle(sat, "SatOn", "Включить спутников", { "Satellites", "Enabled" },
+        "Запускает 3D-кристаллы, сферы, клинки, осколки (Shard) или диски (Disc), летающие по орбитам вокруг персонажа.")
+    withDep(sat, "SatOn", true, function(d)
+        addDropdown(d, "SatShape", "Форма спутников", { "Satellites", "Shape" }, { "Crystal", "Orb", "Blade", "Shard", "Disc" },
+            "Crystal — граненые кристаллы; Orb — сферы; Blade — клинки; Shard — вращающиеся осколки; Disc — плоские чакрамы с контуром.")
+        addDropdown(d, "SatStyle", "Цветовой стиль", { "Satellites", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+            "Цветовая палитра спутников и их шлейфов.")
+        addSlider(d, "SatCount", "Количество спутников", { "Satellites", "Count" }, 1, 6, 0,
+            "Сколько объектов одновременно вращается на орбите.")
+        addSlider(d, "SatRadius", "Радиус орбиты", { "Satellites", "Radius" }, 1.5, 7, 1,
+            "Дистанция орбиты от тела персонажа в стадах.")
+        addSlider(d, "SatHeight", "Смещение по высоте", { "Satellites", "Height" }, -2, 4, 1,
+            "Поднимает или опускает плоскость орбит относительно центра персонажа.")
+        addSlider(d, "SatSpeed", "Скорость вращения", { "Satellites", "Speed" }, 0.3, 4, 1,
+            "Как быстро спутники облетают вокруг вас.")
+        addSlider(d, "SatSize", "Размер спутников", { "Satellites", "Size" }, 0.2, 1.2, 2,
+            "Физический размер каждого спутника.")
+        addToggle(d, "SatTrails", "Светящиеся шлейфы", { "Satellites", "Trails" },
+            "Добавляет за каждым спутником плавную светящуюся ленту движения.")
+        addColorPicker(d, "SatColor", "Свой цвет (Custom)", { "Satellites", "Color" })
+    end)
+
     CUR_GROUP = "Кольца прыжка"
-    local jr = Tabs.SelfFX:AddRightGroupbox("Кольца прыжка и приземления")
+    local jr = rightFxTabs:AddTab("Кольца прыжка")
     addToggle(jr, "JumpRingsOn", "Включить ударную волну прыжка", { "JumpRings", "Enabled" },
         "При каждом вашем прыжке и приземлении под ногами расходится светящаяся двойная ударная волна с искрами.")
     withDep(jr, "JumpRingsOn", true, function(d)
-        addDropdown(d, "JumpRingsStyle", "Стиль волн", { "JumpRings", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Custom" },
+        addDropdown(d, "JumpRingsStyle", "Стиль волн", { "JumpRings", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Цветовой стиль расширяющихся волн.")
         addSlider(d, "JumpRingsRad", "Макс. радиус", { "JumpRings", "MaxRadius" }, 2, 12, 1,
             "До какого размера расширяется волна перед исчезновением.")
@@ -5758,6 +6949,17 @@ do
         addSlider(d, "SpeedArcMax", "Макс. шкала спидометра", { "Overlay", "SpeedometerMax" }, 20, 150, 0,
             "Скорость, при которой дуга спидометра заполняется на 100%.")
     end)
+    addToggle(hud, "SpeedLinesOn", "Аниме-линии скорости (Speed Lines)", { "Overlay", "SpeedLines" },
+        "При быстром беге или падении по краям экрана вспыхивают динамические радиальные линии скорости.")
+    withDep(hud, "SpeedLinesOn", true, function(d)
+        addSlider(d, "SpeedLinesMin", "Мин. скорость появления", { "Overlay", "SpeedLinesMinSpeed" }, 8, 60, 0,
+            "Порог скорости в стадах/сек, с которого появляются линии по краям экрана.")
+        addSlider(d, "SpeedLinesOp", "Прозрачность линий", { "Overlay", "SpeedLinesOpacity" }, 0.1, 1, 2,
+            "Яркость и насыщенность боковых линий скорости.")
+        addToggle(d, "SpeedLinesRb", "Радужные линии", { "Overlay", "SpeedLinesRainbow" },
+            "Переливает линии скорости цветами радуги.")
+        addColorPicker(d, "SpeedLinesCol", "Цвет линий скорости", { "Overlay", "SpeedLinesColor" })
+    end)
     addColorPicker(hud, "Accent", "Акцентный цвет HUD", { "Overlay", "Accent" })
     addToggle(hud, "DragHUD", "Перетаскивать HUD мышкой", { "Overlay", "DragHUD" },
         "Разрешает хватать мышкой и свободно двигать Target HUD, Мини-радар и Список модулей прямо по экрану.")
@@ -5791,38 +6993,13 @@ do
     addSlider(vg, "VigIntensity", "Яркость виньетки", { "Vignette", "Intensity" }, 0.2, 1.5, 2,
         "Общая интенсивность затемнения/подсветки краёв экрана.")
 
-    CUR_GROUP = "Мини-радар"
-    local rd = Tabs.Overlay:AddLeftGroupbox("Мини-радар")
-    addToggle(rd, "RadarOn", "Включить радар", { "Radar", "Enabled" },
-        "Включает 2D мини-карту с позициями игроков вокруг вас. Горячая клавиша настраивается в «Настройки UI» (по умолчанию F4).")
-    withDep(rd, "RadarOn", true, function(d)
-        addDropdown(d, "RadarPos", "Угол экрана", { "Radar", "Position" },
-            { "TopLeft", "TopRight", "BottomLeft", "BottomRight" },
-            "Угол экрана, в котором закрепляется окно радара (автоматически смещается ниже HUD, чтобы не перекрывать их).",
-            function()
-                if not isSyncingUI then cfg().Radar.PosX = -1 cfg().Radar.PosY = -1 end
-            end)
-        addSlider(d, "RadarSize", "Размер радара", { "Radar", "Size" }, 80, 260, 0,
-            "Ширина и высота квадратного радара в пикселях.")
-        addSlider(d, "RadarRange", "Радиус радара (стады)", { "Radar", "Range" }, 50, 25000, 0,
-            "На какой дистанции игроки попадают в границы радара.")
-        addSlider(d, "RadarOpacity", "Непрозрачность фона", { "Radar", "Opacity" }, 0.1, 1, 2,
-            "Насколько плотным будет тёмный фон мини-радара.")
-        addSlider(d, "RadarDot", "Размер точек", { "Radar", "DotSize" }, 2, 6, 0,
-            "Размер маркеров игроков на радаре.")
-        addToggle(d, "RadarLook", "Показывать направление взгляда", { "Radar", "ShowLookDir" },
-            "Рисует короткую чёрточку от каждой точки на радаре в сторону, куда смотрит игрок.")
-        addToggle(d, "RadarSweep", "Вращающийся луч радара", { "Radar", "Sweep" },
-            "Добавляет тактическую развёртку радара, кольца дистанции (33%/66%) и подсветку приоритетной цели.")
-    end)
-
     CUR_GROUP = "Кастомный прицел"
     local xh = Tabs.Overlay:AddRightGroupbox("Кастомный прицел")
     addToggle(xh, "XhOn", "Включить прицел", { "Crosshair", "Enabled" },
         "Рисует собственный настраиваемый прицел поверх игры в центре экрана.")
     withDep(xh, "XhOn", true, function(d)
-        addDropdown(d, "XhStyle", "Стиль прицела", { "Crosshair", "Style" }, { "Classic", "T-Cross", "Circle", "Brackets", "Chevron", "Diamond" },
-            "Classic — крест, T-Cross — без верхнего штриха, Circle — кольцо, Brackets — скобки, Chevron — тактическая галочка, Diamond — ромб.")
+        addDropdown(d, "XhStyle", "Стиль прицела", { "Crosshair", "Style" }, { "Classic", "T-Cross", "X-Cross", "Sniper", "Circle", "Brackets", "Chevron", "Diamond" },
+            "Classic — крест; T-Cross — без верха; X-Cross — диагональный крест; Sniper — дальномер с рисками; Circle/Brackets/Chevron/Diamond.")
         addSlider(d, "XhSize", "Длина штрихов / радиус", { "Crosshair", "Size" }, 2, 30, 0,
             "Размер линий прицела или радиус круга.")
         addSlider(d, "XhGap", "Зазор от центра", { "Crosshair", "Gap" }, 0, 20, 0,
@@ -5847,8 +7024,8 @@ do
     addToggle(hm, "HmOn", "Включить хитмаркер", { "Hitmarker", "Enabled" },
         "Рисует хитмаркер по центру экрана при потере HP у отслеживаемой цели (визуальная реакция без модификации оружия).")
     withDep(hm, "HmOn", true, function(d)
-        addDropdown(d, "HmStyle", "Стиль хитмаркера", { "Hitmarker", "Style" }, { "Cross", "Double", "Star" },
-            "Cross — классический X-крест; Double — двойной эхо-крест; Star — 8-лучевая вспышка.")
+        addDropdown(d, "HmStyle", "Стиль хитмаркера", { "Hitmarker", "Style" }, { "Cross", "Double", "Star", "Circle", "Diamond" },
+            "Cross — X-крест; Double — двойной крест; Star — 8-лучевая звезда; Circle — расширяющееся кольцо; Diamond — ромб-вспышка.")
         addSlider(d, "HmSize", "Размер крестика", { "Hitmarker", "Size" }, 4, 20, 0,
             "Длина лучей хитмаркера в пикселях.")
         addSlider(d, "HmThick", "Толщина", { "Hitmarker", "Thickness" }, 1, 4, 0,
@@ -5860,6 +7037,31 @@ do
     end)
     addToggle(hm, "KillFxOn", "3D-вспышка на месте убийства", { "Hitmarker", "KillEffect" },
         "При добивании цели на её месте в 3D-мире вспыхивают расходящиеся энергетические лучи и ударное кольцо.")
+
+    CUR_GROUP = "Мини-радар"
+    local rd = Tabs.Overlay:AddRightGroupbox("Мини-радар")
+    addToggle(rd, "RadarOn", "Включить радар", { "Radar", "Enabled" },
+        "Включает 2D мини-карту с позициями игроков вокруг вас. Горячая клавиша настраивается в «Настройки UI» (по умолчанию F4).")
+    withDep(rd, "RadarOn", true, function(d)
+        addDropdown(d, "RadarPos", "Угол экрана", { "Radar", "Position" },
+            { "TopLeft", "TopRight", "BottomLeft", "BottomRight" },
+            "Угол экрана, в котором закрепляется окно радара (автоматически смещается ниже HUD, чтобы не перекрывать их).",
+            function()
+                if not isSyncingUI then cfg().Radar.PosX = -1 cfg().Radar.PosY = -1 end
+            end)
+        addSlider(d, "RadarSize", "Размер радара", { "Radar", "Size" }, 80, 260, 0,
+            "Ширина и высота квадратного радара в пикселях.")
+        addSlider(d, "RadarRange", "Радиус радара (стады)", { "Radar", "Range" }, 50, 25000, 0,
+            "На какой дистанции игроки попадают в границы радара.")
+        addSlider(d, "RadarOpacity", "Непрозрачность фона", { "Radar", "Opacity" }, 0.1, 1, 2,
+            "Насколько плотным будет тёмный фон мини-радара.")
+        addSlider(d, "RadarDot", "Размер точек", { "Radar", "DotSize" }, 2, 6, 0,
+            "Размер маркеров игроков на радаре.")
+        addToggle(d, "RadarLook", "Показывать направление взгляда", { "Radar", "ShowLookDir" },
+            "Рисует короткую чёрточку от каждой точки на радаре в сторону, куда смотрит игрок.")
+        addToggle(d, "RadarSweep", "Вращающийся луч радара", { "Radar", "Sweep" },
+            "Добавляет тактическую развёртку радара, кольца дистанции (33%/66%) и подсветку приоритетной цели.")
+    end)
 end
 
 do
@@ -5991,13 +7193,49 @@ do
         })
         regSearch("Сканировать сейчас", "Немедленный поиск объектов по фильтру")
     end)
+
+    CUR_GROUP = "Быстрые фильтры"
+    local oq = Tabs.Objects:AddRightGroupbox("Быстрые фильтры")
+    local function setObjFilterPreset(filterStr, enableOn)
+        cfg().Objects.Filter = filterStr
+        if enableOn then cfg().Objects.Enabled = true end
+        Obj.last = 0
+        syncUI()
+    end
+    oq:AddLabel("В 1 клик подставляют популярные шаблоны поиска и сразу запускают скан.", true)
+    oq:AddButton({
+        Text = "Сундуки и лут",
+        Tooltip = "Ищет chest, crate, loot, box, drop (исключая chestplate).",
+        Func = function() setObjFilterPreset("chest, crate, loot, box, drop, -chestplate", true) end,
+    })
+    oq:AddButton({
+        Text = "Монеты и гемы",
+        Tooltip = "Ищет coin, gem, crystal, orb, star, cash, money.",
+        Func = function() setObjFilterPreset("coin, gem, crystal, orb, star, cash, money", true) end,
+    })
+    oq:AddButton({
+        Text = "Ключи и карты доступа",
+        Tooltip = "Ищет key, keycard, card, pass, code (исключая keyboard).",
+        Func = function() setObjFilterPreset("key, keycard, card, pass, code, -keyboard", true) end,
+    })
+    oq:AddButton({
+        Text = "Двери, порталы и выходы",
+        Tooltip = "Ищет door, exit, portal, gate, hatch, vent.",
+        Func = function() setObjFilterPreset("door, exit, portal, gate, hatch, vent", true) end,
+    })
+    oq:AddButton({
+        Text = "Очистить фильтр",
+        Tooltip = "Очищает строку фильтра поиска объектов.",
+        Func = function() setObjFilterPreset("", false) end,
+    })
+    regSearch("Быстрые фильтры объектов (Сундуки / Монеты / Ключи / Двери)", "Готовые шаблоны поиска для Object ESP")
 end
 
 do
     CUR_TAB, CUR_GROUP = "Мир и камера", "Атмосфера и небо"
     local w = Tabs.World:AddLeftGroupbox("Атмосфера и небо")
     addDropdown(w, "WorldPreset", "Пресет атмосферы", { "World", "Preset" },
-        { "None", "Clean Night", "Cyberpunk", "Cold Frost", "Warm Sunset", "Blood Moon", "Emerald Matrix", "Solar Gold" },
+        { "None", "Clean Night", "Cyberpunk", "Cold Frost", "Warm Sunset", "Blood Moon", "Emerald Matrix", "Solar Gold", "Tokyo Neon", "Sakura Dusk", "Crimson Void", "Golden Dawn", "Midnight Mist" },
         "Готовая тема освещения: автоматически выставляет время суток, цветокоррекцию, туман и неон.",
         function(v)
             if isSyncingUI then return end
@@ -6018,11 +7256,11 @@ do
             syncUI()
         end)
     addDropdown(w, "WorldSky", "Замена неба (Sky)", { "World", "SkyPreset" },
-        { "Auto", "None", "Clean Night", "Cyberpunk", "Cold Frost", "Warm Sunset", "Blood Moon", "Emerald Matrix", "Solar Gold" },
+        { "Auto", "None", "Clean Night", "Cyberpunk", "Cold Frost", "Warm Sunset", "Blood Moon", "Emerald Matrix", "Solar Gold", "Tokyo Neon", "Sakura Dusk", "Crimson Void", "Golden Dawn", "Midnight Mist" },
         "Auto — берёт небо из выбранного пресета атмосферы; None — оставляет родное небо игры.")
     addDropdown(w, "WorldWeather", "Погодные частицы", { "World", "Weather" },
-        { "None", "Rain", "Snow", "CyberDust", "Embers", "Fireflies" },
-        "Клиентские частицы вокруг камеры: Rain — дождь, Snow — снег, CyberDust — кибер-пыль, Embers — искры/угли, Fireflies — светлячки.")
+        { "None", "Rain", "Snow", "CyberDust", "Embers", "Fireflies", "Sakura", "MatrixRain", "Starfall", "BloodRain" },
+        "Клиентские частицы: дождь, снег, CyberDust, Embers, Fireflies, Sakura, MatrixRain, звездопад Starfall и BloodRain.")
     addSlider(w, "WorldWeatherInt", "Интенсивность погоды", { "World", "WeatherIntensity" }, 0.2, 1.5, 2,
         "Плотность и скорость появления частиц дождя, снега или пыли.")
     addToggle(w, "NoFog", "Убрать туман и дымку", { "World", "NoFog" },
@@ -6112,18 +7350,19 @@ do
             "• Чамсы врагов: работают через Roblox Highlight (до 28 ближайших игроков); прозрачность заливки и контура настраиваются раздельно.",
         }, "\n"),
         ["Персонаж и FX (Sandevistan / Стекло)"] = table.concat({
-            "• Чамсы на себя: Liquid Glass, Energy Rim (чистый скин + неон-контур), Scanline, ForceField и др.",
-            "• Sandevistan (клоны): стили Phantom/Inferno/Void/Cyber, материалы ForceField/Glass/Wireframe, 6 режимов исчезновения (вкл. Glitch/Spiral/Implode) + векторная нить связи.",
-            "• Ленты / Шлейф (Ribbons): 8 форм (Orbit, Helix, Void Slash, Spiral Halo, крылья и конечности) + 5 узоров (Pulse, Starlight, Blade, Neon Core) + искры; работают даже вместе с Sandevistan!",
-            "• Аура персонажа: объёмные 3D-орбиты (Orbitals), двойная спираль (Helix), меридианы (Crown) или кольца у ног + Glow Light.",
-            "• Шляпа / Нимб / Корона и ударные волны прыжка с искрами; зум колесом мыши в 3-м лице.",
+            "• Чамсы на себя: Liquid Glass, Energy Rim (чистый скин + неон-контур), Scanline, ForceField и 14 цветовых палитр.",
+            "• Sandevistan (клоны): Phantom/Inferno/Void/Cyber/Sakura/Matrix/Sunset/Gold, материалы ForceField/Glass/Wireframe, 6 режимов исчезновения + нить связи.",
+            "• Ленты / Шлейф (Ribbons): 8 форм (Orbit, Helix, Void Slash, Spiral Halo, крылья и конечности) + 5 узоров + искры; работают даже вместе с Sandevistan!",
+            "• Орбитальные спутники (Satellites): Crystal, Orb, Blade, Shard (осколки) и Disc (чакрамы) со шлейфами на наклонных орбитах.",
+            "• Аура персонажа: Orbitals, Helix, Crown, Ground, Sigil, Galaxy, Vortex (восходящий вихрь) и Atom (орбитали электронов) + Glow Light.",
+            "• Шляпа / Нимб / Корона / Crystal / CyberRing и ударные волны прыжка с искрами; зум колесом мыши в 3-м лице.",
         }, "\n"),
         ["Оверлей, TargetHUD и Хитмаркер"] = table.concat({
-            "• Водяной знак: плашка с FPS, пингом и числом Drawing-объектов; дуговой 18-сегментный спидометр.",
+            "• Водяной знак: плашка с FPS, пингом и числом Drawing-объектов; дуговой 18-сегментный спидометр и аниме-линии скорости (Speed Lines).",
             "• Target HUD: отдельная карточка приоритетной цели (имя, статус-полоса видимости/угрозы, HP, дистанция, оружие).",
             "• Перетаскивание HUD: включите «Перетаскивать HUD мышкой», чтобы двигать Target HUD, Радар и Список модулей прямо по экрану.",
             "• Виньетка экрана: 3-слойный градиент с тактическими уголками при низком HP и вспышкой при убийстве.",
-            "• Кастомный прицел (6 стилей: Classic, T-Cross, Circle, Brackets, Chevron, Diamond) + Хитмаркер (Cross, Double, Star) + 3D-вспышка.",
+            "• Кастомный прицел (8 стилей: Classic, T-Cross, X-Cross, Sniper, Circle, Brackets, Chevron, Diamond) + Хитмаркер (Cross, Double, Star, Circle, Diamond).",
             "• Мини-радар: 2D-радар с кольцами дистанции, вращающимся лучом (Sweep), точками игроков и выделением Priority-цели.",
         }, "\n"),
         ["Угрозы и звук (Proximity / Взгляд / Шаги)"] = table.concat({
@@ -6132,8 +7371,8 @@ do
             "• Кольца шагов: рисует двойную пульсирующую (Pulse) или одиночную (Solid) волну под ногами бегущих и прыгающих врагов.",
         }, "\n"),
         ["Мир, Погода и Speed FOV"] = table.concat({
-            "• Пресеты атмосферы: в 1 клик меняют небо, время суток, цветокоррекцию и Bloom (Cyberpunk, Cold Frost, Blood Moon, Emerald Matrix, Solar Gold и др.).",
-            "• Погодные частицы: дождь, снег, кибер-пыль, тёплые искры/угли (Embers) и светлячки (Fireflies).",
+            "• Пресеты атмосферы: в 1 клик меняют небо, время суток, цветокоррекцию и Bloom (Cyberpunk, Tokyo Neon, Sakura Dusk, Crimson Void, Golden Dawn и др.).",
+            "• Погодные частицы: дождь, снег, CyberDust, Embers, Fireflies, Sakura, MatrixRain, звездопад Starfall и BloodRain.",
             "• Убрать туман: очищает стандартную дымку карты для обзора вдаль.",
             "• Динамический FOV от скорости: расширяет угол обзора при быстром беге или рывках.",
         }, "\n"),
@@ -6215,14 +7454,14 @@ do
 end
 
 do
-    local DISABLE_SECTIONS = { "Radar", "Crosshair", "Objects", "SelfChams", "ThirdPerson", "ChinaHat", "JumpRings", "FootstepRings", "Proximity", "LookingAlert", "PlayerAura", "ParticleTrail", "Afterimage" }
+    local DISABLE_SECTIONS = { "Radar", "Crosshair", "Objects", "SelfChams", "ThirdPerson", "ChinaHat", "JumpRings", "FootstepRings", "Proximity", "LookingAlert", "PlayerAura", "ParticleTrail", "Afterimage", "Satellites" }
     local function disableAll()
         local root = cfg()
         local E, H, O, W, V = root.ESP, root.Hitmarker, root.Overlay, root.World, root.Vignette
         E.Enabled, E.Skeleton, E.ShowTracer, E.OffscreenArrows, E.Chams, E.VisibleCheck = false, false, false, false, false, false
-        E.PriorityTarget, E.BoxFill, E.HeadDot, E.LookLine, E.DamageNumbers, E.HideDefaultTags = false, false, false, false, false, false
+        E.PriorityTarget, E.BoxFill, E.HeadDot, E.LookLine, E.DamageNumbers, E.HideDefaultTags, E.ShowState = false, false, false, false, false, false, false
         H.Enabled, H.KillEffect = false, false
-        O.Watermark, O.Keybinds, O.TargetHUD, O.Speedometer, O.DragHUD = false, false, false, false, false
+        O.Watermark, O.Keybinds, O.TargetHUD, O.Speedometer, O.SpeedLines, O.DragHUD = false, false, false, false, false, false
         W.Preset, W.SkyPreset, W.Weather = "None", "Auto", "None"
         W.TimeEnabled, W.FOVEnabled, W.SpeedFOV, W.NoFog, W.AmbientEnabled, W.Grading, W.BloomEnabled = false, false, false, false, false, false, false
         V.LowHP, V.KillFlash, root.Misc.JoinLeave = false, false, false
@@ -6314,7 +7553,7 @@ do
     end
 
     CUR_GROUP = "Быстрые пресеты стиля"
-    local pr = Tabs.UI:AddLeftGroupbox("Быстрые пресеты стиля")
+    local pr = Tabs.UI:AddRightGroupbox("Быстрые пресеты стиля")
     pr:AddButton({
         Text = "Чистый минимум (Minimal)",
         Tooltip = "Аккуратный лёгкий ВХ с уголками, классический прицел, хитмаркер и минимум эффектов для максимального FPS.",
@@ -6326,12 +7565,13 @@ do
                 FootstepRings = { Enabled = false },
                 Proximity = { Enabled = false },
                 ThirdPerson = { Enabled = false },
-                Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = false, Accent = Color3.fromRGB(100, 185, 255) },
+                Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = false, SpeedLines = false, Accent = Color3.fromRGB(100, 185, 255) },
                 Crosshair = { Enabled = true, Style = "Classic", Size = 6, Gap = 3, Dot = true, Dynamic = false, Spin = false, Color = Color3.fromRGB(235, 245, 255) },
                 Hitmarker = { Enabled = true },
                 Vignette = { LowHP = true, KillFlash = true },
                 SelfChams = { Enabled = false },
                 Afterimage = { Enabled = false },
+                Satellites = { Enabled = false },
                 ChinaHat = { Enabled = false },
                 PlayerAura = { Enabled = false },
                 ParticleTrail = { Enabled = false },
@@ -6340,7 +7580,7 @@ do
             })
         end,
     })
-    regSearch("Пресет: Чистый минимум / Киберпанк / Ледяное стекло / Тактический", "Готовые стили оформления и пресеты")
+    regSearch("Пресет: Чистый минимум / Киберпанк / Ледяное стекло / Тактический / Токио Неон / Кровавая луна / Сакура", "Готовые стили оформления и пресеты")
     local function worldFromPreset(presetName, extra)
         local w = { Preset = presetName }
         local wp, target = WORLD_PRESETS[presetName], cfg().World
@@ -6406,6 +7646,105 @@ do
             })
         end,
     })
+    pr:AddButton({
+        Text = "Токио Неон (Anime FX)",
+        Tooltip = "3D-кристалл над головой, аура Galaxy, спутники-кристаллы со шлейфами, Speed Lines, лепестки Sakura и Tokyo Neon.",
+        Func = function()
+            applyStylePreset("Tokyo Neon Anime FX", {
+                ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, ShowState = true, DamageNumbers = true },
+                SelfChams = { Enabled = true, Style = "Energy Rim", FillTransparency = 0.55, OutlineTransparency = 0.12, IncludeTools = true, FillColor = rgb(110, 215, 255), OutlineColor = rgb(255, 115, 215) },
+                ChinaHat = { Enabled = true, Shape = "Crystal", Style = "Cyber", Size = 1.45, Height = 0.65, Opacity = 0.65 },
+                PlayerAura = { Enabled = true, Shape = "Galaxy", Style = "Cyber", Size = 2.7, Transparency = 0.7, Particles = true, GlowLight = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Crystal", Style = "Cyber", Radius = 3.2, Height = 0.8, Speed = 1.5, Size = 0.45, Trails = true },
+                JumpRings = { Enabled = true, Style = "Cyber", MaxRadius = 5.0, Lifetime = 0.65, Sparks = true },
+                Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 20, SpeedLinesOpacity = 0.65, SpeedLinesColor = rgb(0, 235, 255), Accent = rgb(0, 225, 255) },
+                World = worldFromPreset("Tokyo Neon", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.75, SpeedFOV = true, SpeedFOVMax = 15 }),
+            })
+        end,
+    })
+    pr:AddButton({
+        Text = "Кровавая луна (Crimson)",
+        Tooltip = "Агрессивная алая тема: Energy Rim на скине, огненный Sandevistan, аура Sigil, BloodRain, хитмаркер Diamond и Crimson Void.",
+        Func = function()
+            applyStylePreset("Crimson Moon", {
+                ESP = { Enabled = true, BoxType = "Bracket", BoxThickness = 1, BoxFill = true, FillOpacity = 0.07, DamageNumbers = true },
+                SelfChams = { Enabled = true, Style = "Energy Rim", FillTransparency = 0.6, OutlineTransparency = 0.1, IncludeTools = true, FillColor = rgb(255, 65, 85), OutlineColor = rgb(255, 110, 125) },
+                Afterimage = { Enabled = true, Style = "Inferno", FadeMode = "Ascend", Material = "Neon", ConnectArc = true, SolidGlow = true, TriggerMode = "Moving", Interval = 0.04, Lifetime = 0.48, Transparency = 0.38 },
+                ParticleTrail = { Enabled = false },
+                ChinaHat = { Enabled = true, Shape = "Crown", Style = "Flame", Size = 1.45, Opacity = 0.65 },
+                PlayerAura = { Enabled = true, Shape = "Sigil", Style = "Flame", Size = 2.8, Transparency = 0.72, Particles = true, GlowLight = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Blade", Style = "Flame", Radius = 3.2, Height = 0.7, Speed = 1.8, Size = 0.45, Trails = true },
+                JumpRings = { Enabled = true, Style = "Flame", MaxRadius = 5.2, Lifetime = 0.65, Sparks = true },
+                Crosshair = { Enabled = true, Style = "X-Cross", Size = 6, Gap = 4, Dot = true, Color = rgb(255, 90, 110) },
+                Hitmarker = { Enabled = true, Style = "Diamond", KillEffect = true, Color = rgb(255, 110, 125), KillColor = rgb(255, 45, 70) },
+                Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, Accent = rgb(255, 65, 88) },
+                Vignette = { LowHP = true, KillFlash = true, KillColor = rgb(255, 55, 80) },
+                World = worldFromPreset("Crimson Void", { SkyPreset = "Auto", Weather = "BloodRain", WeatherIntensity = 0.65, SpeedFOV = true, SpeedFOVMax = 15 }),
+            })
+        end,
+    })
+    pr:AddButton({
+        Text = "Сакура Закат (Sakura)",
+        Tooltip = "Аниме-эстетика: гекса-обруч CyberRing, атомная аура Atom, осколки Shard, ленты Spiral Halo, Starfall и Sakura Dusk.",
+        Func = function()
+            applyStylePreset("Sakura Dusk", {
+                ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, ShowState = true },
+                SelfChams = { Enabled = true, Style = "Sakura", FillTransparency = 0.56, OutlineTransparency = 0.16, IncludeTools = true, FillColor = rgb(255, 175, 215), OutlineColor = rgb(255, 240, 248) },
+                Afterimage = { Enabled = false },
+                ParticleTrail = { Enabled = true, Mode = "Spiral Halo", Pattern = "Starlight", Style = "Sakura", Lifetime = 0.58, Width = 0.16, Speed = 1.1, Sparks = true },
+                ChinaHat = { Enabled = true, Shape = "CyberRing", Style = "Sakura", Size = 1.45, Height = 0.55, Opacity = 0.65 },
+                PlayerAura = { Enabled = true, Shape = "Atom", Style = "Sakura", Size = 2.7, Transparency = 0.72, Particles = true, GlowLight = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Shard", Style = "Sakura", Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45, Trails = true },
+                JumpRings = { Enabled = true, Style = "Sakura", MaxRadius = 5.0, Lifetime = 0.68, Sparks = true },
+                Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 22, SpeedLinesOpacity = 0.6, SpeedLinesColor = rgb(255, 170, 215), Accent = rgb(255, 130, 195) },
+                World = worldFromPreset("Sakura Dusk", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.78, SpeedFOV = true, SpeedFOVMax = 14 }),
+            })
+        end,
+    })
+
+    CUR_GROUP = "Кастомный фон UI"
+    local bg = Tabs.UI:AddRightGroupbox("Кастомный фон UI")
+    addToggle(bg, "UiBgOn", "Включить фон UI", { "UI", "BgEnabled" },
+        "Ставит картинку по Roblox ID или ссылке из браузера на фон окна меню и делает панели полупрозрачными.",
+        function(v)
+            if v and not isSyncingUI then UiBg.clearFailures() end
+            UiBg.apply()
+        end)
+    withDep(bg, "UiBgOn", true, function(d)
+        addInput(d, "UiBgId", "ID или URL картинки", { "UI", "BgId" }, "ID, rbxassetid://... или https://...",
+            "Вставьте цифры Roblox ID, rbxassetid://... или прямую ссылку из браузера на PNG/JPG/WEBP (нажмите Enter).",
+            function(v)
+                if not isSyncingUI then UiBg.clearFailures() end
+                local norm = UiBg.normalizeId(v)
+                if norm and norm ~= v then
+                    cfg().UI.BgId = norm
+                    safeSet("UiBgId", norm)
+                end
+                UiBg.apply()
+            end)
+        addSlider(d, "UiBgOpacity", "Яркость картинки", { "UI", "BgOpacity" }, 0.05, 1.0, 2,
+            "Насколько ярко картинка видна на фоне окна меню.",
+            function() UiBg.apply() end)
+        addSlider(d, "UiBgPanelOp", "Плотность панелей", { "UI", "BgPanelOpacity" }, 0.15, 0.95, 2,
+            "Прозрачность внутренних секций и карточек: чем ниже, тем лучше видно фон за текстом.",
+            function() UiBg.apply() end)
+        addDropdown(d, "UiBgScale", "Масштаб (ScaleType)", { "UI", "BgScale" }, { "Crop", "Stretch", "Fit", "Tile" },
+            "Crop — заполняет без искажения; Stretch — растягивает; Fit — целиком в окне; Tile — плиткой.",
+            function() UiBg.apply() end)
+        addColorPicker(d, "UiBgTint", "Оттенок фона", { "UI", "BgTint" }, function() UiBg.apply() end)
+        d:AddButton({
+            Text = "Сбросить фон",
+            Tooltip = "Выключает и очищает кастомную картинку фона.",
+            Func = function()
+                cfg().UI.BgEnabled = false
+                cfg().UI.BgId = ""
+                UiBg.clearFailures()
+                safeSet("UiBgOn", false)
+                safeSet("UiBgId", "")
+                UiBg.apply()
+            end,
+        })
+    end)
 end
 
 if ThemeManager then pcall(function()
@@ -6450,6 +7789,7 @@ local function cleanup()
     Aware.cleanup()
     ThirdPerson.restore()
     WorldMod.restore()
+    if UiBg and UiBg.destroy then UiBg.destroy() end
 
     for _, c in ipairs({ renderConn, inputBeginConn, inputChangedConn, inputEndedConn, playerAddedConn, playerRemovingConn }) do
         safeDestroy(c)
@@ -6597,6 +7937,7 @@ renderConn = RunService.RenderStepped:Connect(function(dt)
     run("objects", updateObjects)
     run("tags", updateDefaultTags)
     run("vignette", HUD.updateVignette, dt)
+    run("speed lines", HUD.updateSpeedLines, dt)
     run("crosshair", HUD.updateCrosshair, dt)
     run("hitmarker", HUD.updateHitmarker)
     run("speedometer", HUD.updateSpeedometer)
