@@ -1686,246 +1686,270 @@ local function updateChinaHat(cam, char)
     for n = 2, #hatNodes do hatNodes[n].Visible = false end
 end
 
+local function setAuraSeg(idx, p1, p2, col, glowCol, alpha, thick)
+    setRingPair(auraDrawGlow, auraDrawOuter, idx, p1, p2, p1 ~= nil and p2 ~= nil, col, glowCol, alpha, thick)
+end
+
+local function setAuraInner(idx, p1, p2, col, alpha, thick)
+    local ln = auraDrawInner[idx]
+    if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawInner[idx] = ln end
+    if p1 and p2 then
+        ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = p1, p2, col, thick, alpha, true
+    else
+        ln.Visible = false
+    end
+end
+
+local function setAuraNode(idx, worldPos, cam, rad, col, alpha)
+    local nd = auraDrawNodes[idx]
+    if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[idx] = nd end
+    local sp = cam:WorldToViewportPoint(worldPos)
+    if sp.Z > 0.1 then
+        nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), rad, 10, true
+        nd.Color, nd.Transparency, nd.Visible = col, alpha, true
+    else
+        nd.Visible = false
+    end
+end
+
+local function projW2(cam, wp)
+    local sp = cam:WorldToViewportPoint(wp)
+    return (sp.Z > 0.1) and v2(sp.X, sp.Y) or nil
+end
+
 local function updateAuraShape(cam, char, root, dt, aura)
     local t = clock()
-    auraAngle = (auraAngle + (dt or 0.016) * 1.45) % (math.pi * 2)
+    auraAngle = auraAngle + clamp(dt or 0.016, 0, 0.1) * 1.45
     local c1, c2 = styleColors(aura.Style, aura.Color, 1)
     local pulse = 1 + sin(t * 2.8) * 0.05
     local alpha = clamp(1 - aura.Transparency + 0.55, 0.25, 0.95)
     local bodyCenter = partPos(root) + v3(0, 0.15, 0)
     local shape = aura.Shape or "Orbitals"
+    local isCustom = (aura.Style == "Custom")
     local usedSegs, usedInner, usedNodes = 0, 0, 0
 
     if shape == "Orbitals" then
         local r = aura.Size * pulse
         local cf1 = cfNew(bodyCenter) * cfAng(0.66, auraAngle, 0.24)
         local cf2 = cfNew(bodyCenter) * cfAng(-0.66, -auraAngle * 1.18, -0.24)
-        local cf3 = cfNew(bodyCenter) * cfAng(sin(t * 1.4) * 0.28, auraAngle * 0.7, cos(t * 1.1) * 0.22)
-        drawRing(cam, cf1, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.6)
-        drawRing(cam, cf2, true, r * 0.92, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.88, 1.4)
-        drawRing(cam, cf3, true, r * 1.06, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.75, 1.1)
+        local cf3 = cfNew(bodyCenter) * cfAng(sin(t * 1.4) * 0.28, auraAngle * 0.72, cos(t * 1.1) * 0.22)
+        drawRing(cam, cf1, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.7)
+        drawRing(cam, cf2, true, r * 0.88, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.9, 1.45)
+        drawRing(cam, cf3, true, r * 1.10, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.78, 1.2)
         usedSegs = C.RING_SEGMENTS * 3
-        for n = 1, 4 do
-            local nd = auraDrawNodes[n]
-            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
-            local ringCF = (n <= 2) and cf1 or cf2
-            local rad = (n <= 2) and r or (r * 0.92)
-            local na = (n % 2 == 0) and 0 or math.pi
-            local sp = cam:WorldToViewportPoint(ringCF:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)))
-            if sp.Z > 0.1 then
-                local nodePulse = (sin(t * 3.8 + n * 1.4) + 1) * 0.5
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.3 + nodePulse * 0.85, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.35), alpha, true
-            else
-                nd.Visible = false
-            end
+        local eqStep, eqR = (math.pi * 2) / 16, r * 1.02
+        for i = 1, 16 do
+            local a1 = -auraAngle * 0.75 + (i - 1) * eqStep
+            local p1 = projW2(cam, bodyCenter + v3(cos(a1) * eqR, 0, sin(a1) * eqR))
+            local p2 = projW2(cam, bodyCenter + v3(cos(a1 + eqStep * 0.52) * eqR, 0, sin(a1 + eqStep * 0.52) * eqR))
+            setAuraInner(i, p1, p2, (i % 2 == 0) and c1 or c2, alpha * 0.58, 1.15)
         end
-        usedNodes = 4
+        usedInner = 16
+        for n = 1, 6 do
+            local ringIdx = ((n - 1) % 3) + 1
+            local ringCF = (ringIdx == 1) and cf1 or ((ringIdx == 2) and cf2 or cf3)
+            local rad = (ringIdx == 1) and r or ((ringIdx == 2) and r * 0.88 or r * 1.10)
+            local na = auraAngle * (1.45 + ringIdx * 0.25) + (n > 3 and math.pi or 0)
+            local nodePulse = (sin(t * 4.2 + n * 1.3) + 1) * 0.5
+            setAuraNode(n, ringCF:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)), cam, 2.3 + nodePulse * 0.9, WHITE:Lerp(ringIdx == 2 and c1 or c2, 0.35), alpha)
+        end
+        local poleOff = r * 0.86 + sin(t * 2.8) * 0.14
+        setAuraNode(7, bodyCenter + v3(0, poleOff, 0), cam, 2.8, WHITE:Lerp(c2, 0.3), alpha * 0.92)
+        setAuraNode(8, bodyCenter - v3(0, poleOff, 0), cam, 2.8, WHITE:Lerp(c1, 0.3), alpha * 0.92)
+        usedNodes = 8
     elseif shape == "Helix" then
-        local steps = 26
+        local steps = 30
         local radBase = aura.Size * 0.68 * pulse
-        local isCustom = (aura.Style == "Custom")
         for strand = 0, 1 do
-            local prevPt, prevOk = nil, false
+            local prevPt = nil
             for s = 0, steps do
                 local f = s / steps
-                local y = -2.6 + f * 4.8
-                local taper = 0.65 + 0.35 * sin(f * math.pi)
-                local ang = auraAngle * 2.2 + f * (math.pi * 3.6) + strand * math.pi
-                local wp = bodyCenter + v3(cos(ang) * radBase * taper, y, sin(ang) * radBase * taper)
-                local sp = cam:WorldToViewportPoint(wp)
-                local ok = sp.Z > 0.1
-                local pt = ok and v2(sp.X, sp.Y) or nil
+                local y = -2.6 + f * 4.9
+                local taper = 0.62 + 0.38 * sin(f * math.pi)
+                local ang = auraAngle * 2.15 + f * (math.pi * 4.2) + strand * math.pi
+                local pt = projW2(cam, bodyCenter + v3(cos(ang) * radBase * taper, y, sin(ang) * radBase * taper))
                 if s > 0 then
                     usedSegs += 1
-                    local gl = auraDrawGlow[usedSegs]
-                    if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 2 end) auraDrawGlow[usedSegs] = gl end
-                    local ln = auraDrawOuter[usedSegs]
-                    if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawOuter[usedSegs] = ln end
-                    if ok and prevOk then
-                        local sc, sr = c1, c2
-                        if not isCustom then sc, sr = styleColors(aura.Style, aura.Color, 1, f * 2.4 + strand * 0.8) end
-                        local edgeAlpha = alpha * (0.35 + 0.65 * sin(f * math.pi))
-                        gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = prevPt, pt, sr, 4.5, edgeAlpha * 0.25, true
-                        ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = prevPt, pt, sc, 1.8, edgeAlpha, true
-                    else
-                        gl.Visible, ln.Visible = false, false
-                    end
+                    local sc, sr = c1, c2
+                    if not isCustom then sc, sr = styleColors(aura.Style, aura.Color, 1, f * 2.4 + strand * 0.8) end
+                    setAuraSeg(usedSegs, prevPt, pt, sc, sr, alpha * (0.35 + 0.65 * sin(f * math.pi)), 1.85)
                 end
-                prevPt, prevOk = pt, ok
+                prevPt = pt
             end
         end
-        for r = 1, 6 do
-            local ln = auraDrawInner[r]
-            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawInner[r] = ln end
-            local f = r / 7
-            local y = -2.6 + f * 4.8
-            local rad = radBase * (0.65 + 0.35 * sin(f * math.pi))
-            local ang = auraAngle * 2.2 + f * (math.pi * 3.6)
-            local s1 = cam:WorldToViewportPoint(bodyCenter + v3(cos(ang) * rad, y, sin(ang) * rad))
-            local s2 = cam:WorldToViewportPoint(bodyCenter - v3(cos(ang) * rad, -y, sin(ang) * rad))
-            if s1.Z > 0.1 and s2.Z > 0.1 then
-                ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = v2(s1.X, s1.Y), v2(s2.X, s2.Y), c1:Lerp(c2, f), 1.1, alpha * 0.42 * sin(f * math.pi), true
-            else
-                ln.Visible = false
-            end
+        for r = 1, 8 do
+            local f = r / 9
+            local y = -2.6 + f * 4.9
+            local rad = radBase * (0.62 + 0.38 * sin(f * math.pi))
+            local ang = auraAngle * 2.15 + f * (math.pi * 4.2)
+            local p1 = projW2(cam, bodyCenter + v3(cos(ang) * rad, y, sin(ang) * rad))
+            local p2 = projW2(cam, bodyCenter + v3(-cos(ang) * rad, y, -sin(ang) * rad))
+            setAuraInner(r, p1, p2, c1:Lerp(c2, f), alpha * 0.52 * sin(f * math.pi), 1.2)
         end
-        usedInner = 6
-        for n = 1, 4 do
-            local nd = auraDrawNodes[n]
-            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
-            local strand = (n <= 2) and 0 or 1
-            local f = (n % 2 == 1) and 0.2 or 0.8
-            local y = -2.6 + f * 4.8
-            local rad = radBase * (0.65 + 0.35 * sin(f * math.pi))
-            local ang = auraAngle * 2.2 + f * (math.pi * 3.6) + strand * math.pi
-            local sp = cam:WorldToViewportPoint(bodyCenter + v3(cos(ang) * rad, y, sin(ang) * rad))
-            if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.5, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(strand == 0 and c1 or c2, 0.45), alpha * 0.9, true
-            else
-                nd.Visible = false
-            end
+        local baseStep, baseR = (math.pi * 2) / 16, radBase * 0.95
+        for i = 1, 16 do
+            local a1 = -auraAngle * 0.9 + (i - 1) * baseStep
+            local a2 = a1 + baseStep * 0.68
+            local p1 = projW2(cam, bodyCenter + v3(cos(a1) * baseR, -2.55, sin(a1) * baseR))
+            local p2 = projW2(cam, bodyCenter + v3(cos(a2) * baseR, -2.55, sin(a2) * baseR))
+            setAuraInner(8 + i, p1, p2, (i % 2 == 0) and c1 or c2, alpha * 0.65, 1.3)
         end
-        usedNodes = 4
-    elseif shape == "Crown" then
-        local r = aura.Size * 0.94 * pulse
-        for k = 0, 2 do
-            local yaw = auraAngle * 0.85 + k * (math.pi / 3)
-            local cf = cfNew(bodyCenter) * cfAng(0, yaw, math.pi * 0.5)
-            drawRing(cam, cf, true, r, k * 0.5, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * 0.86, 1.35)
-            for m = 1, 2 do
-                local nIdx = k * 2 + m
-                local nd = auraDrawNodes[nIdx]
-                if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[nIdx] = nd end
-                local na = auraAngle * 1.4 + (m == 1 and 0 or math.pi) + k * 0.7
-                local sp = cam:WorldToViewportPoint(cf:PointToWorldSpace(v3(cos(na) * r, 0, sin(na) * r)))
-                if sp.Z > 0.1 then
-                    nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.5, 10, true
-                    nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(k % 2 == 0 and c1 or c2, 0.4), alpha, true
-                else
-                    nd.Visible = false
-                end
-            end
+        usedInner = 24
+        for n = 1, 6 do
+            local strand = (n <= 3) and 0 or 1
+            local f = ((t * 0.42 + (n - 1) / 6) % 1)
+            local y = -2.6 + f * 4.9
+            local rad = radBase * (0.62 + 0.38 * sin(f * math.pi))
+            local ang = auraAngle * 2.15 + f * (math.pi * 4.2) + strand * math.pi
+            local fade = sin(f * math.pi)
+            setAuraNode(n, bodyCenter + v3(cos(ang) * rad, y, sin(ang) * rad), cam, 2.1 + fade * 1.0, WHITE:Lerp(strand == 0 and c1 or c2, 0.35), alpha * fade)
         end
-        usedSegs = C.RING_SEGMENTS * 3
         usedNodes = 6
-        local step = (math.pi * 2) / C.RING_SEGMENTS
-        local bandR = r * 0.84
-        for i = 1, C.RING_SEGMENTS do
-            local ln = auraDrawInner[i]
-            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawInner[i] = ln end
-            if i % 3 ~= 0 then
-                local a1 = -auraAngle * 1.1 + (i - 1) * step
-                local a2 = a1 + step * 0.78
-                local s1 = cam:WorldToViewportPoint(bodyCenter + v3(cos(a1) * bandR, -0.15, sin(a1) * bandR))
-                local s2 = cam:WorldToViewportPoint(bodyCenter + v3(cos(a2) * bandR, -0.15, sin(a2) * bandR))
-                if s1.Z > 0.1 and s2.Z > 0.1 then
-                    ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = v2(s1.X, s1.Y), v2(s2.X, s2.Y), c2, 1.25, alpha * 0.65, true
-                else
-                    ln.Visible = false
-                end
-            else
-                ln.Visible = false
-            end
+    elseif shape == "Crown" then
+        local cSegs = 8
+        local cStep = (math.pi * 2) / cSegs
+        local rBase = aura.Size * 0.88 * pulse
+        local rMid = rBase * 0.82
+        local spin = auraAngle * 0.65
+        local yBot = -0.35 + sin(t * 2.2) * 0.08
+        local yMid = 0.85 + sin(t * 2.2 + 0.4) * 0.08
+        drawRing(cam, bodyCenter + v3(0, yBot, 0), false, rBase, spin, 16, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.82, 1.45)
+        drawRing(cam, bodyCenter + v3(0, yMid, 0), false, rMid, spin, 16, auraDrawGlow, auraDrawOuter, 16, c2, c1, alpha * 0.92, 1.6)
+        usedSegs = 32
+        for i = 1, cSegs do
+            local a1 = spin + (i - 1) * cStep
+            local a2 = a1 + cStep
+            local ta = a1 + cStep * 0.5
+            local isMajor = (i % 2 == 1)
+            local tipY = yMid + (isMajor and 1.48 or 0.82) + sin(t * 3.1 + i) * 0.06
+            local tipR = isMajor and (rMid * 1.16) or (rMid * 1.06)
+            local p1 = projW2(cam, bodyCenter + v3(cos(a1) * rMid, yMid, sin(a1) * rMid))
+            local p2 = projW2(cam, bodyCenter + v3(cos(a2) * rMid, yMid, sin(a2) * rMid))
+            local wTip = bodyCenter + v3(cos(ta) * tipR, tipY, sin(ta) * tipR)
+            local pTip = projW2(cam, wTip)
+            local sc, sr = c1, c2
+            if not isCustom then sc, sr = styleColors(aura.Style, aura.Color, 1, (i - 1) * 0.4) end
+            usedSegs += 1; setAuraSeg(usedSegs, p1, pTip, sr, sc, alpha, isMajor and 1.65 or 1.3)
+            usedSegs += 1; setAuraSeg(usedSegs, p2, pTip, sr, sc, alpha, isMajor and 1.65 or 1.3)
+            local pB1 = projW2(cam, bodyCenter + v3(cos(a1) * rBase, yBot, sin(a1) * rBase))
+            local pB2 = projW2(cam, bodyCenter + v3(cos(ta) * rBase * 0.92, (yBot + yMid) * 0.5, sin(ta) * rBase * 0.92))
+            setAuraInner(i * 2 - 1, pB1, p1, sc, alpha * 0.62, 1.15)
+            setAuraInner(i * 2, pB2, pTip, sr, alpha * 0.42, 1.0)
+            local jewelPulse = (sin(t * 3.8 + i * 0.8) + 1) * 0.5
+            setAuraNode(i, wTip + v3(0, 0.14, 0), cam, (isMajor and 2.6 or 1.9) + jewelPulse * 0.6, WHITE:Lerp(isMajor and sr or sc, 0.38), alpha)
         end
-        usedInner = C.RING_SEGMENTS
+        usedInner = 16
+        usedNodes = cSegs
     elseif shape == "Sigil" then
         local gPos = rayGroundPos(char, root)
         local rOut = aura.Size * pulse
-        local rIn = rOut * 0.78
-        drawRing(cam, gPos, false, rOut, auraAngle * 0.5, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.6)
-        drawRing(cam, gPos + v3(0, 0.04, 0), false, rIn, -auraAngle * 0.7, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.82, 1.2)
+        local rIn = rOut * 0.74
+        drawRing(cam, gPos, false, rOut, auraAngle * 0.5, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.65)
+        drawRing(cam, gPos + v3(0, 0.04, 0), false, rIn, -auraAngle * 0.7, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.85, 1.25)
         usedSegs = C.RING_SEGMENTS * 2
         local starStep = (math.pi * 2) / 6
         local starR = rOut * 0.96
         for k = 1, 6 do
             local a1 = auraAngle * 0.55 + (k - 1) * starStep
             local a2 = a1 + starStep * 2
-            local cx1, cz1 = cos(a1), sin(a1)
-            local p1 = cam:WorldToViewportPoint(gPos + v3(cx1 * starR, 0.02, cz1 * starR))
-            local p2 = cam:WorldToViewportPoint(gPos + v3(cos(a2) * starR, 0.02, sin(a2) * starR))
+            local w1 = gPos + v3(cos(a1) * starR, 0.02, sin(a1) * starR)
+            local p1 = projW2(cam, w1)
+            local p2 = projW2(cam, gPos + v3(cos(a2) * starR, 0.02, sin(a2) * starR))
             usedSegs += 1
-            local gl = auraDrawGlow[usedSegs]
-            if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 2 end) auraDrawGlow[usedSegs] = gl end
-            local ln = auraDrawOuter[usedSegs]
-            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawOuter[usedSegs] = ln end
-            if p1.Z > 0.1 and p2.Z > 0.1 then
-                local vA, vB = v2(p1.X, p1.Y), v2(p2.X, p2.Y)
-                gl.From, gl.To, gl.Color, gl.Thickness, gl.Transparency, gl.Visible = vA, vB, c2, 3.8, alpha * 0.25, true
-                ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = vA, vB, c1:Lerp(c2, 0.45), 1.4, alpha * 0.88, true
-            else
-                gl.Visible, ln.Visible = false, false
-            end
-            local spOut = cam:WorldToViewportPoint(gPos + v3(cx1 * (rOut * 1.15), 0.02, cz1 * (rOut * 1.15)))
-            local rLn = auraDrawInner[k]
-            if not rLn then rLn = poolGet("Line") pcall(function() rLn.ZIndex = 3 end) auraDrawInner[k] = rLn end
-            if p1.Z > 0.1 and spOut.Z > 0.1 then
-                rLn.From, rLn.To, rLn.Color, rLn.Thickness, rLn.Transparency, rLn.Visible = v2(p1.X, p1.Y), v2(spOut.X, spOut.Y), c2, 1.25, alpha * 0.72, true
-            else
-                rLn.Visible = false
-            end
-            local nd = auraDrawNodes[k]
-            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[k] = nd end
-            if p1.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(p1.X, p1.Y), 2.5, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.4), alpha, true
-            else
-                nd.Visible = false
-            end
+            setAuraSeg(usedSegs, p1, p2, c1:Lerp(c2, 0.45), c2, alpha * 0.9, 1.45)
+            local pOut = projW2(cam, gPos + v3(cos(a1) * (rOut * 1.24), 0.02, sin(a1) * (rOut * 1.24)))
+            setAuraInner(16 + k, p1, pOut, c2, alpha * 0.78, 1.3)
+            setAuraNode(k, w1, cam, 2.5 + sin(t * 3.5 + k) * 0.45, WHITE:Lerp(c2, 0.35), alpha)
         end
-        usedInner = 6
-        usedNodes = 6
+        local diaStep, diaR = math.pi * 0.5, rIn * 0.94
+        for k = 1, 4 do
+            local a1 = -auraAngle * 0.95 + (k - 1) * diaStep
+            local a2 = a1 + diaStep
+            local w1 = gPos + v3(cos(a1) * diaR, 0.05, sin(a1) * diaR)
+            local p1 = projW2(cam, w1)
+            local p2 = projW2(cam, gPos + v3(cos(a2) * diaR, 0.05, sin(a2) * diaR))
+            usedSegs += 1
+            setAuraSeg(usedSegs, p1, p2, c2, c1, alpha * 0.85, 1.25)
+            setAuraNode(6 + k, w1, cam, 2.0, WHITE:Lerp(c1, 0.35), alpha * 0.9)
+        end
+        local haloStep, haloR = (math.pi * 2) / 16, rOut * 1.13
+        for i = 1, 16 do
+            local a1 = -auraAngle * 0.4 + (i - 1) * haloStep
+            local p1 = projW2(cam, gPos + v3(cos(a1) * haloR, 0.02, sin(a1) * haloR))
+            local p2 = projW2(cam, gPos + v3(cos(a1 + haloStep * 0.56) * haloR, 0.02, sin(a1 + haloStep * 0.56) * haloR))
+            setAuraInner(i, p1, p2, (i % 2 == 0) and c1 or c2, alpha * 0.65, 1.2)
+        end
+        usedInner = 22
+        usedNodes = 10
     elseif shape == "Galaxy" then
         local r = aura.Size * pulse
         local cf1 = cfNew(bodyCenter) * cfAng(0.38, auraAngle * 0.65, 0.22)
         local cf2 = cfNew(bodyCenter) * cfAng(-0.32, -auraAngle * 1.1, -0.18)
         local cf3 = cfNew(bodyCenter) * cfAng(0.08, auraAngle * 1.4, -0.1)
-        drawRing(cam, cf1, true, r * 1.18, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.92, 1.7)
-        drawRing(cam, cf2, true, r * 0.78, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.85, 1.3)
-        drawRing(cam, cf3, true, r * 0.96, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.65, 1.0)
+        drawRing(cam, cf1, true, r * 1.24, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.92, 1.7)
+        drawRing(cam, cf2, true, r * 0.72, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.85, 1.35)
+        drawRing(cam, cf3, true, r * 0.96, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.7, 1.1)
         usedSegs = C.RING_SEGMENTS * 3
-        for n = 1, 6 do
-            local nd = auraDrawNodes[n]
-            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
-            local ringCF = (n <= 3) and cf1 or cf2
-            local rad = (n <= 3) and (r * 1.18) or (r * 0.78)
-            local na = ((n - 1) % 3) * ((math.pi * 2) / 3)
-            local sp = cam:WorldToViewportPoint(ringCF:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)))
-            if sp.Z > 0.1 then
-                local nodePulse = (sin(t * 3.4 + n * 0.9) + 1) * 0.5
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), ((n <= 3) and 2.5 or 2.0) + nodePulse * 0.75, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.35), alpha, true
-            else
-                nd.Visible = false
+        local armIdx = 0
+        for arm = 0, 1 do
+            local prevPt = nil
+            for s = 0, 12 do
+                local f = s / 12
+                local sr = r * (0.32 + f * 0.96)
+                local sa = auraAngle * 0.85 + arm * math.pi + f * 2.6
+                local pt = projW2(cam, cf1:PointToWorldSpace(v3(cos(sa) * sr, 0, sin(sa) * sr)))
+                if s > 0 then
+                    armIdx += 1
+                    setAuraInner(armIdx, prevPt, pt, c1:Lerp(c2, f), alpha * (0.25 + 0.7 * sin(f * math.pi)), 1.35)
+                end
+                prevPt = pt
             end
         end
-        usedNodes = 6
+        usedInner = armIdx
+        for n = 1, 8 do
+            local isOuter = (n <= 4)
+            local ringCF = isOuter and cf1 or ((n <= 6) and cf2 or cf3)
+            local rad = isOuter and (r * 1.24) or ((n <= 6) and (r * 0.72) or (r * 0.96))
+            local na = auraAngle * (isOuter and 0.9 or -1.4) + n * 1.57
+            local nodePulse = (sin(t * 4.2 + n * 1.1) + 1) * 0.5
+            setAuraNode(n, ringCF:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)), cam, (isOuter and 2.5 or 2.0) + nodePulse * 0.85, WHITE:Lerp(isOuter and c2 or c1, 0.35), alpha * (0.6 + 0.4 * nodePulse))
+        end
+        usedNodes = 8
     elseif shape == "Vortex" then
         local rBase = aura.Size * pulse
         for k = 0, 3 do
             local prog = ((t * 0.72 + k * 0.25) % 1)
-            local yOff = -2.2 + prog * 4.2
-            local rad = rBase * (0.38 + prog * 0.84)
+            local yOff = -2.2 + prog * 4.3
+            local rad = rBase * (0.34 + (prog ^ 0.85) * 0.92)
             local fade = sin(prog * math.pi)
-            local cf = cfNew(bodyCenter + v3(0, yOff, 0)) * cfAng(sin(t * 1.35 + k) * 0.15, auraAngle * (1.25 + k * 0.28), cos(t * 1.1 + k) * 0.08)
-            drawRing(cam, cf, true, rad, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * clamp(fade * 1.18, 0.12, 1), 1.45)
+            local cf = cfNew(bodyCenter + v3(0, yOff, 0)) * cfAng(sin(t * 1.35 + k * 1.57) * 0.14, auraAngle * 1.45 + k * 0.8, cos(t * 1.1 + k * 1.57) * 0.08)
+            drawRing(cam, cf, true, rad, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * fade, 1.55)
         end
         usedSegs = C.RING_SEGMENTS * 4
-        for n = 1, 8 do
-            local nd = auraDrawNodes[n]
-            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
-            local prog = ((t * 0.72 + (n - 1) / 8) % 1)
-            local yOff = -2.1 + prog * 4.0
-            local rad = rBase * (0.42 + prog * 0.78)
-            local na = auraAngle * 2.25 + n * 0.85
-            local sp = cam:WorldToViewportPoint(bodyCenter + v3(cos(na) * rad, yOff, sin(na) * rad))
-            if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.3 + sin(prog * math.pi) * 0.6, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(n % 2 == 0 and c1 or c2, 0.35), alpha * sin(prog * math.pi), true
-            else
-                nd.Visible = false
+        local ribIdx = 0
+        for strand = 0, 1 do
+            local prevPt = nil
+            for s = 0, 14 do
+                local f = s / 14
+                local y = -2.2 + f * 4.3
+                local rad = rBase * (0.36 + (f ^ 0.85) * 0.88)
+                local ang = auraAngle * 2.6 + f * (math.pi * 3.4) + strand * math.pi
+                local pt = projW2(cam, bodyCenter + v3(cos(ang) * rad, y, sin(ang) * rad))
+                if s > 0 then
+                    ribIdx += 1
+                    setAuraInner(ribIdx, prevPt, pt, strand == 0 and c1 or c2, alpha * 0.65 * sin(f * math.pi), 1.3)
+                end
+                prevPt = pt
             end
+        end
+        usedInner = ribIdx
+        for n = 1, 8 do
+            local prog = ((t * 0.72 + (n - 1) / 8) % 1)
+            local yOff = -2.2 + prog * 4.3
+            local rad = rBase * (0.38 + (prog ^ 0.85) * 0.84)
+            local na = auraAngle * 2.6 + prog * (math.pi * 3.4) + (n % 2) * math.pi
+            local fade = sin(prog * math.pi)
+            setAuraNode(n, bodyCenter + v3(cos(na) * rad, yOff, sin(na) * rad), cam, 2.0 + fade * 0.9, WHITE:Lerp(n % 2 == 0 and c1 or c2, 0.35), alpha * fade)
         end
         usedNodes = 8
     elseif shape == "Atom" then
@@ -1937,67 +1961,56 @@ local function updateAuraShape(cam, char, root, dt, aura)
         drawRing(cam, tilt2, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.9, 1.45)
         drawRing(cam, tilt3, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.85, 1.35)
         usedSegs = C.RING_SEGMENTS * 3
+        local nucR, nucStep = r * 0.24, (math.pi * 2) / 12
+        local ncf1 = cfNew(bodyCenter) * cfAng(0.5, auraAngle * 2.8, 0.4)
+        local ncf2 = cfNew(bodyCenter) * cfAng(-0.5, -auraAngle * 3.2, 1.1)
+        for i = 1, 12 do
+            local a1, a2 = (i - 1) * nucStep, i * nucStep
+            setAuraInner(i, projW2(cam, ncf1:PointToWorldSpace(v3(cos(a1) * nucR, 0, sin(a1) * nucR))), projW2(cam, ncf1:PointToWorldSpace(v3(cos(a2) * nucR, 0, sin(a2) * nucR))), c2, alpha * 0.88, 1.25)
+            setAuraInner(12 + i, projW2(cam, ncf2:PointToWorldSpace(v3(cos(a1) * nucR, 0, sin(a1) * nucR))), projW2(cam, ncf2:PointToWorldSpace(v3(cos(a2) * nucR, 0, sin(a2) * nucR))), c1, alpha * 0.88, 1.25)
+        end
+        usedInner = 24
         for n = 1, 6 do
-            local nd = auraDrawNodes[n]
-            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
             local orbitIdx = ((n - 1) % 3) + 1
             local ringCF = (orbitIdx == 1) and tilt1 or ((orbitIdx == 2) and tilt2 or tilt3)
             local na = auraAngle * 2.4 + (n > 3 and math.pi or 0) + orbitIdx * 1.1
-            local sp = cam:WorldToViewportPoint(ringCF:PointToWorldSpace(v3(cos(na) * r, 0, sin(na) * r)))
-            if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 3.0, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(orbitIdx == 2 and c1 or c2, 0.35), alpha, true
-            else
-                nd.Visible = false
-            end
+            setAuraNode(n, ringCF:PointToWorldSpace(v3(cos(na) * r, 0, sin(na) * r)), cam, 2.9, WHITE:Lerp(orbitIdx == 2 and c1 or c2, 0.35), alpha)
         end
-        usedNodes = 6
+        setAuraNode(7, bodyCenter, cam, 3.6 + sin(t * 5.0) * 0.7, WHITE:Lerp(c1, 0.25), alpha * 0.95)
+        usedNodes = 7
     else
         local gPos = rayGroundPos(char, root)
         local outerR = aura.Size * pulse
-        drawRing(cam, gPos, false, outerR, auraAngle, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.6)
-        usedSegs = C.RING_SEGMENTS
-        local step = (math.pi * 2) / C.RING_SEGMENTS
-        local innerR = aura.Size * 0.62 * pulse
-        for i = 1, C.RING_SEGMENTS do
-            local ln = auraDrawInner[i]
-            if not ln then ln = poolGet("Line") pcall(function() ln.ZIndex = 3 end) auraDrawInner[i] = ln end
-            if i % 3 ~= 0 then
-                local a1 = -auraAngle * 1.4 + (i - 1) * step
-                local a2 = a1 + step * 0.78
-                local s1 = cam:WorldToViewportPoint(gPos + v3(cos(a1) * innerR, 0, sin(a1) * innerR))
-                local s2 = cam:WorldToViewportPoint(gPos + v3(cos(a2) * innerR, 0, sin(a2) * innerR))
-                if s1.Z > 0.1 and s2.Z > 0.1 then
-                    ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = v2(s1.X, s1.Y), v2(s2.X, s2.Y), c2, 1.2, alpha * 0.7, true
-                else
-                    ln.Visible = false
-                end
-            else
-                local ta = auraAngle + (i - 1) * step
-                local cx, cz = cos(ta), sin(ta)
-                local s1 = cam:WorldToViewportPoint(gPos + v3(cx * (innerR * 0.94), 0, cz * (innerR * 0.94)))
-                local s2 = cam:WorldToViewportPoint(gPos + v3(cx * (outerR * 0.98), 0, cz * (outerR * 0.98)))
-                if s1.Z > 0.1 and s2.Z > 0.1 then
-                    ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = v2(s1.X, s1.Y), v2(s2.X, s2.Y), c1:Lerp(c2, 0.5), 1.15, alpha * 0.55, true
-                else
-                    ln.Visible = false
-                end
-            end
+        local innerR = outerR * 0.56
+        drawRing(cam, gPos, false, outerR, auraAngle * 0.65, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.65)
+        drawRing(cam, gPos + v3(0, 0.03, 0), false, innerR, -auraAngle * 1.15, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.82, 1.25)
+        usedSegs = C.RING_SEGMENTS * 2
+        local midStep, midR = (math.pi * 2) / 16, outerR * 0.78
+        for i = 1, 16 do
+            local a1 = -auraAngle * 0.9 + (i - 1) * midStep
+            local p1 = projW2(cam, gPos + v3(cos(a1) * midR, 0.02, sin(a1) * midR))
+            local p2 = projW2(cam, gPos + v3(cos(a1 + midStep * 0.58) * midR, 0.02, sin(a1 + midStep * 0.58) * midR))
+            setAuraInner(i, p1, p2, (i % 2 == 0) and c1 or c2, alpha * 0.72, 1.25)
         end
-        usedInner = C.RING_SEGMENTS
+        local tickStep = (math.pi * 2) / 8
+        for k = 1, 8 do
+            local ta = auraAngle * 0.65 + (k - 1) * tickStep
+            local cx, cz = cos(ta), sin(ta)
+            local ext = 1.02 + 0.1 * sin(t * 3.4 + k * 0.8)
+            local p1 = projW2(cam, gPos + v3(cx * (innerR * 0.94), 0.02, cz * (innerR * 0.94)))
+            local p2 = projW2(cam, gPos + v3(cx * (outerR * ext), 0.02, cz * (outerR * ext)))
+            setAuraInner(16 + k, p1, p2, c1:Lerp(c2, 0.5), alpha * 0.62, 1.2)
+        end
+        usedInner = 24
         for n = 1, 4 do
-            local nd = auraDrawNodes[n]
-            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
-            local na = auraAngle + (n - 1) * (math.pi * 0.5)
-            local sp = cam:WorldToViewportPoint(gPos + v3(cos(na) * outerR, 0, sin(na) * outerR))
-            if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.5, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.4), alpha, true
-            else
-                nd.Visible = false
-            end
+            local na = auraAngle * 0.65 + (n - 1) * (math.pi * 0.5)
+            setAuraNode(n, gPos + v3(cos(na) * outerR, 0.03, sin(na) * outerR), cam, 2.7, WHITE:Lerp(c2, 0.35), alpha)
         end
-        usedNodes = 4
+        for n = 1, 2 do
+            local na = -auraAngle * 1.9 + (n - 1) * math.pi
+            setAuraNode(4 + n, gPos + v3(cos(na) * innerR, 0.04, sin(na) * innerR), cam, 2.2, WHITE:Lerp(c1, 0.35), alpha * 0.92)
+        end
+        usedNodes = 6
     end
 
     for k = usedSegs + 1, #auraDrawGlow do auraDrawGlow[k].Visible = false end
@@ -2860,13 +2873,6 @@ local function segment(bt, i, l, t, r, b, len, pad)
         elseif i == 2 then return r, t - pad, r, b + pad
         elseif i == 3 then return r + pad, b, l - pad, b
         else return l, b + pad, l, t - pad end
-    elseif bt == "Bracket" then
-        if i == 1 then return l, t - pad, l, b + pad
-        elseif i == 2 then return r, t - pad, r, b + pad
-        elseif i == 3 then return l - pad, t, l + len, t
-        elseif i == 4 then return r + pad, t, r - len, t
-        elseif i == 5 then return l - pad, b, l + len, b
-        else return r + pad, b, r - len, b end
     end
     if i == 1 then return l - pad, t, l + len, t
     elseif i == 2 then return l, t - pad, l, t + len
@@ -2919,12 +2925,13 @@ local function drawBox(d, parts, rd)
     local col = boxColor(rd)
     local alpha = rd.alpha
     local bt = e.BoxType
+    if bt == "Bracket" then bt = "3D Corner" end
     if lod then
-        if (bt == "Corner" or bt == "Bracket") and h < 16 then bt = "2D"
-        elseif bt == "3D" and h < 22 then bt = "2D" end
+        if bt == "Corner" and h < 16 then bt = "2D"
+        elseif (bt == "3D" or bt == "3D Corner") and h < 22 then bt = "2D" end
     end
 
-    if e.BoxFill and bt ~= "3D" and (not lod or h >= 6) then
+    if e.BoxFill and bt ~= "3D" and bt ~= "3D Corner" and (not lod or h >= 6) then
         local F = ensure(d, "fill", 1)[1]
         F.Position, F.Size = v2(left, top), v2(w, h)
         F.Filled, F.Color = true, col
@@ -2933,14 +2940,13 @@ local function drawBox(d, parts, rd)
         hideKey(d, "fill")
     end
 
-    if bt == "2D" or bt == "Corner" or bt == "Bracket" then
+    if bt == "2D" or bt == "Corner" then
         hideKey(d, "lines3d")
         hideKey(d, "lines3dbg")
         local main, other, n = "lines", "corners", 4
-        if bt == "Corner" then main, other, n = "corners", "lines", 8
-        elseif bt == "Bracket" then main, other, n = "corners", "lines", 6 end
+        if bt == "Corner" then main, other, n = "corners", "lines", 8 end
         hideKey(d, other)
-        local len = bt == "Bracket" and clamp(w * 0.28, 3, 12) or min(14, h * 0.24)
+        local len = min(14, h * 0.24)
 
         if e.Outline and (not lod or h >= 18) then
             local O = ensure(d, "outline", n)
@@ -3006,36 +3012,99 @@ local function drawBox(d, parts, rd)
 
         local cam = workspace.CurrentCamera
         if not cam then hideKey(d, "lines3d") hideKey(d, "lines3dbg") return end
-        local idx3 = 0
-        for iy = 1, 2 do
-            local cy = (iy == 1) and maxY or minY
-            for ix = 1, 2 do
-                local cx = (ix == 1) and minX or maxX
-                for iz = 1, 2 do
-                    idx3 += 1
-                    local cz = (iz == 1) and minZ or maxZ
-                    local sp = cam:WorldToViewportPoint(cf:PointToWorldSpace(v3(cx, cy, cz)))
-                    screen3D[idx3] = (sp.Z > 0.1) and v2(sp.X, sp.Y) or nil
+        local useOut = e.Outline and (not lod or h >= 24)
+        local n3 = (bt == "3D Corner") and 24 or 12
+        local BG = useOut and ensure(d, "lines3dbg", n3) or nil
+        if not useOut then
+            hideKey(d, "lines3dbg")
+        elseif #BG > n3 then
+            for i = n3 + 1, #BG do BG[i].Visible = false end
+        end
+        local L = ensure(d, "lines3d", n3)
+        if #L > n3 then
+            for i = n3 + 1, #L do L[i].Visible = false end
+        end
+
+        if bt == "3D Corner" then
+            local armX = (maxX - minX) * 0.28
+            local armY = (maxY - minY) * 0.24
+            local armZ = (maxZ - minZ) * 0.28
+            local vX = cf:VectorToWorldSpace(v3(armX, 0, 0))
+            local vY = cf:VectorToWorldSpace(v3(0, armY, 0))
+            local vZ = cf:VectorToWorldSpace(v3(0, 0, armZ))
+            local li = 0
+            for iy = 1, 2 do
+                local cy = (iy == 1) and maxY or minY
+                local sy = (iy == 1) and -1 or 1
+                local offY = vY * sy
+                for ix = 1, 2 do
+                    local cx = (ix == 1) and minX or maxX
+                    local sx = (ix == 1) and 1 or -1
+                    local offX = vX * sx
+                    for iz = 1, 2 do
+                        local cz = (iz == 1) and minZ or maxZ
+                        local sz = (iz == 1) and 1 or -1
+                        local wp = cf:PointToWorldSpace(v3(cx, cy, cz))
+                        local sp0 = cam:WorldToViewportPoint(wp)
+                        if sp0.Z > 0.1 then
+                            local a = v2(sp0.X, sp0.Y)
+                            local s1 = cam:WorldToViewportPoint(wp + offX)
+                            local s2 = cam:WorldToViewportPoint(wp + offY)
+                            local s3 = cam:WorldToViewportPoint(wp + vZ * sz)
+                            for k = 1, 3 do
+                                li += 1
+                                local sk = (k == 1) and s1 or ((k == 2) and s2 or s3)
+                                if sk.Z > 0.1 then
+                                    local b = v2(sk.X, sk.Y)
+                                    if BG then
+                                        BG[li].From, BG[li].To = a, b
+                                        BG[li].Color, BG[li].Thickness, BG[li].Transparency, BG[li].Visible = BLACK, thick + 2, alpha, true
+                                    end
+                                    L[li].From, L[li].To = a, b
+                                    L[li].Color, L[li].Thickness, L[li].Transparency, L[li].Visible = col, thick, alpha, true
+                                else
+                                    if BG then BG[li].Visible = false end
+                                    L[li].Visible = false
+                                end
+                            end
+                        else
+                            for _ = 1, 3 do
+                                li += 1
+                                if BG then BG[li].Visible = false end
+                                L[li].Visible = false
+                            end
+                        end
+                    end
                 end
             end
-        end
-        local useOut = e.Outline and (not lod or h >= 24)
-        local BG = useOut and ensure(d, "lines3dbg", 12) or nil
-        if not useOut then hideKey(d, "lines3dbg") end
-        local L = ensure(d, "lines3d", 12)
-        for i = 1, 12 do
-            local ed = EDGES_3D[i]
-            local a, b = screen3D[ed[1]], screen3D[ed[2]]
-            if a and b then
-                if BG then
-                    BG[i].From, BG[i].To = a, b
-                    BG[i].Color, BG[i].Thickness, BG[i].Transparency, BG[i].Visible = BLACK, thick + 2, alpha, true
+        else
+            local idx3 = 0
+            for iy = 1, 2 do
+                local cy = (iy == 1) and maxY or minY
+                for ix = 1, 2 do
+                    local cx = (ix == 1) and minX or maxX
+                    for iz = 1, 2 do
+                        idx3 += 1
+                        local cz = (iz == 1) and minZ or maxZ
+                        local sp = cam:WorldToViewportPoint(cf:PointToWorldSpace(v3(cx, cy, cz)))
+                        screen3D[idx3] = (sp.Z > 0.1) and v2(sp.X, sp.Y) or nil
+                    end
                 end
-                L[i].From, L[i].To = a, b
-                L[i].Color, L[i].Thickness, L[i].Transparency, L[i].Visible = col, thick, alpha, true
-            else
-                if BG then BG[i].Visible = false end
-                L[i].Visible = false
+            end
+            for i = 1, 12 do
+                local ed = EDGES_3D[i]
+                local a, b = screen3D[ed[1]], screen3D[ed[2]]
+                if a and b then
+                    if BG then
+                        BG[i].From, BG[i].To = a, b
+                        BG[i].Color, BG[i].Thickness, BG[i].Transparency, BG[i].Visible = BLACK, thick + 2, alpha, true
+                    end
+                    L[i].From, L[i].To = a, b
+                    L[i].Color, L[i].Thickness, L[i].Transparency, L[i].Visible = col, thick, alpha, true
+                else
+                    if BG then BG[i].Visible = false end
+                    L[i].Visible = false
+                end
             end
         end
     end
@@ -6128,16 +6197,22 @@ local SaveManager  = loadModule("addons/SaveManager.lua")
 
 local Window = Library:CreateWindow({
     Title = "glupost hub", Footer = VERSION, Center = true, AutoShow = true, NotifySide = "Right",
+    Size = (function()
+        local cam = workspace.CurrentCamera
+        local vp = cam and cam.ViewportSize or v2(1280, 720)
+        return UDim2.fromOffset(clamp(floor(vp.X * 0.88), 580, 820), clamp(floor(vp.Y * 0.88), 400, 600))
+    end)(),
+    MinSize = Vector2.new(640, 420),
 })
 Options = Library.Options
 Toggles = Library.Toggles
 
 local Tabs = {
     ESP       = Window:AddTab("ВХ (ESP)", "eye"),
-    SelfFX    = Window:AddTab("Персонаж и FX", "sparkles"),
-    Overlay   = Window:AddTab("Оверлей и HUD", "layers"),
-    Awareness = Window:AddTab("Угрозы и звук", "radar"),
-    World     = Window:AddTab("Мир и камера", "globe"),
+    SelfFX    = Window:AddTab("Персонаж FX", "sparkles"),
+    Overlay   = Window:AddTab("HUD и Прицел", "layers"),
+    Awareness = Window:AddTab("Угрозы", "radar"),
+    World     = Window:AddTab("Мир и FOV", "globe"),
     Objects   = Window:AddTab("Объекты", "box"),
     Help      = Window:AddTab("Справка", "info"),
     UI        = Window:AddTab("Настройки UI", "settings"),
@@ -6665,8 +6740,8 @@ do
                 applyESPSync()
             end
         end)
-    addDropdown(g, "BoxType", "Тип рамки", { "ESP", "BoxType" }, { "2D", "Corner", "Bracket", "3D" },
-        "Форма рамки вокруг игрока: 2D — прямоугольник, Corner — уголки, Bracket — тактические скобки с засечками, 3D — объёмный куб. По умолчанию переключается клавишей F2.")
+    addDropdown(g, "BoxType", "Тип рамки", { "ESP", "BoxType" }, { "2D", "Corner", "3D Corner", "3D" },
+        "Форма рамки вокруг игрока: 2D — прямоугольник, Corner — 2D-уголки, 3D Corner — объёмные 3D-уголки, 3D — полный куб. Клавиша переключения: F2.")
     addDropdown(g, "BoxFit", "Подгонка рамки", { "ESP", "BoxFit" }, { "Fixed", "Dynamic" },
         "Fixed — быстрая рамка по фиксированным габаритам, Dynamic — точный обхват всех частей тела в каждом кадре.")
     addSlider(g, "BoxThick", "Толщина рамки", { "ESP", "BoxThickness" }, 1, 6, 0,
@@ -6675,17 +6750,17 @@ do
         "Скрывает игроков вашей команды с ВХ (работает только в играх, где есть команды).",
         applyESPSync)
     withDep(g, "TeamHide", true, function(d)
-        addToggle(d, "SyncESP", "Синхр. команд с Угрозами", { "ESP", "SyncWithESP" },
+        addToggle(d, "SyncESP", "Синхр. с Угрозами", { "ESP", "SyncWithESP" },
             "Автоматически применяет настройку «Скрывать союзников» к звуку приближения, тревоге взгляда и кольцам шагов.",
             applyESPSync)
     end)
     addToggle(g, "VisCheck", "Проверка видимости", { "ESP", "VisibleCheck" },
         "Проверяет лучами, находится ли игрок в прямой видимости (цвет Visible) или за стеной (цвет Occluded).")
     withDep(g, "VisCheck", true, function(d)
-        addToggle(d, "SmartVis", "Умная проверка (сквозь стекло)", { "ESP", "SmartVisCheck" },
+        addToggle(d, "SmartVis", "Сквозь стекло / листву", { "ESP", "SmartVisCheck" },
             "Пробивает полупрозрачные и неколлизионные препятствия (стёкла, листву, невидимые барьеры) при проверке видимости.")
     end)
-    addToggle(g, "Prio", "Выделять опасную цель", { "ESP", "PriorityTarget" },
+    addToggle(g, "Prio", "Опасная цель (Priority)", { "ESP", "PriorityTarget" },
         "Отдельно подсвечивает цветом Priority самого опасного врага по дистанции, направлению взгляда и урону.")
     withDep(g, "Prio", true, function(d)
         addToggle(d, "PrioMark", "3D-маркер под целью", { "ESP", "PriorityMarker" },
@@ -6695,26 +6770,25 @@ do
     end)
     addToggle(g, "AdaptiveLOD", "Адаптивный LOD (вдали)", { "ESP", "AdaptiveLOD" },
         "На большой дистанции автоматически упрощает детализацию ВХ (отключает лишние линии/текст) для экономии FPS.")
-    addToggle(g, "SmoothCF", "Плавная позиция (Render CFrame)", { "ESP", "SmoothCF" },
+    addToggle(g, "SmoothCF", "Плавная позиция", { "ESP", "SmoothCF" },
         "Использует сглаженные координаты рендера, чтобы рамка и скелет меньше дрожали при движении цели.")
-    addToggle(g, "DistFade", "Затухание по дистанции", { "ESP", "DistanceFade" },
+    addToggle(g, "DistFade", "Затухание дистанции", { "ESP", "DistanceFade" },
         "Плавно снижает прозрачность элементов ВХ по мере удаления игрока к максимальной дистанции.")
 
-    local leftTabs = Tabs.ESP:AddLeftTabbox()
     CUR_GROUP = "Рамка и маркеры"
-    local st = leftTabs:AddTab("Рамка и маркеры")
+    local st = Tabs.ESP:AddLeftGroupbox("Рамка и маркеры")
     addToggle(st, "BoxOutline", "Обводка рамки", { "ESP", "Outline" },
         "Добавляет чёрную обводку вокруг рамки — сильно повышает читаемость на светлом фоне.")
     addToggle(st, "BoxFill", "Заливка рамки", { "ESP", "BoxFill" },
         "Рисует полупрозрачный фон внутри рамки игрока.")
     withDep(st, "BoxFill", true, function(d)
-        addSlider(d, "FillOp", "Прозрачность заливки", { "ESP", "FillOpacity" }, 0.05, 0.8, 2,
+        addSlider(d, "FillOp", "Плотность заливки", { "ESP", "FillOpacity" }, 0.05, 0.8, 2,
             "Насыщенность полупрозрачной заливки внутри рамки.")
     end)
     addToggle(st, "HpBar", "Полоса здоровья", { "ESP", "HealthBar" },
         "Рисует вертикальную полоску HP слева от рамки (цвет плавно меняется от зелёного к красному).")
     withDep(st, "HpBar", true, function(d)
-        addToggle(d, "HpTrail", "Шлейф урона на полосе HP", { "ESP", "HealthTrail" },
+        addToggle(d, "HpTrail", "Шлейф урона (HP)", { "ESP", "HealthTrail" },
             "После получения врагом урона на полосе здоровья остаётся плавно исчезающий белый/красный след.")
     end)
     addToggle(st, "HeadDot", "Точка на голове", { "ESP", "HeadDot" },
@@ -6726,22 +6800,22 @@ do
     addToggle(st, "LookLine", "Линия взгляда", { "ESP", "LookLine" },
         "Показывает вектор, куда именно смотрит голова игрока в данный момент.")
     withDep(st, "LookLine", true, function(d)
-        addToggle(d, "LookRay", "Упирать взгляд в стены", { "ESP", "LookRaycast" },
+        addToggle(d, "LookRay", "Упирать в стены", { "ESP", "LookRaycast" },
             "Обрезает линию взгляда о ближайшее препятствие, чтобы видеть точку, на которую смотрит враг.")
-        addSlider(d, "LookLen", "Длина линии взгляда", { "ESP", "LookLength" }, 2, 20, 0,
+        addSlider(d, "LookLen", "Длина взгляда", { "ESP", "LookLength" }, 2, 20, 0,
             "Максимальная длина луча взгляда в стадах.")
     end)
     addToggle(st, "Rainbow", "Радужный режим", { "ESP", "Rainbow" },
         "Плавный перелив цветов ВХ по спектру радуги.")
-    addToggle(st, "TeamColors", "Цвета команд из игры", { "ESP", "TeamColors" },
+    addToggle(st, "TeamColors", "Цвета команд игры", { "ESP", "TeamColors" },
         "Окрашивает ВХ в цвет команды игрока (TeamColor), заданный самим режимом.")
 
     CUR_GROUP = "Текст и урон"
-    local inf = leftTabs:AddTab("Текст и урон")
+    local inf = Tabs.ESP:AddLeftGroupbox("Текст и урон")
     addToggle(inf, "ShowName", "Имена игроков", { "ESP", "ShowName" },
         "Показывать никнейм над рамкой игрока.")
     withDep(inf, "ShowName", true, function(d)
-        addSlider(d, "NameYOff", "Сдвиг имени по Y", { "ESP", "NameYOffset" }, -50, 50, 0,
+        addSlider(d, "NameYOff", "Сдвиг имени Y", { "ESP", "NameYOffset" }, -50, 50, 0,
             "Поднимает или опускает никнейм относительно верхнего края рамки.")
     end)
     addToggle(inf, "ShowHP", "Текст здоровья", { "ESP", "ShowHealth" },
@@ -6754,7 +6828,7 @@ do
         "Показывать расстояние до игрока в стадах.")
     addToggle(inf, "ShowTool", "Предмет в руках", { "ESP", "ShowTool" },
         "Показывать название оружия или инструмента, который сейчас держит игрок.")
-    addToggle(inf, "ShowState", "Статус игрока ([ПРЫЖОК]/[БЕГ])", { "ESP", "ShowState" },
+    addToggle(inf, "ShowState", "Статус ([БЕГ]/[ПРЫЖОК])", { "ESP", "ShowState" },
         "Показывает под целью её текущее состояние: бег, прыжок или сидение.")
     addToggle(inf, "DmgPopups", "Всплывающий урон", { "ESP", "DamageNumbers" },
         "При потере HP врагом над ним всплывают цифры полученного урона (крупный урон >= 35 выделяется золотым критом).")
@@ -6764,12 +6838,11 @@ do
         "Стиль шрифта Drawing для подписей. На части экзекьюторов чётче всего читается Plex или UI.")
     addToggle(inf, "TextOutline", "Обводка текста", { "ESP", "TextOutline" },
         "Добавляет тёмный контур вокруг букв, чтобы текст не сливался с фоном.")
-    addToggle(inf, "HideTags", "Скрыть стандартные ники", { "ESP", "HideDefaultTags" },
+    addToggle(inf, "HideTags", "Скрыть родные ники", { "ESP", "HideDefaultTags" },
         "Скрывает встроенные в игру таблички ников (Humanoid DisplayDistance), чтобы они не накладывались на ВХ.")
 
-    local rightTabs = Tabs.ESP:AddRightTabbox()
     CUR_GROUP = "Скелет и трейсеры"
-    local ln = rightTabs:AddTab("Скелет и трейсеры")
+    local ln = Tabs.ESP:AddRightGroupbox("Скелет и трейсеры")
     addToggle(ln, "ShowSk", "Скелет", { "ESP", "Skeleton" },
         "Рисует кости персонажа (R6 и R15). Горячая клавиша настраивается в «Настройки UI» (по умолчанию F3).")
     withDep(ln, "ShowSk", true, function(d)
@@ -6778,16 +6851,16 @@ do
         addSlider(d, "SkThick", "Толщина скелета", { "ESP", "SkeletonThickness" }, 1, 5, 0,
             "Толщина линий костей в пикселях.")
     end)
-    addToggle(ln, "ShowTr", "Трейсеры (линии к целям)", { "ESP", "ShowTracer" },
+    addToggle(ln, "ShowTr", "Трейсеры к целям", { "ESP", "ShowTracer" },
         "Рисует прямые линии от выбранной точки экрана к игрокам.")
     withDep(ln, "ShowTr", true, function(d)
         addDropdown(d, "TrOrigin", "Начало трейсеров", { "ESP", "TracerOrigin" }, { "Bottom", "Center", "Top", "Mouse" },
             "Откуда тянутся линии: Bottom — низ экрана, Center — центр, Top — верх, Mouse — от курсора.")
-        addSlider(d, "TrThick", "Толщина трейсеров", { "ESP", "TracerThickness" }, 1, 4, 0,
+        addSlider(d, "TrThick", "Толщина линий", { "ESP", "TracerThickness" }, 1, 4, 0,
             "Толщина линий трейсеров в пикселях.")
         addToggle(d, "TrOutline", "Обводка трейсеров", { "ESP", "TracerOutline" },
             "Добавляет чёрный контур линиям трейсеров.")
-        addToggle(d, "TrFade", "Затухание трейсеров", { "ESP", "TracerFade" },
+        addToggle(d, "TrFade", "Затухание линий", { "ESP", "TracerFade" },
             "Делает линии к далёким игрокам более прозрачными.")
     end)
     addToggle(ln, "Arrows", "Стрелки вне экрана", { "ESP", "OffscreenArrows" },
@@ -6798,12 +6871,12 @@ do
     end)
 
     CUR_GROUP = "Чамсы врагов"
-    local ch = rightTabs:AddTab("Чамсы врагов")
-    addToggle(ch, "Chams", "Включить чамсы врагов", { "ESP", "Chams" },
+    local ch = Tabs.ESP:AddRightGroupbox("Чамсы врагов")
+    addToggle(ch, "Chams", "Чамсы врагов", { "ESP", "Chams" },
         "Подсвечивает 3D-модель игроков через стены (Roblox Highlight). Лимит бюджета — до 28 ближайших игроков.",
         resyncChams)
     withDep(ch, "Chams", true, function(d)
-        addSlider(d, "ChamsTr", "Прозрачность заливки", { "ESP", "ChamsTransparency" }, 0, 1, 2,
+        addSlider(d, "ChamsTr", "Прозр. заливки", { "ESP", "ChamsTransparency" }, 0, 1, 2,
             "Прозрачность заливки силуэта: 0 — плотный, 1 — прозрачный (поставь 1 при контуре 0 для режима только обводки).",
             function(x)
                 for _, pd in pairs(playersData) do
@@ -6812,7 +6885,7 @@ do
                     end
                 end
             end)
-        addSlider(d, "ChamsOutTr", "Прозрачность контура", { "ESP", "ChamsOutlineTransparency" }, 0, 1, 2,
+        addSlider(d, "ChamsOutTr", "Прозр. контура", { "ESP", "ChamsOutlineTransparency" }, 0, 1, 2,
             "Прозрачность обводки Highlight: 0 — чёткий контур, 1 — убрать контур.",
             function(x)
                 for _, pd in pairs(playersData) do
@@ -6821,7 +6894,7 @@ do
                     end
                 end
             end)
-        addColorPicker(d, "ChamsVis", "Чамсы (в прямой видимости)", { "ESP", "Colors", "ChamsVis" })
+        addColorPicker(d, "ChamsVis", "Чамсы (видимый)", { "ESP", "Colors", "ChamsVis" })
         addColorPicker(d, "ChamsOcc", "Чамсы (за стеной)", { "ESP", "Colors", "ChamsOcc" })
     end)
 
@@ -6829,13 +6902,13 @@ do
     local gc = Tabs.ESP:AddRightGroupbox("Цвета ВХ")
     addColorPicker(gc, "ColEnemy", "Враг", { "ESP", "Colors", "Enemy" })
     addColorPicker(gc, "ColAlly", "Союзник", { "ESP", "Colors", "Ally" })
-    addColorPicker(gc, "ColPrio", "Опасная цель (Priority)", { "ESP", "Colors", "Priority" })
-    addColorPicker(gc, "ColVis", "Видимый (Visible)", { "ESP", "Colors", "Visible" })
-    addColorPicker(gc, "ColOcc", "За стеной (Occluded)", { "ESP", "Colors", "Occluded" })
+    addColorPicker(gc, "ColPrio", "Опасная цель", { "ESP", "Colors", "Priority" })
+    addColorPicker(gc, "ColVis", "Видимый", { "ESP", "Colors", "Visible" })
+    addColorPicker(gc, "ColOcc", "За стеной", { "ESP", "Colors", "Occluded" })
     addColorPicker(gc, "ColDamage", "Цифры урона", { "ESP", "Colors", "Damage" })
     addColorPicker(gc, "ColSkel", "Скелет", { "ESP", "Colors", "Skeleton" })
     addColorPicker(gc, "ColTracer", "Трейсер", { "ESP", "Colors", "Tracer" })
-    addColorPicker(gc, "ColArrow", "Стрелка вне экрана", { "ESP", "Colors", "Arrow" })
+    addColorPicker(gc, "ColArrow", "Стрелка", { "ESP", "Colors", "Arrow" })
     addColorPicker(gc, "ColLook", "Линия взгляда", { "ESP", "Colors", "Look" })
     addColorPicker(gc, "ColLookAlert", "Смотрит на вас", { "ESP", "Colors", "LookAlert" })
 
@@ -6843,7 +6916,7 @@ do
     local pf = Tabs.ESP:AddRightGroupbox("Производительность")
     local optBtnTip = "Моментально отключает скелет, чамсы, трейсеры, проверку видимости, заливку и переключает рамку на лёгкий 2D-режим."
     pf:AddButton({
-        Text = "Оптимизация: выключить тяжёлое",
+        Text = "Оптимизация: лёгкий режим",
         Tooltip = optBtnTip,
         Func = function()
             local e = cfg().ESP
@@ -6856,13 +6929,13 @@ do
             resyncChams()
         end,
     })
-    regSearch("Оптимизация: выключить тяжёлое", optBtnTip)
+    regSearch("Оптимизация: лёгкий режим", optBtnTip)
 end
 
 do
-    CUR_TAB, CUR_GROUP = "Персонаж и FX", "Чамсы на себя"
-    local self = Tabs.SelfFX:AddLeftGroupbox("Чамсы на себя (Liquid Glass / FX)")
-    addToggle(self, "SelfChamsOn", "Включить чамсы на себя", { "SelfChams", "Enabled" },
+    CUR_TAB, CUR_GROUP = "Персонаж FX", "Чамсы на себя"
+    local self = Tabs.SelfFX:AddLeftGroupbox("Чамсы на себя")
+    addToggle(self, "SelfChamsOn", "Чамсы на себя", { "SelfChams", "Enabled" },
         "Красиво стилизует вашего персонажа (жидкое стекло, силовое поле, неон, голограмма и др.).",
         function(v)
             if not v then Fx.destroySelfChams() end
@@ -6871,23 +6944,22 @@ do
         addDropdown(d, "SelfChamsStyle", "Визуальный стиль", { "SelfChams", "Style" },
             { "Liquid Glass", "Energy Rim", "Scanline", "ForceField", "Holographic", "Aurora", "Rainbow", "Cyber", "Pulse", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Liquid Glass — стекло; Energy Rim — неон-контур по скину; Scanline — сканирующая волна; Aurora/Cyber/Sakura/Matrix/Sunset/Gold — анимированные палитры.")
-        addSlider(d, "SelfChamsFillTr", "Прозрачность стекла/заливки", { "SelfChams", "FillTransparency" }, 0, 0.95, 2,
+        addSlider(d, "SelfChamsFillTr", "Прозр. стекла", { "SelfChams", "FillTransparency" }, 0, 0.95, 2,
             "Насколько прозрачным становится тело персонажа внутри обводки.")
-        addSlider(d, "SelfChamsOutlineTr", "Прозрачность контура", { "SelfChams", "OutlineTransparency" }, 0, 1, 2,
+        addSlider(d, "SelfChamsOutlineTr", "Прозр. контура", { "SelfChams", "OutlineTransparency" }, 0, 1, 2,
             "Яркость светящейся окантовки по краям модели (меньше значение — ярче контур).")
         addSlider(d, "SelfChamsSpeed", "Скорость анимации", { "SelfChams", "AnimationSpeed" }, 0.1, 3, 1,
             "Скорость перелива и пульсации для анимированных стилей (Aurora, Rainbow, Pulse, Cyber, Scanline).")
-        addToggle(d, "SelfChamsTools", "Применять к оружию в руках", { "SelfChams", "IncludeTools" },
+        addToggle(d, "SelfChamsTools", "Стиль на оружие", { "SelfChams", "IncludeTools" },
             "Накладывает эффект стекла/подсветки также на предмет, который вы держите в руках.")
-        addToggle(d, "SelfChamsVM", "Применять к рукам от 1-го лица", { "SelfChams", "IncludeViewmodel" },
+        addToggle(d, "SelfChamsVM", "Руки от 1-го лица", { "SelfChams", "IncludeViewmodel" },
             "Пытается подсветить Viewmodel-руки и оружие в камере в шутерах от первого лица.")
-        addColorPicker(d, "SelfChamsFillColor", "Цвет заливки / стекла", { "SelfChams", "FillColor" })
-        addColorPicker(d, "SelfChamsOutlineColor", "Цвет контура / блика", { "SelfChams", "OutlineColor" })
+        addColorPicker(d, "SelfChamsFillColor", "Цвет заливки", { "SelfChams", "FillColor" })
+        addColorPicker(d, "SelfChamsOutlineColor", "Цвет контура", { "SelfChams", "OutlineColor" })
     end)
 
-    local leftFxTabs = Tabs.SelfFX:AddLeftTabbox()
     CUR_GROUP = "Шлейф Sandevistan"
-    local snd = leftFxTabs:AddTab("Шлейф Sandevistan")
+    local snd = Tabs.SelfFX:AddLeftGroupbox("Шлейф Sandevistan")
     addToggle(snd, "AfterimageOn", "Включить Sandevistan", { "Afterimage", "Enabled" },
         "Оставляет за вашим персонажем светящиеся силуэты при движении или рывках. Можно комбинировать с лентами.")
     withDep(snd, "AfterimageOn", true, function(d)
@@ -6895,47 +6967,47 @@ do
             "Moving — при ходьбе/беге выше мин. скорости; Dash/Air — только в прыжке, падении или быстром рывке; Always — постоянно.")
         addDropdown(d, "AfterimageStyle", "Стиль силуэтов", { "Afterimage", "Style" }, { "Sandevistan", "Phantom", "Inferno", "Void", "Cyber", "Rainbow", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Цветовая палитра клонов: Sandevistan, Phantom, Inferno, Void, Cyber, Rainbow, Sakura, Matrix, Sunset, Gold или Custom.")
-        addDropdown(d, "AfterimageFade", "Режим исчезновения", { "Afterimage", "FadeMode" }, { "Static", "Ascend", "Expand", "Implode", "Glitch", "Spiral" },
+        addDropdown(d, "AfterimageFade", "Исчезновение", { "Afterimage", "FadeMode" }, { "Static", "Ascend", "Expand", "Implode", "Glitch", "Spiral" },
             "Static — на месте; Ascend — всплытие; Expand/Implode — разлёт или сжатие; Glitch — цифровое мерцание; Spiral — вихрь.")
-        addDropdown(d, "AfterimageMat", "Материал / Вид силуэта", { "Afterimage", "Material" }, { "Neon", "ForceField", "Glass", "Wireframe", "SmoothPlastic" },
+        addDropdown(d, "AfterimageMat", "Материал силуэта", { "Afterimage", "Material" }, { "Neon", "ForceField", "Glass", "Wireframe", "SmoothPlastic" },
             "Neon — яркое свечение; ForceField — энерго-сетка; Glass — ледяной силуэт; Wireframe — неоновый каркас линий; SmoothPlastic — матовый.")
-        addToggle(d, "AfterimageArc", "Векторная нить связи", { "Afterimage", "ConnectArc" },
+        addToggle(d, "AfterimageArc", "Векторная нить", { "Afterimage", "ConnectArc" },
             "Рисует светящуюся неоновую линию, соединяющую все активные копии эха от самой старой к вашему персонажу.")
-        addToggle(d, "AfterimageSolid", "Сплошное свечение (убрать текстуры)", { "Afterimage", "SolidGlow" },
+        addToggle(d, "AfterimageSolid", "Сплошное свечение", { "Afterimage", "SolidGlow" },
             "Скрывает текстуры одежды и наклейки на копиях, делая силуэт чистым монолитным.")
-        addSlider(d, "AfterimageInterval", "Интервал спавна эха", { "Afterimage", "Interval" }, 0.03, 0.4, 2,
+        addSlider(d, "AfterimageInterval", "Интервал эха", { "Afterimage", "Interval" }, 0.03, 0.4, 2,
             "Как часто появляется новый силуэт (меньше значение — плотнее шлейф).")
-        addSlider(d, "AfterimageLife", "Время жизни эха", { "Afterimage", "Lifetime" }, 0.15, 1.5, 2,
+        addSlider(d, "AfterimageLife", "Время жизни", { "Afterimage", "Lifetime" }, 0.15, 1.5, 2,
             "Сколько секунд каждый след остаётся видимым перед растворением.")
-        addSlider(d, "AfterimageTransparency", "Начальная прозрачность", { "Afterimage", "Transparency" }, 0.1, 0.9, 2,
+        addSlider(d, "AfterimageTransparency", "Прозрачность эха", { "Afterimage", "Transparency" }, 0.1, 0.9, 2,
             "Прозрачность свежего силуэта сразу в момент появления.")
-        addSlider(d, "AfterimageMinSpeed", "Мин. скорость срабатывания", { "Afterimage", "MinSpeed" }, 0, 30, 0,
+        addSlider(d, "AfterimageMinSpeed", "Мин. скорость", { "Afterimage", "MinSpeed" }, 0, 30, 0,
             "Минимальная скорость персонажа (для режима Moving), при которой начинает тянуться шлейф.")
-        addSlider(d, "AfterimageMax", "Макс. копий одновременно", { "Afterimage", "MaxCopies" }, 4, 24, 0,
+        addSlider(d, "AfterimageMax", "Макс. копий", { "Afterimage", "MaxCopies" }, 4, 24, 0,
             "Ограничение числа активных силуэтов в мире ради стабильного FPS.")
         addToggle(d, "AfterimageAcc", "Копировать аксессуары", { "Afterimage", "IncludeAccessories" },
             "Включает шапки, крылья и другие аксессуары в состав оставляемых силуэтов.")
-        addColorPicker(d, "AfterimageColor", "Свой цвет (Custom)", { "Afterimage", "Color" })
+        addColorPicker(d, "AfterimageColor", "Свой цвет", { "Afterimage", "Color" })
     end)
 
     CUR_GROUP = "Энергетические ленты"
-    local tr = leftFxTabs:AddTab("Ленты (Ribbons)")
-    addToggle(tr, "TrailOn", "Включить ленты / шлейф", { "ParticleTrail", "Enabled" },
+    local tr = Tabs.SelfFX:AddLeftGroupbox("Энергетические ленты")
+    addToggle(tr, "TrailOn", "Включить ленты", { "ParticleTrail", "Enabled" },
         "Рисует светящиеся ленты (Trail) и шлейфы с разными узорами вокруг тела, за головой, спиной или конечностями.")
     withDep(tr, "TrailOn", true, function(d)
-        addDropdown(d, "TrailMode", "Форма / крепление лент", { "ParticleTrail", "Mode" }, { "Orbit", "Helix", "Void Slash", "Spiral Halo", "Hands", "Feet", "Wings", "Full" },
+        addDropdown(d, "TrailMode", "Форма лент", { "ParticleTrail", "Mode" }, { "Orbit", "Helix", "Void Slash", "Spiral Halo", "Hands", "Feet", "Wings", "Full" },
             "Orbit — 3 орбиты вокруг тела; Helix — двойная спираль; Void Slash — 4-ленточный плащ; Spiral Halo — витки над головой; Hands/Feet/Wings/Full.")
-        addDropdown(d, "TrailPattern", "Узор / фактура ленты", { "ParticleTrail", "Pattern" }, { "Smooth", "Pulse", "Starlight", "Blade", "Neon Core" },
+        addDropdown(d, "TrailPattern", "Узор ленты", { "ParticleTrail", "Pattern" }, { "Smooth", "Pulse", "Starlight", "Blade", "Neon Core" },
             "Smooth — классика; Pulse — прерывистый лазер; Starlight — звёздная дорожка; Blade — острый шлейф катаны; Neon Core — плотный неон.")
-        addDropdown(d, "TrailStyle", "Цветовой стиль лент", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+        addDropdown(d, "TrailStyle", "Цветовой стиль", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Цветовая палитра свечения шлейфа и искр.")
-        addSlider(d, "TrailLife", "Длительность шлейфа", { "ParticleTrail", "Lifetime" }, 0.1, 1.5, 2,
+        addSlider(d, "TrailLife", "Длина шлейфа", { "ParticleTrail", "Lifetime" }, 0.1, 1.5, 2,
             "Как долго лента держится в воздухе за персонажем (в секундах).")
         addSlider(d, "TrailWidth", "Ширина ленты", { "ParticleTrail", "Width" }, 0.05, 0.6, 2,
             "Толщина светящейся полосы в стадах.")
-        addSlider(d, "TrailSpeed", "Скорость вращения / перелива", { "ParticleTrail", "Speed" }, 0.3, 2.5, 2,
+        addSlider(d, "TrailSpeed", "Скорость лент", { "ParticleTrail", "Speed" }, 0.3, 2.5, 2,
             "Управляет скоростью движения орбит (Orbit / Helix / Spiral Halo) и скоростью анимации цвета.")
-        addToggle(d, "TrailSparks", "Искры вдоль шлейфа", { "ParticleTrail", "Sparks" },
+        addToggle(d, "TrailSparks", "Искры вдоль лент", { "ParticleTrail", "Sparks" },
             "Добавляет светящиеся микро-искры ParticleEmitter, осыпающиеся прямо с траектории движения лент.")
         addColorPicker(d, "TrailColor", "Свой цвет лент", { "ParticleTrail", "Color" })
     end)
@@ -6945,24 +7017,23 @@ do
     addToggle(tp, "TpOn", "Включить 3-е лицо", { "ThirdPerson", "Enabled" },
         "Отдаляет камеру за спину персонажа даже в играх от 1-го лица. Горячая клавиша настраивается в «Настройки UI» (по умолчанию F5).")
     withDep(tp, "TpOn", true, function(d)
-        addSlider(d, "TpDist", "Дистанция камеры", { "ThirdPerson", "Distance" }, 2, 26, 0,
+        addSlider(d, "TpDist", "Дистанция", { "ThirdPerson", "Distance" }, 2, 26, 0,
             "На сколько стадов камера отодвигается от персонажа.")
-        addToggle(d, "TpScroll", "Зум колесом мыши", { "ThirdPerson", "ScrollZoom" },
+        addToggle(d, "TpScroll", "Зум колесом", { "ThirdPerson", "ScrollZoom" },
             "Позволяет приближать и отдалять камеру от 3-го лица колесом мыши прямо в игре.")
-        addSlider(d, "TpOffX", "Смещение вбок (плечо X)", { "ThirdPerson", "OffsetX" }, -4, 4, 1,
+        addSlider(d, "TpOffX", "Сдвиг вбок (X)", { "ThirdPerson", "OffsetX" }, -4, 4, 1,
             "Сдвиг камеры влево/вправо для удобного обзора из-за плеча.")
-        addSlider(d, "TpOffY", "Смещение по высоте Y", { "ThirdPerson", "OffsetY" }, -3, 3, 1,
+        addSlider(d, "TpOffY", "Сдвиг вверх (Y)", { "ThirdPerson", "OffsetY" }, -3, 3, 1,
             "Поднимает или опускает точку обзора камеры.")
-        addToggle(d, "TpBody", "Принудительно показывать тело", { "ThirdPerson", "ShowBody" },
+        addToggle(d, "TpBody", "Показывать тело", { "ThirdPerson", "ShowBody" },
             "Снимает невидимость (LocalTransparencyModifier) с вашего тела в шутерах, где игра прячет скин от 1-го лица.")
-        addToggle(d, "TpForce", "Пробивать скрипты камеры игры", { "ThirdPerson", "ForceCamera" },
+        addToggle(d, "TpForce", "Форс-камера игры", { "ThirdPerson", "ForceCamera" },
             "Включите, если сама игра жёстко фиксирует камеру на голове персонажа и обычное отдаление не срабатывает.")
     end)
 
-    local rightFxTabs = Tabs.SelfFX:AddRightTabbox()
-    CUR_GROUP = "Китайская шляпа / Нимб"
-    local hat = rightFxTabs:AddTab("Шляпа / Нимб")
-    addToggle(hat, "HatOn", "Включить шляпу / нимб / корону", { "ChinaHat", "Enabled" },
+    CUR_GROUP = "Шляпа / Нимб"
+    local hat = Tabs.SelfFX:AddRightGroupbox("Шляпа / Нимб / Корона")
+    addToggle(hat, "HatOn", "Включить шляпу / нимб", { "ChinaHat", "Enabled" },
         "Рисует объёмный градиентный конус, двойной парящий нимб, кибер-корону, 3D-кристалл или двойной гекса-обруч CyberRing над головой.")
     withDep(hat, "HatOn", true, function(d)
         addDropdown(d, "HatShape", "Форма", { "ChinaHat", "Shape" }, { "Cone", "Halo", "Crown", "Crystal", "CyberRing" },
@@ -6971,17 +7042,17 @@ do
             "Выбор градиента или своего цвета для шляпы/нимба/короны.")
         addSlider(d, "HatSize", "Радиус", { "ChinaHat", "Size" }, 1, 3.2, 2,
             "Ширина украшения в стадах.")
-        addSlider(d, "HatHeight", "Высота конуса / короны", { "ChinaHat", "Height" }, 0.3, 1.4, 2,
+        addSlider(d, "HatHeight", "Высота формы", { "ChinaHat", "Height" }, 0.3, 1.4, 2,
             "Высота вершины конуса, кристалла или шипов короны.")
         addSlider(d, "HatOpacity", "Непрозрачность", { "ChinaHat", "Opacity" }, 0.1, 0.9, 2,
             "Плотность цвета заливки и линий.")
-        addToggle(d, "HatHideFP", "Скрывать от 1-го лица", { "ChinaHat", "HideFirstPerson" },
+        addToggle(d, "HatHideFP", "Скрывать в 1-м лице", { "ChinaHat", "HideFirstPerson" },
             "Автоматически прячет объект, когда камера приближена вплотную к голове, чтобы не мешать обзору.")
-        addColorPicker(d, "HatColor", "Свой цвет (Custom)", { "ChinaHat", "Color" })
+        addColorPicker(d, "HatColor", "Свой цвет", { "ChinaHat", "Color" })
     end)
 
     CUR_GROUP = "Аура персонажа"
-    local au = rightFxTabs:AddTab("Аура")
+    local au = Tabs.SelfFX:AddRightGroupbox("Аура персонажа")
     addToggle(au, "AuraOn", "Включить ауру", { "PlayerAura", "Enabled" },
         "Создаёт объёмную энергетическую ауру вокруг персонажа (Orbitals, Helix, Crown, Ground, Sigil, Galaxy, Vortex или Atom).")
     withDep(au, "AuraOn", true, function(d)
@@ -6991,17 +7062,17 @@ do
             "Цветовая схема свечения и частиц ауры.")
         addSlider(d, "AuraSize", "Размер ауры", { "PlayerAura", "Size" }, 1.8, 8, 1,
             "Радиус объёмной ауры вокруг персонажа.")
-        addSlider(d, "AuraTransparency", "Прозрачность ауры", { "PlayerAura", "Transparency" }, 0.1, 0.95, 2,
+        addSlider(d, "AuraTransparency", "Прозрачность", { "PlayerAura", "Transparency" }, 0.1, 0.95, 2,
             "Насколько мягко и полупрозрачно выглядят линии ауры.")
-        addToggle(d, "AuraParticles", "Частицы вокруг тела", { "PlayerAura", "Particles" },
+        addToggle(d, "AuraParticles", "Частицы вокруг", { "PlayerAura", "Particles" },
             "Добавляет искры, поднимающиеся вокруг всего силуэта персонажа.")
-        addToggle(d, "AuraLight", "Подсветка окружения (Glow Light)", { "PlayerAura", "GlowLight" },
+        addToggle(d, "AuraLight", "Свет вокруг (Glow)", { "PlayerAura", "GlowLight" },
             "Добавляет мягкий клиентский свет (PointLight), подсвечивающий персонажа и землю в цвет ауры.")
         addColorPicker(d, "AuraColor", "Свой цвет ауры", { "PlayerAura", "Color" })
     end)
 
     CUR_GROUP = "Орбитальные спутники"
-    local sat = rightFxTabs:AddTab("Спутники")
+    local sat = Tabs.SelfFX:AddRightGroupbox("Орбитальные спутники")
     addToggle(sat, "SatOn", "Включить спутников", { "Satellites", "Enabled" },
         "Запускает 3D-кристаллы, сферы, клинки, осколки (Shard) или диски (Disc), летающие по орбитам вокруг персонажа.")
     withDep(sat, "SatOn", true, function(d)
@@ -7009,24 +7080,24 @@ do
             "Crystal — граненые кристаллы; Orb — сферы; Blade — клинки; Shard — вращающиеся осколки; Disc — плоские чакрамы с контуром.")
         addDropdown(d, "SatStyle", "Цветовой стиль", { "Satellites", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Цветовая палитра спутников и их шлейфов.")
-        addSlider(d, "SatCount", "Количество спутников", { "Satellites", "Count" }, 1, 6, 0,
+        addSlider(d, "SatCount", "Количество", { "Satellites", "Count" }, 1, 6, 0,
             "Сколько объектов одновременно вращается на орбите.")
         addSlider(d, "SatRadius", "Радиус орбиты", { "Satellites", "Radius" }, 1.5, 7, 1,
             "Дистанция орбиты от тела персонажа в стадах.")
-        addSlider(d, "SatHeight", "Смещение по высоте", { "Satellites", "Height" }, -2, 4, 1,
+        addSlider(d, "SatHeight", "Высота орбиты", { "Satellites", "Height" }, -2, 4, 1,
             "Поднимает или опускает плоскость орбит относительно центра персонажа.")
-        addSlider(d, "SatSpeed", "Скорость вращения", { "Satellites", "Speed" }, 0.3, 4, 1,
+        addSlider(d, "SatSpeed", "Скорость", { "Satellites", "Speed" }, 0.3, 4, 1,
             "Как быстро спутники облетают вокруг вас.")
-        addSlider(d, "SatSize", "Размер спутников", { "Satellites", "Size" }, 0.2, 1.2, 2,
+        addSlider(d, "SatSize", "Размер", { "Satellites", "Size" }, 0.2, 1.2, 2,
             "Физический размер каждого спутника.")
-        addToggle(d, "SatTrails", "Светящиеся шлейфы", { "Satellites", "Trails" },
+        addToggle(d, "SatTrails", "Светящийся шлейф", { "Satellites", "Trails" },
             "Добавляет за каждым спутником плавную светящуюся ленту движения.")
-        addColorPicker(d, "SatColor", "Свой цвет (Custom)", { "Satellites", "Color" })
+        addColorPicker(d, "SatColor", "Свой цвет", { "Satellites", "Color" })
     end)
 
     CUR_GROUP = "Кольца прыжка"
-    local jr = rightFxTabs:AddTab("Кольца прыжка")
-    addToggle(jr, "JumpRingsOn", "Включить ударную волну прыжка", { "JumpRings", "Enabled" },
+    local jr = Tabs.SelfFX:AddRightGroupbox("Кольца прыжка")
+    addToggle(jr, "JumpRingsOn", "Волны прыжка", { "JumpRings", "Enabled" },
         "При каждом вашем прыжке и приземлении под ногами расходится светящаяся двойная ударная волна с искрами.")
     withDep(jr, "JumpRingsOn", true, function(d)
         addDropdown(d, "JumpRingsStyle", "Стиль волн", { "JumpRings", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
@@ -7035,23 +7106,23 @@ do
             "До какого размера расширяется волна перед исчезновением.")
         addSlider(d, "JumpRingsLife", "Время жизни", { "JumpRings", "Lifetime" }, 0.2, 1.5, 2,
             "Длительность анимации расширения волны в секундах.")
-        addToggle(d, "JumpRingsSparks", "Вторая волна и лучи вверх", { "JumpRings", "Sparks" },
+        addToggle(d, "JumpRingsSparks", "Двойная волна и искры", { "JumpRings", "Sparks" },
             "Добавляет внутреннюю задержную волну и 8 вертикальных искр при отрыве/приземлении.")
         addColorPicker(d, "JumpRingsCol", "Свой цвет волн", { "JumpRings", "Color" })
     end)
 end
 
 do
-    CUR_TAB, CUR_GROUP = "Оверлей и HUD", "HUD и индикаторы"
+    CUR_TAB, CUR_GROUP = "HUD и Прицел", "HUD и индикаторы"
     local hud = Tabs.Overlay:AddLeftGroupbox("HUD и индикаторы")
-    addToggle(hud, "Watermark", "Водяной знак (FPS / Пинг / Draw)", { "Overlay", "Watermark" },
+    addToggle(hud, "Watermark", "Водяной знак (FPS)", { "Overlay", "Watermark" },
         "Компактная плашка вверху экрана с версией хаба, текущим FPS, пингом и счётчиком активных Drawing-объектов.")
-    addToggle(hud, "Keybinds", "Список активных модулей", { "Overlay", "Keybinds" },
+    addToggle(hud, "Keybinds", "Список модулей", { "Overlay", "Keybinds" },
         "Показывает аккуратную боковую панель со списком всех включённых в данный момент модулей и их биндами.")
-    addToggle(hud, "TargetHUD", "Панель цели (Target HUD)", { "Overlay", "TargetHUD" },
+    addToggle(hud, "TargetHUD", "Панель цели", { "Overlay", "TargetHUD" },
         "Выводит карточку ближайшего/приоритетного врага: ник, здоровье, дистанция, оружие и статус видимости.")
     withDep(hud, "TargetHUD", true, function(d)
-        addDropdown(d, "TargetHUDPos", "Позиция Target HUD", { "Overlay", "TargetHUDPos" },
+        addDropdown(d, "TargetHUDPos", "Позиция панели", { "Overlay", "TargetHUDPos" },
             { "BottomCenter", "TopCenter", "RightCenter" },
             "Место на экране для карточки цели: снизу по центру, сверху по центру или справа.",
             function()
@@ -7061,22 +7132,22 @@ do
     addToggle(hud, "SpeedArcOn", "Спидометр (дуга)", { "Overlay", "Speedometer" },
         "Рисует дуговой спидометр и текущую скорость вашего персонажа в стадах/сек.")
     withDep(hud, "SpeedArcOn", true, function(d)
-        addSlider(d, "SpeedArcMax", "Макс. шкала спидометра", { "Overlay", "SpeedometerMax" }, 20, 150, 0,
+        addSlider(d, "SpeedArcMax", "Макс. скорость", { "Overlay", "SpeedometerMax" }, 20, 150, 0,
             "Скорость, при которой дуга спидометра заполняется на 100%.")
     end)
-    addToggle(hud, "SpeedLinesOn", "Аниме-линии скорости (Speed Lines)", { "Overlay", "SpeedLines" },
+    addToggle(hud, "SpeedLinesOn", "Линии скорости", { "Overlay", "SpeedLines" },
         "При быстром беге или падении по краям экрана вспыхивают динамические радиальные линии скорости.")
     withDep(hud, "SpeedLinesOn", true, function(d)
-        addSlider(d, "SpeedLinesMin", "Мин. скорость появления", { "Overlay", "SpeedLinesMinSpeed" }, 8, 60, 0,
+        addSlider(d, "SpeedLinesMin", "Мин. скорость", { "Overlay", "SpeedLinesMinSpeed" }, 8, 60, 0,
             "Порог скорости в стадах/сек, с которого появляются линии по краям экрана.")
-        addSlider(d, "SpeedLinesOp", "Прозрачность линий", { "Overlay", "SpeedLinesOpacity" }, 0.1, 1, 2,
+        addSlider(d, "SpeedLinesOp", "Прозрачность", { "Overlay", "SpeedLinesOpacity" }, 0.1, 1, 2,
             "Яркость и насыщенность боковых линий скорости.")
         addToggle(d, "SpeedLinesRb", "Радужные линии", { "Overlay", "SpeedLinesRainbow" },
             "Переливает линии скорости цветами радуги.")
-        addColorPicker(d, "SpeedLinesCol", "Цвет линий скорости", { "Overlay", "SpeedLinesColor" })
+        addColorPicker(d, "SpeedLinesCol", "Цвет линий", { "Overlay", "SpeedLinesColor" })
     end)
     addColorPicker(hud, "Accent", "Акцентный цвет HUD", { "Overlay", "Accent" })
-    addToggle(hud, "DragHUD", "Перетаскивать HUD мышкой", { "Overlay", "DragHUD" },
+    addToggle(hud, "DragHUD", "Двигать HUD мышкой", { "Overlay", "DragHUD" },
         "Разрешает хватать мышкой и свободно двигать Target HUD, Мини-радар и Список модулей прямо по экрану.")
     withDep(hud, "DragHUD", true, function(d)
         d:AddButton({
@@ -7093,17 +7164,17 @@ do
 
     CUR_GROUP = "Виньетка экрана"
     local vg = Tabs.Overlay:AddLeftGroupbox("Виньетка экрана")
-    addToggle(vg, "VigLowHP", "Пульсация при низком HP", { "Vignette", "LowHP" },
+    addToggle(vg, "VigLowHP", "Пульс при низком HP", { "Vignette", "LowHP" },
         "Края экрана начинают тревожно пульсировать, когда ваше здоровье падает ниже заданного порога.")
     withDep(vg, "VigLowHP", true, function(d)
-        addSlider(d, "VigLowHPThr", "Порог низкого HP (%)", { "Vignette", "LowHPThreshold" }, 10, 75, 0,
+        addSlider(d, "VigLowHPThr", "Порог HP (%)", { "Vignette", "LowHPThreshold" }, 10, 75, 0,
             "Процент здоровья, с которого включается пульсирующая виньетка.")
         addColorPicker(d, "VigLowHPCol", "Цвет низкого HP", { "Vignette", "LowHPColor" })
     end)
-    addToggle(vg, "VigKill", "Вспышка при убийстве (Kill Flash)", { "Vignette", "KillFlash" },
+    addToggle(vg, "VigKill", "Вспышка убийства", { "Vignette", "KillFlash" },
         "При смерти ближайшей отслеживаемой цели по краям экрана проходит короткая цветная вспышка.")
     withDep(vg, "VigKill", true, function(d)
-        addColorPicker(d, "VigKillCol", "Цвет вспышки убийства", { "Vignette", "KillColor" })
+        addColorPicker(d, "VigKillCol", "Цвет вспышки", { "Vignette", "KillColor" })
     end)
     addSlider(vg, "VigIntensity", "Яркость виньетки", { "Vignette", "Intensity" }, 0.2, 1.5, 2,
         "Общая интенсивность затемнения/подсветки краёв экрана.")
@@ -7115,7 +7186,7 @@ do
     withDep(xh, "XhOn", true, function(d)
         addDropdown(d, "XhStyle", "Стиль прицела", { "Crosshair", "Style" }, { "Classic", "T-Cross", "X-Cross", "Sniper", "Circle", "Brackets", "Chevron", "Diamond" },
             "Classic — крест; T-Cross — без верха; X-Cross — диагональный крест; Sniper — дальномер с рисками; Circle/Brackets/Chevron/Diamond.")
-        addSlider(d, "XhSize", "Длина штрихов / радиус", { "Crosshair", "Size" }, 2, 30, 0,
+        addSlider(d, "XhSize", "Размер прицела", { "Crosshair", "Size" }, 2, 30, 0,
             "Размер линий прицела или радиус круга.")
         addSlider(d, "XhGap", "Зазор от центра", { "Crosshair", "Gap" }, 0, 20, 0,
             "Отступ штрихов от самой центральной точки.")
@@ -7135,22 +7206,22 @@ do
     end)
 
     CUR_GROUP = "Хитмаркер"
-    local hm = Tabs.Overlay:AddRightGroupbox("Хитмаркер (индикатор попадания)")
+    local hm = Tabs.Overlay:AddRightGroupbox("Хитмаркер")
     addToggle(hm, "HmOn", "Включить хитмаркер", { "Hitmarker", "Enabled" },
         "Рисует хитмаркер по центру экрана при потере HP у отслеживаемой цели (визуальная реакция без модификации оружия).")
     withDep(hm, "HmOn", true, function(d)
-        addDropdown(d, "HmStyle", "Стиль хитмаркера", { "Hitmarker", "Style" }, { "Cross", "Double", "Star", "Circle", "Diamond" },
+        addDropdown(d, "HmStyle", "Стиль", { "Hitmarker", "Style" }, { "Cross", "Double", "Star", "Circle", "Diamond" },
             "Cross — X-крест; Double — двойной крест; Star — 8-лучевая звезда; Circle — расширяющееся кольцо; Diamond — ромб-вспышка.")
-        addSlider(d, "HmSize", "Размер крестика", { "Hitmarker", "Size" }, 4, 20, 0,
+        addSlider(d, "HmSize", "Размер", { "Hitmarker", "Size" }, 4, 20, 0,
             "Длина лучей хитмаркера в пикселях.")
         addSlider(d, "HmThick", "Толщина", { "Hitmarker", "Thickness" }, 1, 4, 0,
             "Толщина линий хитмаркера.")
-        addSlider(d, "HmDur", "Длительность показа", { "Hitmarker", "Duration" }, 0.1, 0.7, 2,
+        addSlider(d, "HmDur", "Длительность (с)", { "Hitmarker", "Duration" }, 0.1, 0.7, 2,
             "Сколько секунд хитмаркер остаётся на экране после урона.")
         addColorPicker(d, "HmColor", "Цвет попадания", { "Hitmarker", "Color" })
         addColorPicker(d, "HmKillCol", "Цвет добивания", { "Hitmarker", "KillColor" })
     end)
-    addToggle(hm, "KillFxOn", "3D-вспышка на месте убийства", { "Hitmarker", "KillEffect" },
+    addToggle(hm, "KillFxOn", "3D-вспышка убийства", { "Hitmarker", "KillEffect" },
         "При добивании цели на её месте в 3D-мире вспыхивают расходящиеся энергетические лучи и ударное кольцо.")
 
     CUR_GROUP = "Мини-радар"
@@ -7166,26 +7237,26 @@ do
             end)
         addSlider(d, "RadarSize", "Размер радара", { "Radar", "Size" }, 80, 260, 0,
             "Ширина и высота квадратного радара в пикселях.")
-        addSlider(d, "RadarRange", "Радиус радара (стады)", { "Radar", "Range" }, 50, 25000, 0,
+        addSlider(d, "RadarRange", "Радиус (стады)", { "Radar", "Range" }, 50, 25000, 0,
             "На какой дистанции игроки попадают в границы радара.")
-        addSlider(d, "RadarOpacity", "Непрозрачность фона", { "Radar", "Opacity" }, 0.1, 1, 2,
+        addSlider(d, "RadarOpacity", "Плотность фона", { "Radar", "Opacity" }, 0.1, 1, 2,
             "Насколько плотным будет тёмный фон мини-радара.")
         addSlider(d, "RadarDot", "Размер точек", { "Radar", "DotSize" }, 2, 6, 0,
             "Размер маркеров игроков на радаре.")
-        addToggle(d, "RadarLook", "Показывать направление взгляда", { "Radar", "ShowLookDir" },
+        addToggle(d, "RadarLook", "Направление взгляда", { "Radar", "ShowLookDir" },
             "Рисует короткую чёрточку от каждой точки на радаре в сторону, куда смотрит игрок.")
-        addToggle(d, "RadarSweep", "Вращающийся луч радара", { "Radar", "Sweep" },
+        addToggle(d, "RadarSweep", "Луч радара (Sweep)", { "Radar", "Sweep" },
             "Добавляет тактическую развёртку радара, кольца дистанции (33%/66%) и подсветку приоритетной цели.")
     end)
 end
 
 do
-    CUR_TAB, CUR_GROUP = "Угрозы и звук", "Звук приближения"
-    local prox = Tabs.Awareness:AddLeftGroupbox("Звук приближения (Proximity)")
-    addToggle(prox, "ProxOn", "Включить звуковой радар", { "Proximity", "Enabled" },
+    CUR_TAB, CUR_GROUP = "Угрозы", "Звук приближения"
+    local prox = Tabs.Awareness:AddLeftGroupbox("Звук приближения")
+    addToggle(prox, "ProxOn", "Звуковой радар", { "Proximity", "Enabled" },
         "Проигрывает звуковой сигнал, когда противник подходит ближе заданной дистанции.")
     withDep(prox, "ProxOn", true, function(d)
-        addSlider(d, "ProxDistance", "Дистанция срабатывания (стады)", { "Proximity", "Distance" }, 5, 2000, 0,
+        addSlider(d, "ProxDistance", "Дистанция (стады)", { "Proximity", "Distance" }, 5, 2000, 0,
             "Радиус вокруг вас, при входе в который сработает звуковое предупреждение.")
         addDropdown(d, "ProxPreset", "Пресет звука", { "Proximity", "SoundPreset" },
             { "Ping (Classic)", "Notification", "UI Beep", "Bass Thump", "Snap", "Hit", "Custom" },
@@ -7197,7 +7268,7 @@ do
                     safeSet("ProxSoundId", presetId)
                 end
             end)
-        addInput(d, "ProxSoundId", "Sound ID (свой звук)", { "Proximity", "SoundId" }, "rbxassetid://12221990",
+        addInput(d, "ProxSoundId", "Sound ID (свой)", { "Proximity", "SoundId" }, "rbxassetid://12221990",
             "Можно вставить числовой ID или rbxassetid://... любого звука из библиотеки Roblox.",
             function(v)
                 local curPreset = cfg().Proximity.SoundPreset
@@ -7208,13 +7279,13 @@ do
             end)
         addSlider(d, "ProxVolume", "Громкость", { "Proximity", "Volume" }, 0, 2, 2,
             "Громкость сигнала предупреждения.")
-        addSlider(d, "ProxCooldown", "Кулдаун на игрока (сек)", { "Proximity", "Cooldown" }, 0.5, 15, 1,
+        addSlider(d, "ProxCooldown", "Кулдаун (сек)", { "Proximity", "Cooldown" }, 0.5, 15, 1,
             "Пауза между повторными сигналами от одного и того же игрока, чтобы звук не спамил.")
-        addDropdown(d, "ProxDirection", "Фильтр направления", { "Proximity", "Direction" }, { "Any Direction", "Behind Only", "Front Only" },
+        addDropdown(d, "ProxDirection", "Фильтр стороны", { "Proximity", "Direction" }, { "Any Direction", "Behind Only", "Front Only" },
             "Any Direction — со всех сторон, Behind Only — только когда враг сзади, Front Only — только спереди.")
         addToggle(d, "ProxSpatial", "3D позиционный звук", { "Proximity", "SpatialSound" },
             "Привязывает звук к позиции врага в 3D-пространстве: в наушниках слышно, слева он или справа.")
-        addToggle(d, "ProxTeams", "Игнорировать союзников", { "Proximity", "IgnoreTeammates" },
+        addToggle(d, "ProxTeams", "Без союзников", { "Proximity", "IgnoreTeammates" },
             "Не реагировать на приближение тиммейтов.")
         d:AddButton({
             Text = "Проверить звук",
@@ -7235,43 +7306,43 @@ do
 
     CUR_GROUP = "Уведомления сервера"
     local nt = Tabs.Awareness:AddLeftGroupbox("Уведомления сервера")
-    addToggle(nt, "JoinLeave", "Вход / выход игроков", { "Misc", "JoinLeave" },
+    addToggle(nt, "JoinLeave", "Вход / выход", { "Misc", "JoinLeave" },
         "Показывает всплывающее уведомление, когда кто-то заходит на сервер или выходит с него.")
 
     CUR_GROUP = "Тревога «Смотрит на вас»"
-    local la = Tabs.Awareness:AddRightGroupbox("Тревога «Смотрит на вас»")
-    addToggle(la, "LookAlertOn", "Включить индикатор взгляда", { "LookingAlert", "Enabled" },
+    local la = Tabs.Awareness:AddRightGroupbox("Индикатор взгляда")
+    addToggle(la, "LookAlertOn", "Индикатор взгляда", { "LookingAlert", "Enabled" },
         "Выводит направленную дугу со стрелкой и именем ближайшего врага, который смотрит прямо в вашу сторону.")
     withDep(la, "LookAlertOn", true, function(d)
         addSlider(d, "LookAlertDist", "Макс. дистанция", { "LookingAlert", "MaxDistance" }, 30, 1500, 0,
             "Дальность, на которой отслеживается взгляд врагов в вашу сторону.")
-        addSlider(d, "LookAlertAng", "Угол допуска (градусы)", { "LookingAlert", "Angle" }, 5, 40, 0,
+        addSlider(d, "LookAlertAng", "Угол допуска (°)", { "LookingAlert", "Angle" }, 5, 40, 0,
             "Насколько точно враг должен смотреть на вас: 5° — почти точно в прицеле, 40° — широкий конус.")
         addSlider(d, "LookAlertRad", "Радиус дуги (px)", { "LookingAlert", "Radius" }, 45, 160, 0,
             "На каком расстоянии от центра экрана рисуются направленные дуги (удобно развести со спидометром и прицелом).")
-        addToggle(d, "LookAlertLoS", "Только без стен (Line of Sight)", { "LookingAlert", "RequireLoS" },
+        addToggle(d, "LookAlertLoS", "Только без стен (LoS)", { "LookingAlert", "RequireLoS" },
             "Если включено, тревога сработает только если между вами и смотрящим врагом нет стены.")
-        addToggle(d, "LookAlertTeams", "Игнорировать союзников", { "LookingAlert", "HideTeammates" },
+        addToggle(d, "LookAlertTeams", "Без союзников", { "LookingAlert", "HideTeammates" },
             "Не показывать предупреждение, если на вас смотрит союзник.")
         addColorPicker(d, "LookAlertCol", "Цвет индикатора", { "LookingAlert", "Color" })
     end)
 
     CUR_GROUP = "Кольца шагов"
     local fr = Tabs.Awareness:AddRightGroupbox("Кольца шагов врагов")
-    addToggle(fr, "StepRingsOn", "Включить кольца шагов и прыжков", { "FootstepRings", "Enabled" },
+    addToggle(fr, "StepRingsOn", "Кольца шагов", { "FootstepRings", "Enabled" },
         "Рисует 3D-волны на земле под ногами бегущих или приземляющихся врагов — помогает слышать/видеть фланги через стены.")
     withDep(fr, "StepRingsOn", true, function(d)
         addDropdown(d, "StepRingsStyle", "Стиль колец", { "FootstepRings", "Style" }, { "Pulse", "Solid" },
             "Pulse — двойная расходящаяся эхо-волна на земле; Solid — одиночное чёткое кольцо.")
-        addSlider(d, "StepRingsDist", "Макс. дистанция (стады)", { "FootstepRings", "MaxDistance" }, 20, 400, 0,
+        addSlider(d, "StepRingsDist", "Макс. дистанция", { "FootstepRings", "MaxDistance" }, 20, 400, 0,
             "Дальность, на которой появляются волны от шагов противников.")
-        addSlider(d, "StepRingsMax", "Макс. колец на экране", { "FootstepRings", "MaxRings" }, 4, 24, 0,
+        addSlider(d, "StepRingsMax", "Макс. колец", { "FootstepRings", "MaxRings" }, 4, 24, 0,
             "Лимит одновременно отображаемых колец шагов для защиты FPS.")
         addSlider(d, "StepRingsRad", "Радиус кольца", { "FootstepRings", "MaxRadius" }, 1.5, 8, 1,
             "Конечный размер волны от шага на земле.")
-        addSlider(d, "StepRingsLife", "Длительность волны", { "FootstepRings", "Lifetime" }, 0.25, 1.5, 2,
+        addSlider(d, "StepRingsLife", "Длительность (с)", { "FootstepRings", "Lifetime" }, 0.25, 1.5, 2,
             "Сколько секунд волна от шага затухает на поверхности.")
-        addToggle(d, "StepRingsTeams", "Игнорировать союзников", { "FootstepRings", "HideTeammates" },
+        addToggle(d, "StepRingsTeams", "Без союзников", { "FootstepRings", "HideTeammates" },
             "Не рисовать кольца шагов от тиммейтов.")
         addColorPicker(d, "StepRingsCol", "Цвет колец шагов", { "FootstepRings", "Color" })
     end)
@@ -7279,22 +7350,22 @@ end
 
 do
     CUR_TAB, CUR_GROUP = "Объекты", "Object ESP"
-    local o = Tabs.Objects:AddLeftGroupbox("Поиск объектов (Object ESP)")
+    local o = Tabs.Objects:AddLeftGroupbox("Поиск объектов")
     addToggle(o, "ObjOn", "Включить Object ESP", { "Objects", "Enabled" },
         "Ищет и подсвечивает на карте любые предметы, сундуки, монеты, двери или NPC по списку слов и исключений.")
     withDep(o, "ObjOn", true, function(d)
-        addInput(d, "ObjFilter", "Фильтр (через запятую, -исключение)", { "Objects", "Filter" }, "chest, key, -plate",
+        addInput(d, "ObjFilter", "Фильтр (-исключение)", { "Objects", "Filter" }, "chest, key, -plate",
             "Можно писать несколько слов через запятую и исключения через минус, например: chest, coin, -chestplate.",
             function() Obj.last = 0 end)
-        addToggle(d, "ObjUnlimDist", "Без лимита дистанции", { "Objects", "UnlimitedDistance" },
+        addToggle(d, "ObjUnlimDist", "Без лимита дальности", { "Objects", "UnlimitedDistance" },
             "Показывает найденные объекты на любом расстоянии без обрезки по дистанции.")
         withDep(d, "ObjUnlimDist", false, function(sd)
             addSlider(sd, "ObjDist", "Макс. дистанция", { "Objects", "MaxDistance" }, 50, 50000, 0,
                 "Максимальное расстояние до подсвечиваемых объектов в стадах.")
         end)
-        addSlider(d, "ObjMax", "Макс. объектов на экране", { "Objects", "MaxCount" }, 5, 150, 0,
+        addSlider(d, "ObjMax", "Макс. объектов", { "Objects", "MaxCount" }, 5, 150, 0,
             "Сколько ближайших найденных объектов отображать одновременно.")
-        addSlider(d, "ObjInt", "Интервал перескана (сек)", { "Objects", "Interval" }, 1, 15, 0,
+        addSlider(d, "ObjInt", "Интервал скана (с)", { "Objects", "Interval" }, 1, 15, 0,
             "Как часто скрипт сканирует карту заново для поиска новых заспавнившихся предметов.")
         addToggle(d, "ObjDistTxt", "Показывать дистанцию", { "Objects", "ShowDistance" },
             "Добавляет расстояние в стадах рядом с названием найденного объекта.")
@@ -7347,7 +7418,7 @@ do
 end
 
 do
-    CUR_TAB, CUR_GROUP = "Мир и камера", "Атмосфера и небо"
+    CUR_TAB, CUR_GROUP = "Мир и FOV", "Атмосфера и небо"
     local w = Tabs.World:AddLeftGroupbox("Атмосфера и небо")
     addDropdown(w, "WorldPreset", "Пресет атмосферы", { "World", "Preset" },
         { "None", "Clean Night", "Cyberpunk", "Cold Frost", "Warm Sunset", "Blood Moon", "Emerald Matrix", "Solar Gold", "Tokyo Neon", "Sakura Dusk", "Crimson Void", "Golden Dawn", "Midnight Mist" },
@@ -7376,9 +7447,9 @@ do
     addDropdown(w, "WorldWeather", "Погодные частицы", { "World", "Weather" },
         { "None", "Rain", "Snow", "CyberDust", "Embers", "Fireflies", "Sakura", "MatrixRain", "Starfall", "BloodRain" },
         "Клиентские частицы: дождь, снег, CyberDust, Embers, Fireflies, Sakura, MatrixRain, звездопад Starfall и BloodRain.")
-    addSlider(w, "WorldWeatherInt", "Интенсивность погоды", { "World", "WeatherIntensity" }, 0.2, 1.5, 2,
+    addSlider(w, "WorldWeatherInt", "Сила погоды", { "World", "WeatherIntensity" }, 0.2, 1.5, 2,
         "Плотность и скорость появления частиц дождя, снега или пыли.")
-    addToggle(w, "NoFog", "Убрать туман и дымку", { "World", "NoFog" },
+    addToggle(w, "NoFog", "Убрать туман", { "World", "NoFog" },
         "Отключает стандартный Fog и Atmosphere-дымку на карте для максимально чистой видимости вдаль.")
     addToggle(w, "TimeOn", "Своё время суток", { "World", "TimeEnabled" },
         "Фиксирует выбранный час суток только у вас на клиенте (удобно сделать ночь или день для лучшей видимости).")
@@ -7386,49 +7457,49 @@ do
         addSlider(d, "TimeVal", "Время (часы)", { "World", "Time" }, 0, 24, 1,
             "Время суток в Lighting.ClockTime: 0 — полночь, 12 — полдень, 18 — закат.")
     end)
-    addToggle(w, "AmbientOn", "Свой цвет освещения", { "World", "AmbientEnabled" },
+    addToggle(w, "AmbientOn", "Цвет освещения", { "World", "AmbientEnabled" },
         "Переопределяет базовый цвет теней и уличного освещения на всей карте.")
     withDep(w, "AmbientOn", true, function(d)
-        addColorPicker(d, "AmbientCol", "Внутреннее освещение (Ambient)", { "World", "Ambient" })
-        addColorPicker(d, "OutdoorCol", "Уличное освещение (Outdoor)", { "World", "OutdoorAmbient" })
+        addColorPicker(d, "AmbientCol", "В помещении (Ambient)", { "World", "Ambient" })
+        addColorPicker(d, "OutdoorCol", "На улице (Outdoor)", { "World", "OutdoorAmbient" })
     end)
 
     CUR_GROUP = "Камера и FOV"
-    local camGb = Tabs.World:AddRightGroupbox("Камера и угол обзора (FOV)")
-    addToggle(camGb, "FovOn", "Свой FOV (угол обзора)", { "World", "FOVEnabled" },
+    local camGb = Tabs.World:AddRightGroupbox("Камера и угол обзора")
+    addToggle(camGb, "FovOn", "Свой FOV (обзор)", { "World", "FOVEnabled" },
         "Фиксирует желаемый угол обзора камеры (Field of View) даже если игра сбрасывает его при беге/прицеливании.")
     withDep(camGb, "FovOn", true, function(d)
         addSlider(d, "FovVal", "Базовый FOV", { "World", "FOV" }, 50, 120, 0,
             "Стандартное значение Roblox — 70. Чем больше число, тем шире обзор.")
     end)
-    addToggle(camGb, "SpeedFovOn", "Динамический FOV от скорости", { "World", "SpeedFOV" },
+    addToggle(camGb, "SpeedFovOn", "Динамический FOV", { "World", "SpeedFOV" },
         "Плавно расширяет угол обзора при быстром беге или рывках — добавляет ощущение высокой скорости.")
     withDep(camGb, "SpeedFovOn", true, function(d)
         addSlider(d, "SpeedFovMax", "Макс. бонус FOV", { "World", "SpeedFOVMax" }, 3, 35, 0,
             "Максимальная прибавка к базовому FOV на пиковой скорости.")
-        addSlider(d, "SpeedFovSens", "Чувствительность ускорения", { "World", "SpeedFOVSens" }, 0.3, 2.5, 2,
+        addSlider(d, "SpeedFovSens", "Резкость FOV", { "World", "SpeedFOVSens" }, 0.3, 2.5, 2,
             "Насколько резко FOV реагирует на разгон персонажа.")
     end)
 
     CUR_GROUP = "Цветокоррекция и Bloom"
-    local gr = Tabs.World:AddRightGroupbox("Цветокоррекция и свечение (Bloom)")
-    addToggle(gr, "GradeOn", "Включить цветокоррекцию", { "World", "Grading" },
+    local gr = Tabs.World:AddRightGroupbox("Цветокоррекция и Bloom")
+    addToggle(gr, "GradeOn", "Цветокоррекция", { "World", "Grading" },
         "Создаёт клиентский ColorCorrectionEffect для настройки насыщенности, контраста и оттенка картинки.")
     withDep(gr, "GradeOn", true, function(d)
-        addSlider(d, "GradeSat", "Насыщенность (Saturation)", { "World", "Saturation" }, -1, 1, 2,
+        addSlider(d, "GradeSat", "Насыщенность", { "World", "Saturation" }, -1, 1, 2,
             "-1 — чёрно-белая картинка, 0 — стандарт, +1 — максимально сочные цвета.")
-        addSlider(d, "GradeCon", "Контраст (Contrast)", { "World", "Contrast" }, -1, 1, 2,
+        addSlider(d, "GradeCon", "Контраст", { "World", "Contrast" }, -1, 1, 2,
             "Регулировка контрастности света и теней.")
-        addColorPicker(d, "GradeTint", "Оттенок экрана (Tint)", { "World", "Tint" })
+        addColorPicker(d, "GradeTint", "Оттенок (Tint)", { "World", "Tint" })
     end)
-    addToggle(gr, "BloomOn", "Включить свечение (Bloom)", { "World", "BloomEnabled" },
+    addToggle(gr, "BloomOn", "Свечение (Bloom)", { "World", "BloomEnabled" },
         "Добавляет мягкое сияние вокруг ярких объектов, неона, чамсов и эффектов.")
     withDep(gr, "BloomOn", true, function(d)
         addSlider(d, "BloomInt", "Сила свечения", { "World", "BloomIntensity" }, 0, 2, 2,
             "Яркость ореола свечения.")
-        addSlider(d, "BloomSize", "Радиус размытия Bloom", { "World", "BloomSize" }, 4, 48, 0,
+        addSlider(d, "BloomSize", "Радиус Bloom", { "World", "BloomSize" }, 4, 48, 0,
             "Насколько широко расходится светящийся ореол.")
-        addSlider(d, "BloomThr", "Порог срабатывания", { "World", "BloomThreshold" }, 0.5, 2, 2,
+        addSlider(d, "BloomThr", "Порог Bloom", { "World", "BloomThreshold" }, 0.5, 2, 2,
             "Чем ниже порог, тем больше светлых поверхностей начинают светиться.")
     end)
 end
@@ -7459,8 +7530,8 @@ do
         ["ВХ (ESP) и проверка видимости"] = table.concat({
             "• Включить ВХ (F1): рисует рамки, HP, имена, оружие и дистанцию.",
             "• Дальность прорисовки: до 50000 стадов либо переключатель «Без лимита дистанции».",
-            "• Тип рамки (F2): 2D — быстрая; Corner — уголки; Bracket — тактические скобки; 3D — объёмный куб (тяжелее для FPS).",
-            "• Проверка видимости: делит игроков на видимых (Visible) и за укрытиями (Occluded). «Умная проверка» пропускает стёкла и полупрозрачную листву.",
+            "• Тип рамки (F2): 2D — быстрая; Corner — 2D-уголки; 3D Corner — объёмные 3D-уголки; 3D — полный куб (тяжелее для FPS).",
+            "• Проверка видимости: делит игроков на видимых (Visible) и за укрытиями (Occluded). «Сквозь стекло / листву» пропускает полупрозрачные преграды.",
             "• Опасная цель (Priority): вычисляет % угрозы по расстоянию, взгляду врага на вас и полученному урону, выделяя цель отдельным цветом, пульсирующим кольцом на голове и стрелке.",
             "• Чамсы врагов: работают через Roblox Highlight (до 28 ближайших игроков); прозрачность заливки и контура настраиваются раздельно.",
         }, "\n"),
@@ -7475,7 +7546,7 @@ do
         ["Оверлей, TargetHUD и Хитмаркер"] = table.concat({
             "• Водяной знак: плашка с FPS, пингом и числом Drawing-объектов; дуговой 18-сегментный спидометр и аниме-линии скорости (Speed Lines).",
             "• Target HUD: отдельная карточка приоритетной цели (имя, статус-полоса видимости/угрозы, HP, дистанция, оружие).",
-            "• Перетаскивание HUD: включите «Перетаскивать HUD мышкой», чтобы двигать Target HUD, Радар и Список модулей прямо по экрану.",
+            "• Перетаскивание HUD: включите «Двигать HUD мышкой», чтобы двигать Target HUD, Радар и Список модулей прямо по экрану.",
             "• Виньетка экрана: 3-слойный градиент с тактическими уголками при низком HP и вспышкой при убийстве.",
             "• Кастомный прицел (8 стилей: Classic, T-Cross, X-Cross, Sniper, Circle, Brackets, Chevron, Diamond) + Хитмаркер (Cross, Double, Star, Circle, Diamond).",
             "• Мини-радар: 2D-радар с кольцами дистанции, вращающимся лучом (Sweep), точками игроков и выделением Priority-цели.",
@@ -7493,14 +7564,14 @@ do
         }, "\n"),
         ["Поиск объектов (Object ESP)"] = table.concat({
             "• Ищет на карте любые модели и детали по фильтру через запятую и с исключениями через «-» (например: chest, key, -chestplate).",
-            "• Есть переключатель «Без лимита дистанции» и слайдер дальности до 50000 стадов.",
+            "• Есть переключатель «Без лимита дальности» и слайдер дальности до 50000 стадов.",
             "• Показывает до 150 ближайших совпадений с расстоянием и опциональными трейсерами.",
         }, "\n"),
         ["Горячие клавиши и пресеты"] = table.concat({
             "Быстрые клавиши по умолчанию (все переназначаются в «Настройки UI → Горячие клавиши»):",
             "• RightShift — скрыть / открыть меню",
             "• F1 — включить / выключить ВХ (ESP)",
-            "• F2 — переключить тип рамки (2D -> Corner -> Bracket -> 3D)",
+            "• F2 — переключить тип рамки (2D -> Corner -> 3D Corner -> 3D)",
             "• F3 — включить / выключить скелет",
             "• F4 — включить / выключить мини-радар",
             "• F5 — включить / выключить вид от 3-го лица",
@@ -7595,7 +7666,7 @@ do
 
     CUR_TAB, CUR_GROUP = "Настройки UI", "Управление меню"
     local ui = Tabs.UI:AddLeftGroupbox("Управление меню")
-    ui:AddLabel("Клавиша открытия меню"):AddKeyPicker("MenuKey", {
+    ui:AddLabel("Клавиша меню"):AddKeyPicker("MenuKey", {
         Default = "RightShift", Mode = "Toggle", NoUI = true, Text = "Клавиша меню",
     })
     regSearch("Клавиша открытия меню", "RightShift — скрыть или открыть окно меню")
@@ -7611,7 +7682,7 @@ do
     })
     regSearch("Выключить всё", "Отключает все активные модули без выгрузки")
     ui:AddButton({
-        Text = "Сбросить автоконфиг (Autoload)",
+        Text = "Сбросить автоконфиг",
         Tooltip = "Удаляет файл автозагрузки SaveManager и выключает все модули, чтобы при следующем запуске всё точно стартовало с нуля.",
         Func = function()
             pcall(function()
@@ -7638,11 +7709,11 @@ do
 
     CUR_GROUP = "Горячие клавиши"
     local kb = Tabs.UI:AddLeftGroupbox("Горячие клавиши")
-    kb:AddLabel("Включить / выкл. ВХ"):AddKeyPicker("KeyESP", { Default = "F1", Mode = "Toggle", NoUI = true, Text = "ВХ (ESP)" })
-    kb:AddLabel("Сменить тип рамки"):AddKeyPicker("KeyBox", { Default = "F2", Mode = "Toggle", NoUI = true, Text = "Тип рамки" })
-    kb:AddLabel("Включить / выкл. скелет"):AddKeyPicker("KeySkel", { Default = "F3", Mode = "Toggle", NoUI = true, Text = "Скелет" })
-    kb:AddLabel("Включить / выкл. радар"):AddKeyPicker("KeyRadar", { Default = "F4", Mode = "Toggle", NoUI = true, Text = "Мини-радар" })
-    kb:AddLabel("Включить / выкл. 3-е лицо"):AddKeyPicker("KeyTP", { Default = "F5", Mode = "Toggle", NoUI = true, Text = "3-е лицо" })
+    kb:AddLabel("ВХ (ESP)"):AddKeyPicker("KeyESP", { Default = "F1", Mode = "Toggle", NoUI = true, Text = "ВХ (ESP)" })
+    kb:AddLabel("Тип рамки"):AddKeyPicker("KeyBox", { Default = "F2", Mode = "Toggle", NoUI = true, Text = "Тип рамки" })
+    kb:AddLabel("Скелет"):AddKeyPicker("KeySkel", { Default = "F3", Mode = "Toggle", NoUI = true, Text = "Скелет" })
+    kb:AddLabel("Мини-радар"):AddKeyPicker("KeyRadar", { Default = "F4", Mode = "Toggle", NoUI = true, Text = "Мини-радар" })
+    kb:AddLabel("3-е лицо"):AddKeyPicker("KeyTP", { Default = "F5", Mode = "Toggle", NoUI = true, Text = "3-е лицо" })
     regSearch("Горячие клавиши (F1-F5)", "Бинды ВХ, рамки, скелета, радара и 3-го лица")
 
     local function applyStylePreset(name, patch)
@@ -7782,7 +7853,7 @@ do
         Tooltip = "Агрессивная алая тема: Energy Rim на скине, огненный Sandevistan, аура Sigil, BloodRain, хитмаркер Diamond и Crimson Void.",
         Func = function()
             applyStylePreset("Crimson Moon", {
-                ESP = { Enabled = true, BoxType = "Bracket", BoxThickness = 1, BoxFill = true, FillOpacity = 0.07, DamageNumbers = true },
+                ESP = { Enabled = true, BoxType = "3D Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.07, DamageNumbers = true },
                 SelfChams = { Enabled = true, Style = "Energy Rim", FillTransparency = 0.6, OutlineTransparency = 0.1, IncludeTools = true, FillColor = rgb(255, 65, 85), OutlineColor = rgb(255, 110, 125) },
                 Afterimage = { Enabled = true, Style = "Inferno", FadeMode = "Ascend", Material = "Neon", ConnectArc = true, SolidGlow = true, TriggerMode = "Moving", Interval = 0.04, Lifetime = 0.48, Transparency = 0.38 },
                 ParticleTrail = { Enabled = false },
@@ -7967,7 +8038,7 @@ inputBeginConn = UIS.InputBegan:Connect(function(input, gp)
     if matchesBind(input, "KeyESP", "F1") then
         cfg().ESP.Enabled = not cfg().ESP.Enabled safeSet("EspOn", cfg().ESP.Enabled)
     elseif matchesBind(input, "KeyBox", "F2") then
-        local t = { "2D", "Corner", "Bracket", "3D" }
+        local t = { "2D", "Corner", "3D Corner", "3D" }
         local i = (table.find(t, cfg().ESP.BoxType) or 1) % 4 + 1
         cfg().ESP.BoxType = t[i] safeSet("BoxType", t[i])
     elseif matchesBind(input, "KeySkel", "F3") then
