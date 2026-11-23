@@ -337,7 +337,7 @@ local Profile = {
     },
     SelfChams = {
         Enabled = false, Style = "Liquid Glass", FillTransparency = 0.58,
-        OutlineTransparency = 0.22, AnimationSpeed = 0.9,
+        OutlineTransparency = 0.22, Reflectance = 0.35, AnimationSpeed = 0.9,
         IncludeTools = true, IncludeViewmodel = false,
         FillColor = Color3.fromRGB(135, 218, 255),
         OutlineColor = Color3.fromRGB(235, 250, 255),
@@ -393,7 +393,7 @@ local Profile = {
         Color = Color3.fromRGB(35, 255, 185),
     },
     Satellites = {
-        Enabled = false, Count = 3, Shape = "Crystal", Style = "Aurora",
+        Enabled = false, Count = 3, Shape = "Cyber Drone", Style = "Aurora",
         Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45, Trails = true,
         Color = Color3.fromRGB(95, 225, 255),
     },
@@ -638,32 +638,21 @@ end
 local function selfChamsColor(t)
     local e = cfg().SelfChams
     local style = e.Style
-    local phase = t * math.max(e.AnimationSpeed, 0.05)
+    local spd = math.max(e.AnimationSpeed or 0.9, 0)
+    local phase = t * spd
 
-    if style == "Pulse" then
-        local pulse = (math.sin(phase * 2.2) + 1) * 0.5
-        return e.FillColor:Lerp(WHITE, pulse * 0.34), e.OutlineColor:Lerp(WHITE, pulse * 0.2)
-    elseif style == "Energy Rim" then
-        local pulse = (math.sin(phase * 2.6) + 1) * 0.5
-        local rim = e.OutlineColor:Lerp(Color3.fromRGB(165, 245, 255), pulse * 0.45)
-        return e.FillColor, rim
-    elseif style == "Scanline" then
-        local wave = (math.sin(phase * 3.1) + 1) * 0.5
-        local cA = e.FillColor
-        local cB = e.OutlineColor
-        return cA:Lerp(cB, wave * 0.55), cB:Lerp(WHITE, wave * 0.4)
-    elseif style == "Liquid Glass" or style == "Glass" then
-        local shimmer = (math.sin(phase * 1.35) + 1) * 0.5
-        local baseTint = e.FillColor:Lerp(Color3.fromRGB(210, 242, 255), 0.32 + shimmer * 0.24)
-        local rim = e.OutlineColor:Lerp(WHITE, 0.35 + shimmer * 0.25)
-        return baseTint, rim
-    elseif style == "ForceField" then
-        local pulse = (math.sin(phase * 1.8) + 1) * 0.5
-        return e.FillColor:Lerp(Color3.fromRGB(165, 245, 255), pulse * 0.25), e.OutlineColor
-    elseif style == "Custom" then
+    if style == "Custom" then
         return e.FillColor, e.OutlineColor
+    elseif style == "Obsidian" then
+        local shimmer = (math.sin(phase * 1.4) + 1) * 0.5
+        return Color3.fromRGB(22, 24, 34), Color3.fromRGB(175, 220, 255):Lerp(WHITE, shimmer * 0.45)
+    elseif style == "Liquid Glass" or style == "Glass" or style == "Energy Rim" or style == "Scanline" or style == "ForceField" or style == "Pulse" then
+        local shimmer = (math.sin(phase * 1.35) + 1) * 0.5
+        local baseTint = e.FillColor:Lerp(Color3.fromRGB(210, 242, 255), 0.28 + shimmer * 0.22)
+        local rim = e.OutlineColor:Lerp(WHITE, 0.30 + shimmer * 0.25)
+        return baseTint, rim
     end
-    return styleColors(style, e.FillColor, math.max(e.AnimationSpeed, 0.05))
+    return styleColors(style, e.FillColor, spd)
 end
 
 local function restoreSinglePart(p, orig)
@@ -2156,7 +2145,12 @@ local function updateLocalEffects(dt)
     local sat = cfg().Satellites
     if sat.Enabled and (not humanoid or humanoid.Health > 0) then
         local cnt = clamp(floor(sat.Count or 3), 1, 6)
-        local shape = sat.Shape or "Crystal"
+        local shape = sat.Shape or "Cyber Drone"
+        if shape == "Crystal" then shape = "Lotus"
+        elseif shape == "Orb" then shape = "Planet"
+        elseif shape == "Blade" then shape = "Katana"
+        elseif shape == "Shard" then shape = "Shuriken"
+        elseif shape == "Disc" then shape = "Seraph" end
         local sz = clamp(sat.Size or 0.45, 0.2, 1.2)
         local withTrails = sat.Trails ~= false
         local needBuild = (#satItems ~= cnt or satShapeCur ~= shape or satTrailsCur ~= withTrails or abs(satSizeCur - sz) > 0.005)
@@ -2170,48 +2164,134 @@ local function updateLocalEffects(dt)
             clearSatellites()
             satShapeCur, satCountCur, satTrailsCur, satSizeCur = shape, cnt, withTrails, sz
             local par = workspace.CurrentCamera or workspace
+            local DARK_SAT = rgb(24, 26, 36)
+            local function mkSub(parent, size, partShape, mat, tr, mode, offset, anim, ax, ay, az)
+                local sp = Instance.new("Part")
+                sp.Name, sp.Anchored, sp.CastShadow, sp.Massless = "GlupostSatSub", true, false, true
+                sp.CanCollide, sp.CanTouch, sp.CanQuery = false, false, false
+                sp.Material = mat or Enum.Material.Neon
+                sp.Transparency = tr or 0.1
+                sp.Shape = partShape or Enum.PartType.Block
+                sp.Size = size
+                if mode == "dark" then sp.Color = DARK_SAT end
+                sp.Parent = parent
+                return { part = sp, offset = offset, mode = mode or 1, baseTr = tr or 0.1, anim = anim, ax = ax, ay = ay, az = az }
+            end
             for i = 1, cnt do
                 local p = Instance.new("Part")
                 p.Name, p.Anchored, p.CastShadow, p.Massless = "GlupostSatellite", true, false, true
                 p.CanCollide, p.CanTouch, p.CanQuery = false, false, false
-                p.Material, p.Transparency = Enum.Material.Neon, 0.14
-                if shape == "Orb" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz, sz, sz)
-                elseif shape == "Blade" then
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.28, sz * 0.2, sz * 1.85)
-                elseif shape == "Shard" then
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.34, sz * 1.65, sz * 0.34)
-                elseif shape == "Disc" then
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 1.45, sz * 0.16, sz * 1.45)
-                else
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.62, sz * 1.12, sz * 0.62)
+                p.Material, p.Transparency = Enum.Material.Neon, 0.1
+                local subs = {}
+                local rootMode = 1
+                local rootBaseTr = 0.1
+                local a0Pos, a1Pos = v3(0, sz * 0.2, 0), v3(0, -sz * 0.2, 0)
+
+                if shape == "Cyber Drone" then
+                    p.Shape, p.Size, p.Material, p.Transparency, p.Color = Enum.PartType.Block, v3(sz * 0.72, sz * 0.34, sz * 0.92), Enum.Material.SmoothPlastic, 0.05, DARK_SAT
+                    rootMode, rootBaseTr = "dark", 0.05
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.54, sz * 0.16, sz * 0.16), Enum.PartType.Block, Enum.Material.Neon, 0.05, 1, cfNew(0, 0.02 * sz, -0.46 * sz))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.56, sz * 0.10, sz * 0.62), Enum.PartType.Block, Enum.Material.SmoothPlastic, 0.06, "dark", cfNew(-0.56 * sz, 0.04 * sz, 0.06 * sz) * cfAng(0, 0, 0.28))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.56, sz * 0.10, sz * 0.62), Enum.PartType.Block, Enum.Material.SmoothPlastic, 0.06, "dark", cfNew(0.56 * sz, 0.04 * sz, 0.06 * sz) * cfAng(0, 0, -0.28))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.20, sz * 0.20, sz * 0.28), Enum.PartType.Block, Enum.Material.Neon, 0.05, 2, cfNew(-0.42 * sz, 0.02 * sz, 0.42 * sz))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.20, sz * 0.20, sz * 0.28), Enum.PartType.Block, Enum.Material.Neon, 0.05, 2, cfNew(0.42 * sz, 0.02 * sz, 0.42 * sz))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.10, sz * 0.28, sz * 0.42), Enum.PartType.Block, Enum.Material.Neon, 0.12, 1, cfNew(0, 0.24 * sz, 0.14 * sz) * cfAng(0.35, 0, 0))
+                    a0Pos, a1Pos = v3(-0.42 * sz, 0.02 * sz, 0.48 * sz), v3(0.42 * sz, 0.02 * sz, 0.48 * sz)
+                elseif shape == "Katana" then
+                    p.Shape, p.Size, p.Transparency = Enum.PartType.Block, v3(sz * 0.2, sz * 0.2, sz * 0.2), 1
+                    rootMode, rootBaseTr = "none", 1
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.08, sz * 0.18, sz * 2.25), Enum.PartType.Block, Enum.Material.Neon, 0.08, "blade", cfNew(0, 0, -0.52 * sz))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.06, sz * 0.12, sz * 0.34), Enum.PartType.Block, Enum.Material.Neon, 0.08, "blade", cfNew(0, -0.02 * sz, -1.74 * sz) * cfAng(-0.22, 0, 0))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.04, sz * 0.06, sz * 2.28), Enum.PartType.Block, Enum.Material.Neon, 0.05, 1, cfNew(0, 0.09 * sz, -0.54 * sz))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.42, sz * 0.42, sz * 0.10), Enum.PartType.Block, Enum.Material.Neon, 0.06, 1, cfNew(0, 0, 0.62 * sz) * cfAng(0, 0, math.pi * 0.25))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.14, sz * 0.16, sz * 0.72), Enum.PartType.Block, Enum.Material.SmoothPlastic, 0.04, "dark", cfNew(0, 0, 1.02 * sz))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.18, sz * 0.18, sz * 0.12), Enum.PartType.Block, Enum.Material.Neon, 0.06, 2, cfNew(0, 0, 1.40 * sz))
+                    a0Pos, a1Pos = v3(0, 0.10 * sz, -1.55 * sz), v3(0, -0.08 * sz, 0.45 * sz)
+                elseif shape == "Butterfly" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.14, sz * 0.14, sz * 0.86)
+                    rootMode, rootBaseTr = 2, 0.08
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.92, sz * 0.05, sz * 0.66), Enum.PartType.Block, Enum.Material.Neon, 0.22, 1, cfNew(-0.48 * sz, 0, -0.14 * sz), "wingL", -0.48 * sz, 0, -0.14 * sz)
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.92, sz * 0.05, sz * 0.66), Enum.PartType.Block, Enum.Material.Neon, 0.22, 1, cfNew(0.48 * sz, 0, -0.14 * sz), "wingR", 0.48 * sz, 0, -0.14 * sz)
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.62, sz * 0.05, sz * 0.50), Enum.PartType.Block, Enum.Material.Neon, 0.28, 2, cfNew(-0.34 * sz, 0, 0.34 * sz), "wingL2", -0.34 * sz, 0, 0.34 * sz)
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.62, sz * 0.05, sz * 0.50), Enum.PartType.Block, Enum.Material.Neon, 0.28, 2, cfNew(0.34 * sz, 0, 0.34 * sz), "wingR2", 0.34 * sz, 0, 0.34 * sz)
+                    a0Pos, a1Pos = v3(0, 0.08 * sz, 0.38 * sz), v3(0, -0.08 * sz, 0.38 * sz)
+                elseif shape == "Lotus" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.42, sz * 0.42, sz * 0.42)
+                    rootMode, rootBaseTr = 2, 0.05
+                    for k = 1, 6 do
+                        local pa = (k - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkSub(p, v3(sz * 0.34, sz * 0.07, sz * 0.72), Enum.PartType.Block, Enum.Material.Neon, 0.18, 1, cfAng(0, pa, 0), "petal", pa, 0.44 * sz, 0.62)
+                    end
+                    for k = 1, 3 do
+                        local pa = (k - 1) * (math.pi * 2 / 3) + 0.52
+                        subs[#subs + 1] = mkSub(p, v3(sz * 0.24, sz * 0.06, sz * 0.48), Enum.PartType.Block, Enum.Material.Neon, 0.12, 2, cfAng(0, pa, 0), "petal", pa, 0.28 * sz, 0.92)
+                    end
+                    a0Pos, a1Pos = v3(0, sz * 0.16, 0), v3(0, -sz * 0.16, 0)
+                elseif shape == "Planet" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.86, sz * 0.86, sz * 0.86)
+                    rootMode, rootBaseTr = 1, 0.1
+                    for k = 1, 6 do
+                        local ra = (k - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkSub(p, v3(sz * 0.84, sz * 0.06, sz * 0.14), Enum.PartType.Block, Enum.Material.Neon, 0.22, 2, cfAng(0.32, 0, -0.24) * cfAng(0, ra, 0) * cfNew(0, 0, 0.72 * sz))
+                    end
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.24, sz * 0.24, sz * 0.24), Enum.PartType.Ball, Enum.Material.Neon, 0.06, "blade", cfNew(1.02 * sz, 0, 0), "moon", 1.02 * sz)
+                    a0Pos, a1Pos = v3(0, sz * 0.24, 0), v3(0, -sz * 0.24, 0)
+                elseif shape == "Shuriken" then
+                    p.Shape, p.Size, p.Material, p.Color = Enum.PartType.Cylinder, v3(sz * 0.12, sz * 0.46, sz * 0.46), Enum.Material.SmoothPlastic, DARK_SAT
+                    rootMode, rootBaseTr = "dark", 0.05
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.24, sz * 0.24, sz * 0.24), Enum.PartType.Ball, Enum.Material.Neon, 0.06, 2, cfNew(0, 0, 0))
+                    for k = 1, 4 do
+                        local sa = (k - 1) * (math.pi * 0.5)
+                        subs[#subs + 1] = mkSub(p, v3(sz * 0.22, sz * 0.06, sz * 0.84), Enum.PartType.Block, Enum.Material.Neon, 0.08, 1, cfAng(0, sa, 0) * cfNew(0.10 * sz, 0, -0.52 * sz) * cfAng(0, 0.22, 0))
+                    end
+                    a0Pos, a1Pos = v3(0, sz * 0.12, 0), v3(0, -sz * 0.12, 0)
+                elseif shape == "Seraph" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.44, sz * 0.44, sz * 0.44)
+                    rootMode, rootBaseTr = 2, 0.06
+                    for k = 1, 6 do
+                        local ha = (k - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkSub(p, v3(sz * 0.34, sz * 0.06, sz * 0.08), Enum.PartType.Block, Enum.Material.Neon, 0.12, 2, cfNew(0, 0.46 * sz, 0) * cfAng(0.18, ha, 0) * cfNew(0, 0, 0.28 * sz))
+                    end
+                    for side = -1, 1, 2 do
+                        local tag = (side == -1) and "featherL" or "featherR"
+                        for f = 1, 3 do
+                            subs[#subs + 1] = mkSub(p, v3(sz * (0.72 - f * 0.12), sz * 0.06, sz * 0.22), Enum.PartType.Block, Enum.Material.Neon, 0.14 + f * 0.04, 1, cfNew(side * (0.46 + f * 0.08) * sz, (0.14 - f * 0.12) * sz, 0.08 * sz), tag, side, f)
+                        end
+                    end
+                    a0Pos, a1Pos = v3(0, sz * 0.20, 0), v3(0, -sz * 0.20, 0)
+                else -- "Lantern"
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.52, sz * 0.66, sz * 0.52)
+                    rootMode, rootBaseTr = 1, 0.14
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.72, sz * 0.14, sz * 0.72), Enum.PartType.Block, Enum.Material.SmoothPlastic, 0.04, "dark", cfNew(0, 0.39 * sz, 0))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.64, sz * 0.10, sz * 0.64), Enum.PartType.Block, Enum.Material.SmoothPlastic, 0.04, "dark", cfNew(0, -0.37 * sz, 0))
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.18, sz * 0.14, sz * 0.18), Enum.PartType.Block, Enum.Material.Neon, 0.06, 2, cfNew(0, 0.52 * sz, 0))
+                    for cx = -1, 1, 2 do
+                        for cz = -1, 1, 2 do
+                            subs[#subs + 1] = mkSub(p, v3(sz * 0.07, sz * 0.70, sz * 0.07), Enum.PartType.Block, Enum.Material.Neon, 0.1, 2, cfNew(cx * 0.28 * sz, 0, cz * 0.28 * sz))
+                        end
+                    end
+                    subs[#subs + 1] = mkSub(p, v3(sz * 0.10, sz * 0.38, sz * 0.10), Enum.PartType.Block, Enum.Material.Neon, 0.15, 2, cfNew(0, -0.60 * sz, 0), "tassel")
+                    a0Pos, a1Pos = v3(0, sz * 0.28, 0), v3(0, -sz * 0.28, 0)
                 end
-                local sb = nil
-                if shape == "Crystal" or shape == "Shard" or shape == "Disc" or shape == "Blade" then
-                    sb = Instance.new("SelectionBox")
-                    sb.Name, sb.Adornee = "GlupostSatBox", p
-                    sb.LineThickness = (shape == "Blade") and 0.014 or clamp(sz * 0.04, 0.015, 0.032)
-                    sb.Transparency = (shape == "Blade") and 0.32 or 0.14
-                    sb.SurfaceTransparency = (shape == "Blade") and 0.93 or 0.84
-                    sb.Parent = p
-                end
+
                 local tr = nil
                 if withTrails then
                     local a0 = Instance.new("Attachment")
-                    a0.Name, a0.Position, a0.Parent = "GlupostSatA", v3(0, sz * 0.24, 0), p
+                    a0.Name, a0.Position, a0.Parent = "GlupostSatA", a0Pos, p
                     local a1 = Instance.new("Attachment")
-                    a1.Name, a1.Position, a1.Parent = "GlupostSatB", v3(0, -sz * 0.24, 0), p
+                    a1.Name, a1.Position, a1.Parent = "GlupostSatB", a1Pos, p
                     tr = Instance.new("Trail")
                     tr.Name, tr.Attachment0, tr.Attachment1 = "GlupostSatTrail", a0, a1
-                    tr.FaceCamera, tr.LightEmission, tr.MinLength, tr.Lifetime = true, 1, 0.02, 0.40
-                    tr.WidthScale = numSeq({ { 0, 1.1 }, { 0.45, 0.65 }, { 1, 0 } })
+                    tr.FaceCamera, tr.LightEmission, tr.MinLength, tr.Lifetime = true, 1, 0.02, 0.42
+                    tr.WidthScale = numSeq({ { 0, 1.1 }, { 0.45, 0.62 }, { 1, 0 } })
                     tr.Transparency = numSeq({ { 0, 0.14 }, { 0.7, 0.55 }, { 1, 1 } })
                     tr.Parent = p
                 end
                 p.CFrame = cfNew(rootPos)
                 p.Parent = par
                 satItems[i] = {
-                    part = p, box = sb, trail = tr,
+                    part = p, subs = subs, rootMode = rootMode, rootBaseTr = rootBaseTr,
+                    trail = tr,
                     phase = (i - 1) * ((math.pi * 2) / cnt),
                     tilt = ((i % 2 == 0) and 1 or -1) * (0.28 + (i % 3) * 0.12),
                 }
@@ -2228,23 +2308,70 @@ local function updateLocalEffects(dt)
             local pos = rootPos + v3(cos(ang) * r, oy, sin(ang) * r)
             local c1, c2 = styleColors(sat.Style, sat.Color, spd, item.phase * 0.6)
             local shimmer = (sin(tNow * 3.4 + item.phase) + 1) * 0.5
-            item.part.Color = (shape == "Orb") and c1:Lerp(c2, shimmer * 0.45) or c1
-            item.part.Transparency = 0.08 + shimmer * 0.12
-            if shape == "Blade" then
+            local cBlade = c2:Lerp(WHITE, 0.42)
+
+            if item.rootMode == 1 then
+                item.part.Color = c1
+                item.part.Transparency = item.rootBaseTr + shimmer * 0.10
+            elseif item.rootMode == 2 then
+                item.part.Color = c2
+                item.part.Transparency = item.rootBaseTr + shimmer * 0.08
+            end
+
+            local baseCF
+            if shape == "Cyber Drone" or shape == "Katana" or shape == "Butterfly" then
                 local tx, tz = -sin(ang), cos(ang)
-                item.part.CFrame = cfNew(pos, pos + v3(tx, cos(ang + item.phase) * sin(item.tilt) * 0.6, tz)) * cfAng(0, 0, item.tilt * 0.75)
-            elseif shape == "Crystal" then
-                item.part.CFrame = cfNew(pos) * cfAng(0.65 + tNow * 0.85, ang * 1.35, 0.78)
-            elseif shape == "Shard" then
-                item.part.CFrame = cfNew(pos) * cfAng(0.35, ang * 2.2, tNow * 2.1)
-            elseif shape == "Disc" then
-                item.part.CFrame = cfNew(pos) * cfAng(0.24, ang * 2.8, item.tilt)
-            else
-                item.part.CFrame = cfNew(pos)
+                local ty = cos(ang + item.phase) * sin(item.tilt) * 0.65
+                local bank = (shape == "Katana") and (0.35 + sin(tNow * 2.2 + item.phase) * 0.15) or (item.tilt * 0.6)
+                baseCF = cfNew(pos, pos + v3(tx, ty, tz)) * cfAng(0, 0, bank)
+            elseif shape == "Shuriken" then
+                baseCF = cfNew(pos) * cfAng(item.tilt * 0.65, tNow * 11.5 * spd + item.phase, 0.22)
+            elseif shape == "Lotus" then
+                baseCF = cfNew(pos) * cfAng(0.18 * sin(tNow * 1.4 + item.phase), tNow * 1.4 + item.phase, 0)
+            elseif shape == "Planet" then
+                baseCF = cfNew(pos) * cfAng(0.24, tNow * 1.6 + item.phase, 0.12)
+            elseif shape == "Seraph" then
+                baseCF = cfNew(pos, pos + v3(rootPos.X - pos.X, 0, rootPos.Z - pos.Z)) * cfAng(0, math.pi, 0)
+            else -- Lantern
+                baseCF = cfNew(pos) * cfAng(0.14 * sin(tNow * 2.0 + item.phase), tNow * 0.9 + item.phase, 0.10 * cos(tNow * 1.8 + item.phase))
             end
-            if item.box then
-                item.box.Color3, item.box.SurfaceColor3 = c2, c1
+            item.part.CFrame = (shape == "Shuriken") and (baseCF * cfAng(0, 0, math.pi * 0.5)) or baseCF
+
+            for _, sub in ipairs(item.subs) do
+                if sub.mode == 1 then
+                    sub.part.Color = c1
+                    sub.part.Transparency = sub.baseTr + shimmer * 0.08
+                elseif sub.mode == 2 then
+                    sub.part.Color = c2
+                    sub.part.Transparency = sub.baseTr + shimmer * 0.06
+                elseif sub.mode == "blade" then
+                    sub.part.Color = cBlade
+                end
+                local anim = sub.anim
+                if anim == "wingL" or anim == "wingL2" then
+                    local flap = sin(tNow * 9.5 + item.phase) * 0.62
+                    sub.part.CFrame = baseCF * cfAng(0, 0, -flap) * cfNew(sub.ax, 0, sub.az)
+                elseif anim == "wingR" or anim == "wingR2" then
+                    local flap = sin(tNow * 9.5 + item.phase) * 0.62
+                    sub.part.CFrame = baseCF * cfAng(0, 0, flap) * cfNew(sub.ax, 0, sub.az)
+                elseif anim == "petal" then
+                    local openAng = sub.az + sin(tNow * 2.4 + item.phase) * 0.14
+                    sub.part.CFrame = baseCF * cfAng(0, sub.ax, 0) * cfAng(openAng, 0, 0) * cfNew(0, 0, -sub.ay)
+                elseif anim == "moon" then
+                    local ma = tNow * 3.6 + item.phase
+                    sub.part.CFrame = baseCF * cfAng(0.32, ma, -0.24) * cfNew(sub.ax, 0, 0)
+                elseif anim == "featherL" or anim == "featherR" then
+                    local flap = sin(tNow * 4.5 + item.phase) * 0.34
+                    local side, fi = sub.ax, sub.ay
+                    sub.part.CFrame = baseCF * cfAng(0, -side * (0.28 + flap * 0.5), side * (-0.18 + flap)) * cfNew(side * (0.42 + fi * 0.14) * sz, (0.18 - fi * 0.13) * sz, 0.10 * sz)
+                elseif anim == "tassel" then
+                    local sway = sin(tNow * 3.8 + item.phase) * 0.26
+                    sub.part.CFrame = baseCF * cfAng(sway, 0, sway * 0.6) * cfNew(0, -0.60 * sz, 0)
+                else
+                    sub.part.CFrame = baseCF * sub.offset
+                end
             end
+
             if item.trail and (not item.cs or colorDelta(c1, item.c1) > 0.015 or colorDelta(c2, item.c2) > 0.015) then
                 item.c1, item.c2 = c1, c2
                 item.cs = ColorSequence.new(c1, c2)
@@ -2341,12 +2468,14 @@ local function applySelfPartMaterial(p, mat, col, tr, refl)
     end
 end
 
-local function applySelfMaterials(char, cam, e, isGlass, fill)
+local function applySelfMaterials(char, cam, e, fill)
     local now = clock()
-    local phase = now * math.max(e.AnimationSpeed, 0.05)
-    local mat = isGlass and Enum.Material.Glass or Enum.Material.ForceField
-    local tr = isGlass and clamp(e.FillTransparency, 0.25, 0.92) or clamp(e.FillTransparency, 0.05, 0.85)
-    local refl = isGlass and (0.26 + 0.1 * math.sin(phase * 1.25)) or 0
+    local spd = math.max(e.AnimationSpeed or 0.9, 0)
+    local phase = now * spd
+    local mat = Enum.Material.Glass
+    local tr = clamp(e.FillTransparency or 0.58, 0.05, 0.95)
+    local baseRefl = clamp(e.Reflectance or 0.35, 0, 1)
+    local refl = clamp(baseRefl + (spd > 0.01 and (0.08 * math.sin(phase * 1.25)) or 0), 0, 1)
 
     if scLastChar ~= char then
         clearScCharConns()
@@ -2479,10 +2608,6 @@ local function updateSelfChams()
     end
 
     local cam = workspace.CurrentCamera
-    local isGlass = (e.Style == "Liquid Glass" or e.Style == "Glass")
-    local isForceField = (e.Style == "ForceField")
-    local useMat = isGlass or isForceField
-
     if selfChamsCharacter ~= char then
         destroySelfChams()
     end
@@ -2499,23 +2624,10 @@ local function updateSelfChams()
 
     local now = clock()
     local fill, outline = selfChamsColor(now)
-    if useMat then
-        applySelfMaterials(char, cam, e, isGlass, fill)
-    elseif scHasSaved then
-        clearScCharConns()
-        scForceScan = true
-        restoreSelfMaterials()
-    end
+    applySelfMaterials(char, cam, e, fill)
 
-    local phase = now * math.max(e.AnimationSpeed, 0.05)
-    local ft = useMat and (isGlass and 0.90 or 0.93)
-        or (e.Style == "Energy Rim" and clamp(0.72 + e.FillTransparency * 0.28, 0.72, 1)
-        or (e.Style == "Scanline" and clamp(e.FillTransparency + sin(phase * 4.2) * 0.14, 0.05, 0.95)
-        or (e.Style == "Pulse" and clamp(e.FillTransparency + sin(phase * 2.2) * 0.10, 0.05, 0.95)
-        or clamp(e.FillTransparency, 0, 1))))
-    local ot = (e.Style == "Energy Rim")
-        and clamp(e.OutlineTransparency - (sin(phase * 2.6) + 1) * 0.08, 0, 1)
-        or clamp(e.OutlineTransparency, 0, 1)
+    local ft = clamp(0.76 + (e.FillTransparency or 0.58) * 0.20, 0.76, 0.96)
+    local ot = clamp(e.OutlineTransparency or 0.22, 0, 1)
     if not selfChamsHighlight.Enabled then selfChamsHighlight.Enabled = true end
     if selfChamsHighlight.FillColor ~= fill then selfChamsHighlight.FillColor = fill end
     if selfChamsHighlight.OutlineColor ~= outline then selfChamsHighlight.OutlineColor = outline end
@@ -6934,27 +7046,29 @@ end
 
 do
     CUR_TAB, CUR_GROUP = "Персонаж FX", "Чамсы на себя"
-    local self = Tabs.SelfFX:AddLeftGroupbox("Чамсы на себя")
-    addToggle(self, "SelfChamsOn", "Чамсы на себя", { "SelfChams", "Enabled" },
-        "Красиво стилизует вашего персонажа (жидкое стекло, силовое поле, неон, голограмма и др.).",
+    local self = Tabs.SelfFX:AddLeftGroupbox("Жидкое стекло (Self Chams)")
+    addToggle(self, "SelfChamsOn", "Жидкое стекло (на себя)", { "SelfChams", "Enabled" },
+        "Делает вашего персонажа полупрозрачным жидким стеклом (Liquid Glass) с переливом, бликами и неоновым контуром.",
         function(v)
             if not v then Fx.destroySelfChams() end
         end)
     withDep(self, "SelfChamsOn", true, function(d)
-        addDropdown(d, "SelfChamsStyle", "Визуальный стиль", { "SelfChams", "Style" },
-            { "Liquid Glass", "Energy Rim", "Scanline", "ForceField", "Holographic", "Aurora", "Rainbow", "Cyber", "Pulse", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
-            "Liquid Glass — стекло; Energy Rim — неон-контур по скину; Scanline — сканирующая волна; Aurora/Cyber/Sakura/Matrix/Sunset/Gold — анимированные палитры.")
-        addSlider(d, "SelfChamsFillTr", "Прозр. стекла", { "SelfChams", "FillTransparency" }, 0, 0.95, 2,
-            "Насколько прозрачным становится тело персонажа внутри обводки.")
+        addDropdown(d, "SelfChamsStyle", "Пресет стекла", { "SelfChams", "Style" },
+            { "Liquid Glass", "Frost", "Aurora", "Holographic", "Cyber", "Rainbow", "Sakura", "Flame", "Void", "Matrix", "Sunset", "Gold", "Obsidian", "Custom" },
+            "Готовые пресеты жидкого стекла: Liquid Glass, Frost, Aurora, Cyber, Sakura, Flame, Void, Matrix, Gold, Obsidian или свой цвет (Custom).")
+        addSlider(d, "SelfChamsFillTr", "Прозр. стекла", { "SelfChams", "FillTransparency" }, 0.05, 0.95, 2,
+            "Прозрачность стеклянного тела персонажа (0.05 — плотное тонированное стекло, 0.95 — почти прозрачное).")
         addSlider(d, "SelfChamsOutlineTr", "Прозр. контура", { "SelfChams", "OutlineTransparency" }, 0, 1, 2,
-            "Яркость светящейся окантовки по краям модели (меньше значение — ярче контур).")
-        addSlider(d, "SelfChamsSpeed", "Скорость анимации", { "SelfChams", "AnimationSpeed" }, 0.1, 3, 1,
-            "Скорость перелива и пульсации для анимированных стилей (Aurora, Rainbow, Pulse, Cyber, Scanline).")
-        addToggle(d, "SelfChamsTools", "Стиль на оружие", { "SelfChams", "IncludeTools" },
-            "Накладывает эффект стекла/подсветки также на предмет, который вы держите в руках.")
+            "Яркость светящейся окантовки по краям модели (меньше — ярче контур).")
+        addSlider(d, "SelfChamsRefl", "Блик стекла", { "SelfChams", "Reflectance" }, 0, 1, 2,
+            "Сила зеркального блика и отражений на стеклянной поверхности.")
+        addSlider(d, "SelfChamsSpeed", "Скорость перелива", { "SelfChams", "AnimationSpeed" }, 0, 3, 1,
+            "Скорость перелива цвета и мерцания блика (0 — статичное стекло).")
+        addToggle(d, "SelfChamsTools", "Стекло на оружие", { "SelfChams", "IncludeTools" },
+            "Накладывает эффект жидкого стекла также на предмет, который вы держите в руках.")
         addToggle(d, "SelfChamsVM", "Руки от 1-го лица", { "SelfChams", "IncludeViewmodel" },
-            "Пытается подсветить Viewmodel-руки и оружие в камере в шутерах от первого лица.")
-        addColorPicker(d, "SelfChamsFillColor", "Цвет заливки", { "SelfChams", "FillColor" })
+            "Применяет жидкое стекло к Viewmodel-рукам и оружию в шутерах от первого лица.")
+        addColorPicker(d, "SelfChamsFillColor", "Цвет стекла", { "SelfChams", "FillColor" })
         addColorPicker(d, "SelfChamsOutlineColor", "Цвет контура", { "SelfChams", "OutlineColor" })
     end)
 
@@ -7074,10 +7188,10 @@ do
     CUR_GROUP = "Орбитальные спутники"
     local sat = Tabs.SelfFX:AddRightGroupbox("Орбитальные спутники")
     addToggle(sat, "SatOn", "Включить спутников", { "Satellites", "Enabled" },
-        "Запускает 3D-кристаллы, сферы, клинки, осколки (Shard) или диски (Disc), летающие по орбитам вокруг персонажа.")
+        "Запускает тематические 3D-модели вокруг персонажа: кибер-дроны, катаны, бабочки, лотосы, планеты, сюрикены, серафимы или фонарики.")
     withDep(sat, "SatOn", true, function(d)
-        addDropdown(d, "SatShape", "Форма спутников", { "Satellites", "Shape" }, { "Crystal", "Orb", "Blade", "Shard", "Disc" },
-            "Crystal — граненые кристаллы; Orb — сферы; Blade — клинки; Shard — вращающиеся осколки; Disc — плоские чакрамы с контуром.")
+        addDropdown(d, "SatShape", "Тема спутников", { "Satellites", "Shape" }, { "Cyber Drone", "Katana", "Butterfly", "Lotus", "Planet", "Shuriken", "Seraph", "Lantern" },
+            "Cyber Drone — дрон; Katana — катаны; Butterfly — машущие бабочки; Lotus — лотос; Planet — Сатурн с луной; Shuriken — сюрикен; Seraph — крылья и нимб; Lantern — фонарь.")
         addDropdown(d, "SatStyle", "Цветовой стиль", { "Satellites", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
             "Цветовая палитра спутников и их шлейфов.")
         addSlider(d, "SatCount", "Количество", { "Satellites", "Count" }, 1, 6, 0,
@@ -7536,10 +7650,10 @@ do
             "• Чамсы врагов: работают через Roblox Highlight (до 28 ближайших игроков); прозрачность заливки и контура настраиваются раздельно.",
         }, "\n"),
         ["Персонаж и FX (Sandevistan / Стекло)"] = table.concat({
-            "• Чамсы на себя: Liquid Glass, Energy Rim (чистый скин + неон-контур), Scanline, ForceField и 14 цветовых палитр.",
+            "• Чамсы на себя (Liquid Glass): настраиваемое жидкое стекло с бликом, прозрачностью и 14 пресетами (Frost, Aurora, Cyber, Sakura, Obsidian и др.).",
             "• Sandevistan (клоны): Phantom/Inferno/Void/Cyber/Sakura/Matrix/Sunset/Gold, материалы ForceField/Glass/Wireframe, 6 режимов исчезновения + нить связи.",
             "• Ленты / Шлейф (Ribbons): 8 форм (Orbit, Helix, Void Slash, Spiral Halo, крылья и конечности) + 5 узоров + искры; работают даже вместе с Sandevistan!",
-            "• Орбитальные спутники (Satellites): Crystal, Orb, Blade, Shard (осколки) и Disc (чакрамы) со шлейфами на наклонных орбитах.",
+            "• Орбитальные спутники (Satellites): 8 тематических 3D-спутников (Cyber Drone, Katana, Butterfly, Lotus, Planet, Shuriken, Seraph, Lantern) со шлейфами.",
             "• Аура персонажа: Orbitals, Helix, Crown, Ground, Sigil, Galaxy, Vortex (восходящий вихрь) и Atom (орбитали электронов) + Glow Light.",
             "• Шляпа / Нимб / Корона / Crystal / CyberRing и ударные волны прыжка с искрами; зум колесом мыши в 3-м лице.",
         }, "\n"),
@@ -7838,10 +7952,10 @@ do
         Func = function()
             applyStylePreset("Tokyo Neon Anime FX", {
                 ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, ShowState = true, DamageNumbers = true },
-                SelfChams = { Enabled = true, Style = "Energy Rim", FillTransparency = 0.55, OutlineTransparency = 0.12, IncludeTools = true, FillColor = rgb(110, 215, 255), OutlineColor = rgb(255, 115, 215) },
+                SelfChams = { Enabled = true, Style = "Liquid Glass", FillTransparency = 0.55, OutlineTransparency = 0.14, Reflectance = 0.42, IncludeTools = true, FillColor = rgb(110, 215, 255), OutlineColor = rgb(255, 115, 215) },
                 ChinaHat = { Enabled = true, Shape = "Crystal", Style = "Cyber", Size = 1.45, Height = 0.65, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Galaxy", Style = "Cyber", Size = 2.7, Transparency = 0.7, Particles = true, GlowLight = true },
-                Satellites = { Enabled = true, Count = 3, Shape = "Crystal", Style = "Cyber", Radius = 3.2, Height = 0.8, Speed = 1.5, Size = 0.45, Trails = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Cyber Drone", Style = "Cyber", Radius = 3.2, Height = 0.8, Speed = 1.5, Size = 0.45, Trails = true },
                 JumpRings = { Enabled = true, Style = "Cyber", MaxRadius = 5.0, Lifetime = 0.65, Sparks = true },
                 Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 20, SpeedLinesOpacity = 0.65, SpeedLinesColor = rgb(0, 235, 255), Accent = rgb(0, 225, 255) },
                 World = worldFromPreset("Tokyo Neon", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.75, SpeedFOV = true, SpeedFOVMax = 15 }),
@@ -7850,16 +7964,16 @@ do
     })
     pr:AddButton({
         Text = "Кровавая луна (Crimson)",
-        Tooltip = "Агрессивная алая тема: Energy Rim на скине, огненный Sandevistan, аура Sigil, BloodRain, хитмаркер Diamond и Crimson Void.",
+        Tooltip = "Агрессивная алая тема: алое стекло на скине, огненный Sandevistan, аура Sigil, спутники-катаны, BloodRain и Crimson Void.",
         Func = function()
             applyStylePreset("Crimson Moon", {
                 ESP = { Enabled = true, BoxType = "3D Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.07, DamageNumbers = true },
-                SelfChams = { Enabled = true, Style = "Energy Rim", FillTransparency = 0.6, OutlineTransparency = 0.1, IncludeTools = true, FillColor = rgb(255, 65, 85), OutlineColor = rgb(255, 110, 125) },
+                SelfChams = { Enabled = true, Style = "Liquid Glass", FillTransparency = 0.58, OutlineTransparency = 0.12, Reflectance = 0.38, IncludeTools = true, FillColor = rgb(255, 65, 85), OutlineColor = rgb(255, 120, 135) },
                 Afterimage = { Enabled = true, Style = "Inferno", FadeMode = "Ascend", Material = "Neon", ConnectArc = true, SolidGlow = true, TriggerMode = "Moving", Interval = 0.04, Lifetime = 0.48, Transparency = 0.38 },
                 ParticleTrail = { Enabled = false },
                 ChinaHat = { Enabled = true, Shape = "Crown", Style = "Flame", Size = 1.45, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Sigil", Style = "Flame", Size = 2.8, Transparency = 0.72, Particles = true, GlowLight = true },
-                Satellites = { Enabled = true, Count = 3, Shape = "Blade", Style = "Flame", Radius = 3.2, Height = 0.7, Speed = 1.8, Size = 0.45, Trails = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Katana", Style = "Flame", Radius = 3.2, Height = 0.7, Speed = 1.8, Size = 0.45, Trails = true },
                 JumpRings = { Enabled = true, Style = "Flame", MaxRadius = 5.2, Lifetime = 0.65, Sparks = true },
                 Crosshair = { Enabled = true, Style = "X-Cross", Size = 6, Gap = 4, Dot = true, Color = rgb(255, 90, 110) },
                 Hitmarker = { Enabled = true, Style = "Diamond", KillEffect = true, Color = rgb(255, 110, 125), KillColor = rgb(255, 45, 70) },
@@ -7871,16 +7985,16 @@ do
     })
     pr:AddButton({
         Text = "Сакура Закат (Sakura)",
-        Tooltip = "Аниме-эстетика: гекса-обруч CyberRing, атомная аура Atom, осколки Shard, ленты Spiral Halo, Starfall и Sakura Dusk.",
+        Tooltip = "Аниме-эстетика: гекса-обруч CyberRing, атомная аура Atom, спутники-бабочки, ленты Spiral Halo, сакура-стекло и Sakura Dusk.",
         Func = function()
             applyStylePreset("Sakura Dusk", {
                 ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, ShowState = true },
-                SelfChams = { Enabled = true, Style = "Sakura", FillTransparency = 0.56, OutlineTransparency = 0.16, IncludeTools = true, FillColor = rgb(255, 175, 215), OutlineColor = rgb(255, 240, 248) },
+                SelfChams = { Enabled = true, Style = "Sakura", FillTransparency = 0.56, OutlineTransparency = 0.16, Reflectance = 0.38, IncludeTools = true, FillColor = rgb(255, 175, 215), OutlineColor = rgb(255, 240, 248) },
                 Afterimage = { Enabled = false },
                 ParticleTrail = { Enabled = true, Mode = "Spiral Halo", Pattern = "Starlight", Style = "Sakura", Lifetime = 0.58, Width = 0.16, Speed = 1.1, Sparks = true },
                 ChinaHat = { Enabled = true, Shape = "CyberRing", Style = "Sakura", Size = 1.45, Height = 0.55, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Atom", Style = "Sakura", Size = 2.7, Transparency = 0.72, Particles = true, GlowLight = true },
-                Satellites = { Enabled = true, Count = 3, Shape = "Shard", Style = "Sakura", Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45, Trails = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Butterfly", Style = "Sakura", Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45, Trails = true },
                 JumpRings = { Enabled = true, Style = "Sakura", MaxRadius = 5.0, Lifetime = 0.68, Sparks = true },
                 Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 22, SpeedLinesOpacity = 0.6, SpeedLinesColor = rgb(255, 170, 215), Accent = rgb(255, 130, 195) },
                 World = worldFromPreset("Sakura Dusk", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.78, SpeedFOV = true, SpeedFOVMax = 14 }),
