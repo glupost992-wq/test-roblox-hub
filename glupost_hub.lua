@@ -1728,7 +1728,8 @@ local function updateAuraShape(cam, char, root, dt, aura)
     auraAngle = auraAngle + clamp(dt or 0.016, 0, 0.1) * 1.45
     local c1, c2 = styleColors(aura.Style, aura.Color, 1)
     local pulse = 1 + sin(t * 2.8) * 0.05
-    local alpha = clamp(1 - aura.Transparency + 0.55, 0.25, 0.95)
+    local tr = clamp(aura.Transparency or 0.72, 0.1, 0.95)
+    local alpha = clamp(((1 - tr) ^ 0.55) * 0.85 + 0.12, 0.12, 0.95)
     local bodyCenter = partPos(root) + v3(0, 0.15, 0)
     local shape = aura.Shape or "Orbitals"
     local isCustom = (aura.Style == "Custom")
@@ -5202,8 +5203,10 @@ local function validatePlayers()
     local needVis = (espOn and (e.VisibleCheck or e.Chams)) or cfg().Overlay.TargetHUD
 
     local maxTrackDist = 0
-    if espOn or cfg().Overlay.TargetHUD or cfg().Hitmarker.Enabled or cfg().Hitmarker.KillEffect or cfg().Vignette.KillFlash then
+    if espOn then
         maxTrackDist = e.UnlimitedDistance and math.huge or math.max(maxTrackDist, espMaxDist)
+    elseif cfg().Overlay.TargetHUD or cfg().Hitmarker.Enabled or cfg().Hitmarker.KillEffect or cfg().Vignette.KillFlash then
+        maxTrackDist = math.max(maxTrackDist, e.UnlimitedDistance and math.huge or math.max(espMaxDist, 2500))
     end
     if radarOn then maxTrackDist = math.max(maxTrackDist, radarRange) end
     if lookOn then maxTrackDist = math.max(maxTrackDist, cfg().LookingAlert.MaxDistance) end
@@ -5281,9 +5284,10 @@ local function validatePlayers()
     local vp = cam.ViewportSize
     local center = vp / 2
     local best, bestScore = nil, -math.huge
+    local prioNormDist = espOn and espNormDist or math.max(espNormDist, 2500)
     for plr, rd in pairs(renderData) do
-        local minOk = not espOn or rd.distance >= e.MinDistance
-        if not (e.HideTeammates and rd.team) and rd.distance <= espMaxDist and minOk then
+        local distOk = not espOn or (rd.distance <= espMaxDist and rd.distance >= e.MinDistance)
+        if not (e.HideTeammates and rd.team) and distOk then
             local screenPt = rd.onScreen and rd.hrpScreen or nil
             if (not espOn or rd.onScreen == nil) and rd.parts and isPartValid(rd.parts.HumanoidRootPart) then
                 local sp = cam:WorldToViewportPoint(partPos(rd.parts.HumanoidRootPart))
@@ -5291,7 +5295,7 @@ local function validatePlayers()
             end
             if screenPt then
                 local score = (rd.visible and 1 or 0)
-                    - rd.distance / espNormDist
+                    - rd.distance / prioNormDist
                     - (screenPt - center).Magnitude / (vp.X / 2) * 0.5
                 if score > bestScore then best, bestScore = plr, score end
             end
@@ -5337,6 +5341,7 @@ end
 
 local function projectPlayers()
     local cam = workspace.CurrentCamera
+    if not cam then return end
     local vp = cam.ViewportSize
     local m = 300
     local e = cfg().ESP
@@ -5610,6 +5615,7 @@ end
 
 local function drawObject(idx, pos, text, color, dist)
     local cam = workspace.CurrentCamera
+    if not cam then return false end
     local sp = cam:WorldToViewportPoint(pos)
     if sp.Z <= 0.1 then return false end
     local e, O = cfg().ESP, cfg().Objects
@@ -6072,7 +6078,8 @@ local function update(dt)
         elseif W.SpeedFOV and kick > 0.05 then
             local curFov = cam.FieldOfView
             local applied = worldOrig.appliedFOV
-            local gameZooming = applied ~= nil and (curFov < applied - 2)
+            local baseEst = worldOrig.fov or (applied and (applied - appliedSpeedKick)) or 70
+            local gameZooming = applied ~= nil and (curFov < applied - 2) and (curFov < baseEst - 2)
             if not gameZooming then
                 local baseFov
                 if wasFovEnabled and worldOrig.fov ~= nil then
@@ -6281,7 +6288,7 @@ local function update()
             camOff = hum and hum.CameraOffset or Vector3.new(),
         }
     end
-    local dist = clamp(T.Distance or 10, 2, 28)
+    local dist = clamp(T.Distance or 10, 2, 26)
     if LP.CameraMode ~= Enum.CameraMode.Classic
         or math.abs(LP.CameraMinZoomDistance - dist) > 0.05
         or math.abs(LP.CameraMaxZoomDistance - math.max(dist, 2)) > 0.05 then
@@ -8114,6 +8121,18 @@ if SaveManager then pcall(function()
     SaveManager:IgnoreThemeSettings() SaveManager:SetIgnoreIndexes({ "MenuKey", "HelpTopic", "HelpSearch" })
     SaveManager:BuildConfigSection(Tabs.UI) SaveManager:LoadAutoloadConfig()
 end) end
+do
+    local p = cfg()
+    if p.ESP.BoxType == "Bracket" then p.ESP.BoxType = "3D Corner" end
+    local satMap = {
+        ["Cyber Drone"] = "Star", Shard = "Star", Seraph = "Sakura", Crystal = "Lotus",
+        Lantern = "Clover", Katana = "Crescent", Blade = "Crescent", Shuriken = "Snowflake",
+        Disc = "Snowflake", Diamond = "Star", Ring = "Planet", Orb = "Planet",
+    }
+    if satMap[p.Satellites.Shape] then p.Satellites.Shape = satMap[p.Satellites.Shape] end
+    local scMap = { Glass = "Liquid Glass", ["Energy Rim"] = "Liquid Glass", Scanline = "Liquid Glass", ForceField = "Liquid Glass", Pulse = "Liquid Glass" }
+    if scMap[p.SelfChams.Style] then p.SelfChams.Style = scMap[p.SelfChams.Style] end
+end
 end
 
 local function cleanup()
