@@ -627,6 +627,9 @@ local DOWN_14 = Vector3.new(0, -14, 0)
 local UP_005 = Vector3.new(0, 0.05, 0)
 local DEF_DROP = Vector3.new(0, 2.8, 0)
 local VEC3_ONE = Vector3.new(1, 1, 1)
+local groundParams = RaycastParams.new()
+groundParams.FilterType = visParams.FilterType
+local groundIgnore, lastGroundChar, lastGroundCam = {}, nil, nil
 
 local function colorDelta(a, b)
     return abs(a.R - b.R) + abs(a.G - b.G) + abs(a.B - b.B)
@@ -1186,11 +1189,15 @@ end
 
 local function rayGroundPos(char, root)
     local origin = partPos(root)
-    table.clear(visIgnore)
-    visIgnore[1] = char
-    if workspace.CurrentCamera then visIgnore[2] = workspace.CurrentCamera end
-    visParams.FilterDescendantsInstances = visIgnore
-    local res = rawRay(origin, DOWN_14, visParams)
+    local cam = workspace.CurrentCamera
+    if char ~= lastGroundChar or cam ~= lastGroundCam then
+        lastGroundChar, lastGroundCam = char, cam
+        table.clear(groundIgnore)
+        groundIgnore[1] = char
+        if cam then groundIgnore[2] = cam end
+        groundParams.FilterDescendantsInstances = groundIgnore
+    end
+    local res = rawRay(origin, DOWN_14, groundParams)
     if res then
         return res.Position + UP_005
     end
@@ -1706,8 +1713,9 @@ local function updateAuraShape(cam, char, root, dt, aura)
             local na = (n % 2 == 0) and 0 or math.pi
             local sp = cam:WorldToViewportPoint(ringCF:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)))
             if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.8, 10, true
-                nd.Color, nd.Transparency, nd.Visible = c2, alpha, true
+                local nodePulse = (sin(t * 3.8 + n * 1.4) + 1) * 0.5
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.3 + nodePulse * 0.85, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.35), alpha, true
             else
                 nd.Visible = false
             end
@@ -1885,8 +1893,9 @@ local function updateAuraShape(cam, char, root, dt, aura)
             local na = ((n - 1) % 3) * ((math.pi * 2) / 3)
             local sp = cam:WorldToViewportPoint(ringCF:PointToWorldSpace(v3(cos(na) * rad, 0, sin(na) * rad)))
             if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), (n <= 3) and 2.8 or 2.2, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.4), alpha, true
+                local nodePulse = (sin(t * 3.4 + n * 0.9) + 1) * 0.5
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), ((n <= 3) and 2.5 or 2.0) + nodePulse * 0.75, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.35), alpha, true
             else
                 nd.Visible = false
             end
@@ -1894,31 +1903,31 @@ local function updateAuraShape(cam, char, root, dt, aura)
         usedNodes = 6
     elseif shape == "Vortex" then
         local rBase = aura.Size * pulse
-        for k = 0, 2 do
-            local prog = ((t * 0.65 + k / 3) % 1)
-            local yOff = -2.1 + prog * 4.0
-            local rad = rBase * (0.48 + prog * 0.72)
+        for k = 0, 3 do
+            local prog = ((t * 0.72 + k * 0.25) % 1)
+            local yOff = -2.2 + prog * 4.2
+            local rad = rBase * (0.38 + prog * 0.84)
             local fade = sin(prog * math.pi)
-            local cf = cfNew(bodyCenter + v3(0, yOff, 0)) * cfAng(sin(t * 1.2 + k) * 0.14, auraAngle * (1.2 + k * 0.35), 0)
-            drawRing(cam, cf, true, rad, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * clamp(fade * 1.15, 0.12, 1), 1.5)
+            local cf = cfNew(bodyCenter + v3(0, yOff, 0)) * cfAng(sin(t * 1.35 + k) * 0.15, auraAngle * (1.25 + k * 0.28), cos(t * 1.1 + k) * 0.08)
+            drawRing(cam, cf, true, rad, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, k * C.RING_SEGMENTS, k % 2 == 0 and c1 or c2, c2, alpha * clamp(fade * 1.18, 0.12, 1), 1.45)
         end
-        usedSegs = C.RING_SEGMENTS * 3
-        for n = 1, 6 do
+        usedSegs = C.RING_SEGMENTS * 4
+        for n = 1, 8 do
             local nd = auraDrawNodes[n]
             if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 4 end) auraDrawNodes[n] = nd end
-            local prog = ((t * 0.65 + (n - 1) / 6) % 1)
-            local yOff = -2.0 + prog * 3.8
-            local rad = rBase * (0.52 + prog * 0.66)
-            local na = auraAngle * 2.1 + n * 1.05
+            local prog = ((t * 0.72 + (n - 1) / 8) % 1)
+            local yOff = -2.1 + prog * 4.0
+            local rad = rBase * (0.42 + prog * 0.78)
+            local na = auraAngle * 2.25 + n * 0.85
             local sp = cam:WorldToViewportPoint(bodyCenter + v3(cos(na) * rad, yOff, sin(na) * rad))
             if sp.Z > 0.1 then
-                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.4, 10, true
-                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(c2, 0.35), alpha * sin(prog * math.pi), true
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = v2(sp.X, sp.Y), 2.3 + sin(prog * math.pi) * 0.6, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(n % 2 == 0 and c1 or c2, 0.35), alpha * sin(prog * math.pi), true
             else
                 nd.Visible = false
             end
         end
-        usedNodes = 6
+        usedNodes = 8
     elseif shape == "Atom" then
         local r = aura.Size * 0.98 * pulse
         local tilt1 = cfNew(bodyCenter) * cfAng(0.68, auraAngle * 0.4, 0.25)
@@ -3582,8 +3591,11 @@ local function updateKillBursts()
             local prog = elapsed / kb.life
             local ease = 1 - (1 - prog) * (1 - prog)
             local alpha = 1 - prog
+            local flashCol = WHITE:Lerp(kb.col, clamp(prog * 2.6, 0, 1))
+            local rayTh = 2.8 - prog * 1.4
+            local ringTh = 2.2 - prog * 0.9
             local r0 = 0.4 + ease * 3.2
-            local r1 = r0 + 1.6 * (1 - prog * 0.5)
+            local r1 = r0 + 1.75 * (1 - prog * 0.45)
             for s = 1, 10 do
                 local dir = kb.dirs[s]
                 local a = cam:WorldToViewportPoint(kb.pos + dir * r0)
@@ -3591,16 +3603,16 @@ local function updateKillBursts()
                 local ln = kb.lines[s]
                 if a.Z > 0.1 and b.Z > 0.1 then
                     ln.From, ln.To = v2(a.X, a.Y), v2(b.X, b.Y)
-                    ln.Color, ln.Thickness, ln.Transparency, ln.Visible = kb.col, 2, alpha, true
+                    ln.Color, ln.Thickness, ln.Transparency, ln.Visible = flashCol, rayTh, alpha, true
                 else
                     ln.Visible = false
                 end
             end
-            local ringR, ringCol = 0.6 + ease * 4.4, kb.col:Lerp(WHITE, 0.25)
+            local ringR, ringCol = 0.6 + ease * 4.5, WHITE:Lerp(kb.col, clamp(0.25 + prog * 0.75, 0, 1))
             local prevPt, prevOk, firstPt, firstOk = nil, false, nil, false
             for r = 0, 11 do
-                local ang = prog * 1.5 + r * ringStep
-                local sp = cam:WorldToViewportPoint(kb.pos + v3(cos(ang) * ringR, 0, sin(ang) * ringR))
+                local ang = prog * 1.65 + r * ringStep
+                local sp = cam:WorldToViewportPoint(kb.pos + v3(cos(ang) * ringR, sin(ang) * ringR * 0.24, sin(ang) * ringR))
                 local ok = sp.Z > 0.1
                 local pt = ok and v2(sp.X, sp.Y) or nil
                 if r == 0 then
@@ -3608,7 +3620,7 @@ local function updateKillBursts()
                 else
                     local ln = kb.lines[10 + r]
                     if ok and prevOk then
-                        ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = prevPt, pt, ringCol, 1.6, alpha * 0.85, true
+                        ln.From, ln.To, ln.Color, ln.Thickness, ln.Transparency, ln.Visible = prevPt, pt, ringCol, ringTh, alpha * 0.88, true
                     else
                         ln.Visible = false
                     end
@@ -3617,7 +3629,7 @@ local function updateKillBursts()
             end
             local lastLn = kb.lines[22]
             if prevOk and firstOk then
-                lastLn.From, lastLn.To, lastLn.Color, lastLn.Thickness, lastLn.Transparency, lastLn.Visible = prevPt, firstPt, ringCol, 1.6, alpha * 0.85, true
+                lastLn.From, lastLn.To, lastLn.Color, lastLn.Thickness, lastLn.Transparency, lastLn.Visible = prevPt, firstPt, ringCol, ringTh, alpha * 0.88, true
             else
                 lastLn.Visible = false
             end
@@ -4103,13 +4115,17 @@ local function spawnStepRing(pos, maxR, life, col, thick, maxCount)
     })
 end
 
+local stepVisParams = RaycastParams.new()
+stepVisParams.FilterType = visParams.FilterType
+local stepIgnore = {}
+
 local function enemyGroundPos(char, root)
     local origin = partPos(root)
-    tclear(visIgnore)
-    visIgnore[1] = char
-    if workspace.CurrentCamera then visIgnore[2] = workspace.CurrentCamera end
-    visParams.FilterDescendantsInstances = visIgnore
-    local res = rawRay(origin, DOWN_10, visParams)
+    tclear(stepIgnore)
+    stepIgnore[1] = char
+    if workspace.CurrentCamera then stepIgnore[2] = workspace.CurrentCamera end
+    stepVisParams.FilterDescendantsInstances = stepIgnore
+    local res = rawRay(origin, DOWN_10, stepVisParams)
     return res and (res.Position + UP_005) or (origin - DEF_DROP)
 end
 
@@ -4642,16 +4658,16 @@ local function updateSpeedLines(dt)
     local step = (math.pi * 2) / SL_COUNT
     for i = 1, SL_COUNT do
         local ln = ov(SL_KEYS[i], "Line", 1)
-        if sin(slPhase * 1.7 + i * 2.3) > -0.45 then
-            local ang = (i - 1) * step + sin(i * 4.1 + floor(slPhase * 0.8) * 0.35) * 0.09
+        if sin(slPhase * 1.45 + i * 2.3) > -0.45 then
+            local ang = (i - 1) * step + sin(i * 4.1 + slPhase * 0.65) * 0.06
             local dx, dy = cos(ang), sin(ang)
-            local pulse = 0.5 + 0.5 * sin(slPhase * 2.1 + i * 1.7)
-            local rIn = innerBase + pulse * (min(cx, cy) * 0.18)
+            local pulse = 0.5 + 0.5 * sin(slPhase * 2.0 + i * 1.7)
+            local rIn = innerBase + pulse * (min(cx, cy) * 0.16)
             local rOut = maxR * 1.05
             ln.From = v2(cx + dx * rOut, cy + dy * rOut)
             ln.To = v2(cx + dx * rIn, cy + dy * rIn)
-            ln.Color = (i % 3 == 0) and col:Lerp(WHITE, 0.35) or col
-            ln.Thickness = 1 + pulse * 1.5 * intensity
+            ln.Color = (i % 3 == 0) and col:Lerp(WHITE, 0.52) or col
+            ln.Thickness = 1 + pulse * 1.55 * intensity
             ln.Transparency = clamp(op * intensity * (0.45 + 0.55 * pulse), 0.05, 0.95)
             ln.Visible = true
         else
@@ -4747,7 +4763,7 @@ local function updateTargetHUD(dt)
             targetHudTrailHP = targetHudTrailHP < targetHudSmoothHP and targetHudSmoothHP
                 or (targetHudTrailHP + (targetHudSmoothHP - targetHudTrailHP) * clamp((dt or 0.016) * 3.2, 0, 1))
         end
-        dispName, isVis, distVal = utf8Trunc(plr.DisplayName, 14), rd.visible, floor(rd.distance or 0)
+        dispName, isVis, distVal = utf8Trunc(plr.DisplayName, 13), rd.visible, floor(rd.distance or 0)
         local myRoot, tRoot = getRootPart(LP and LP.Character), rd.parts.HumanoidRootPart
         local dy = (isPartValid(myRoot) and isPartValid(tRoot)) and floor(partPos(tRoot).Y - partPos(myRoot).Y + 0.5) or 0
         hTag = dy > 3 and string.format("  +%dY", dy) or (dy < -3 and string.format("  %dY", dy) or "")
@@ -4780,10 +4796,13 @@ local function updateTargetHUD(dt)
     nameLbl.Text, nameLbl.Size, nameLbl.Font, nameLbl.Center, nameLbl.Outline = dispName, 14, 2, false, true
     nameLbl.Color, nameLbl.Position, nameLbl.Transparency, nameLbl.Visible = WHITE, v2(x + 10, y + 8), 1, true
 
+    local visTxt = isVis and "ВИДЕН" or "ЗА СТЕНОЙ"
     local visLbl = ov("thVis", "Text", 4)
-    visLbl.Text, visLbl.Size, visLbl.Font, visLbl.Center, visLbl.Outline = isVis and "ВИДЕН" or "ЗА СТЕНОЙ", 11, 2, false, true
+    visLbl.Text, visLbl.Size, visLbl.Font, visLbl.Center, visLbl.Outline = visTxt, 11, 2, false, true
     visLbl.Color = isVis and e.Colors.Visible or e.Colors.Occluded
-    visLbl.Position, visLbl.Transparency, visLbl.Visible = v2(x + w - (isVis and 48 or 68), y + 10), 1, true
+    local okVb, vBounds = pcall(function() return visLbl.TextBounds end)
+    local visW = (okVb and vBounds and vBounds.X > 0) and vBounds.X or (isVis and 38 or 60)
+    visLbl.Position, visLbl.Transparency, visLbl.Visible = v2(x + w - visW - 10, y + 10), 1, true
 
     local infoLbl = ov("thInfo", "Text", 4)
     infoLbl.Text, infoLbl.Size, infoLbl.Font, infoLbl.Center, infoLbl.Outline = string.format("%d ст%s  |  %s", distVal, hTag, toolName), 11, 2, false, true
@@ -4806,8 +4825,9 @@ local function updateTargetHUD(dt)
     hpFill.Position, hpFill.Size, hpFill.Filled = v2(barX, barY), v2(max(2, floor(barW * targetHudSmoothHP + 0.5)), barH), true
     hpFill.Color, hpFill.Transparency, hpFill.Visible = healthColor(targetHudSmoothHP), 1, true
 
+    local hpPctVal = hasRealTarget and floor(clamp(hum.Health / max(hum.MaxHealth, 1), 0, 1) * 100 + 0.5) or 75
     local hpTxt = ov("thHpTxt", "Text", 5)
-    hpTxt.Text, hpTxt.Size, hpTxt.Font, hpTxt.Center, hpTxt.Outline = string.format("%d / %d HP", hpCur, hpMax), 11, 2, false, true
+    hpTxt.Text, hpTxt.Size, hpTxt.Font, hpTxt.Center, hpTxt.Outline = string.format("%d / %d HP  (%d%%)", hpCur, hpMax, hpPctVal), 11, 2, false, true
     hpTxt.Color, hpTxt.Position, hpTxt.Transparency, hpTxt.Visible = WHITE, v2(x + 10, y + 58), 0.95, true
 end
 
@@ -5483,7 +5503,8 @@ end
 
 local WEATHER_DEFS = {
     Rain = {
-        Name = "GlupostWeatherEmitter", vol = false, yOff = 13, rate = 240,
+        Name = "GlupostWeatherEmitter", vol = false, volShape = true, initBurst = 0.25,
+        yOff = 9, yVec = v3(0, 9, 0), boxSize = v3(48, 10, 48), rate = 240,
         LifeMin = 0.55, LifeMax = 0.85, SpdMin = 42, SpdMax = 56,
         Dir = Enum.NormalId.Bottom, Spread = v2(6, 6), Orient = Enum.ParticleOrientation.VelocityParallel,
         Squash = -1.8, Size = 0.28, Light = 0.45,
@@ -5491,31 +5512,56 @@ local WEATHER_DEFS = {
         Tr = { { 0, 0.4 }, { 1, 0.85 } },
     },
     Snow = {
-        Name = "GlupostWeatherEmitter", vol = false, yOff = 13, rate = 110,
-        LifeMin = 1.8, LifeMax = 2.8, SpdMin = 6, SpdMax = 11,
-        Dir = Enum.NormalId.Bottom, Spread = v2(25, 25),
-        Size = { { 0, 0.22 }, { 1, 0.12 } }, Light = 0.5,
-        Color = ColorSequence.new(rgb(235, 245, 255)),
-        Tr = { { 0, 0.15 }, { 1, 0.9 } },
+        Name = "GlupostWeatherEmitter", vol = false, volShape = true, initBurst = 0.35, windSway = true,
+        windBase = { 1.2, -0.8, 0.7 }, windAmp = { 1.6, 1.3 },
+        yOff = 8, yVec = v3(0, 8, 0), boxSize = v3(44, 12, 44), rate = 115,
+        LifeMin = 2.0, LifeMax = 3.2, SpdMin = 5.5, SpdMax = 10.5,
+        Dir = Enum.NormalId.Bottom, Spread = v2(28, 28), Accel = v3(1.2, -0.8, 0.7), Drag = 0.25,
+        Rot = NumberRange.new(0, 360), RotSpd = NumberRange.new(-90, 90),
+        Size = { { 0, 0.16 }, { 0.3, 0.26 }, { 1, 0.12 } }, Light = 0.55,
+        Color = ColorSequence.new(rgb(240, 248, 255), rgb(210, 232, 255)),
+        Tr = { { 0, 0.85 }, { 0.15, 0.12 }, { 0.85, 0.2 }, { 1, 0.95 } },
+        layer2 = {
+            Name = "GlupostWeatherEmitter2", volShape = true, rate = 45,
+            LifeMin = 2.2, LifeMax = 3.4, SpdMin = 3.5, SpdMax = 7.0,
+            Dir = Enum.NormalId.Bottom, Spread = v2(38, 38), Accel = v3(0.9, -0.6, 0.5), Drag = 0.3,
+            Rot = NumberRange.new(0, 360), RotSpd = NumberRange.new(-140, 140),
+            Size = { { 0, 0.08 }, { 0.4, 0.15 }, { 1, 0 } }, Light = 0.85,
+            Color = ColorSequence.new(WHITE, rgb(215, 240, 255)),
+            Tr = { { 0, 0.9 }, { 0.25, 0.22 }, { 1, 1 } },
+        },
     },
     Embers = {
-        Name = "GlupostWeatherEmitter", vol = true, yOff = -4.5, rate = 85,
+        Name = "GlupostWeatherEmitter", vol = true, volShape = true, initBurst = 0.35, windSway = true,
+        windBase = { 0.9, 3.4, 0.5 }, windAmp = { 1.7, 1.4 },
+        yOff = -4.5, rate = 90,
         LifeMin = 1.6, LifeMax = 2.8, SpdMin = 3.5, SpdMax = 8.0,
-        Dir = Enum.NormalId.Top, Spread = v2(35, 35), Accel = v3(0, 3.2, 0),
+        Dir = Enum.NormalId.Top, Spread = v2(35, 35), Accel = v3(0.9, 3.4, 0.5),
+        Rot = NumberRange.new(0, 360), RotSpd = NumberRange.new(-160, 160),
         Size = { { 0, 0.18 }, { 0.6, 0.14 }, { 1, 0 } }, Light = 1,
         Color = ColorSequence.new(rgb(255, 205, 70), rgb(255, 60, 40)),
         Tr = { { 0, 0.85 }, { 0.3, 0.1 }, { 1, 1 } },
     },
     Fireflies = {
-        Name = "GlupostWeatherEmitter", vol = true, yOff = 1.5, rate = 45,
+        Name = "GlupostWeatherEmitter", vol = true, volShape = true, initBurst = 0.4,
+        yOff = 1.5, rate = 48,
         LifeMin = 2.0, LifeMax = 3.4, SpdMin = 0.4, SpdMax = 1.5,
         Spread = v2(180, 180), Drag = 1.2,
-        Size = { { 0, 0 }, { 0.5, 0.26 }, { 1, 0 } }, Light = 1,
+        Size = { { 0, 0 }, { 0.5, 0.28 }, { 1, 0 } }, Light = 1,
         Color = ColorSequence.new(rgb(180, 255, 110), rgb(255, 225, 95)),
-        Tr = { { 0, 1 }, { 0.4, 0.1 }, { 1, 1 } },
+        Tr = { { 0, 1 }, { 0.4, 0.08 }, { 1, 1 } },
+        layer2 = {
+            Name = "GlupostWeatherEmitter2", volShape = true, rate = 24,
+            LifeMin = 1.6, LifeMax = 2.8, SpdMin = 0.3, SpdMax = 1.1,
+            Spread = v2(180, 180), Drag = 1.4,
+            Size = { { 0, 0 }, { 0.5, 0.16 }, { 1, 0 } }, Light = 1,
+            Color = ColorSequence.new(rgb(255, 245, 165), rgb(140, 255, 175)),
+            Tr = { { 0, 1 }, { 0.35, 0.18 }, { 1, 1 } },
+        },
     },
     CyberDust = {
-        Name = "GlupostWeatherEmitter", vol = true, yOff = 1.5, rate = 70,
+        Name = "GlupostWeatherEmitter", vol = true, volShape = true, initBurst = 0.35,
+        yOff = 1.5, rate = 70,
         LifeMin = 1.5, LifeMax = 2.6, SpdMin = 0.8, SpdMax = 2.2,
         Spread = v2(180, 180),
         Size = { { 0, 0.14 }, { 0.5, 0.2 }, { 1, 0 } }, Light = 1,
@@ -5524,7 +5570,8 @@ local WEATHER_DEFS = {
     },
     Sakura = {
         Name = "GlupostWeatherEmitter", vol = false, yOff = 6, yVec = v3(0, 6, 0),
-        boxSize = v3(38, 12, 38), lookDist = 14, windSway = true, volShape = true, rate = 140,
+        boxSize = v3(38, 12, 38), lookDist = 14, windSway = true, volShape = true, initBurst = 0.45,
+        windBase = { 2.8, -1.6, 1.5 }, windAmp = { 2.5, 2.1 }, rate = 140,
         LifeMin = 3.0, LifeMax = 4.6, SpdMin = 4.8, SpdMax = 8.4,
         Dir = Enum.NormalId.Bottom, Spread = v2(34, 34), Accel = v3(2.8, -1.6, 1.5), Drag = 0.25, VelInherit = 0.12,
         Rot = NumberRange.new(0, 360), RotSpd = NumberRange.new(-175, 175),
@@ -5548,7 +5595,8 @@ local WEATHER_DEFS = {
         },
     },
     MatrixRain = {
-        Name = "GlupostWeatherEmitter", vol = false, yOff = 13, yVec = v3(0, 13, 0), rate = 180,
+        Name = "GlupostWeatherEmitter", vol = false, volShape = true, initBurst = 0.25,
+        yOff = 9, yVec = v3(0, 9, 0), boxSize = v3(48, 10, 48), rate = 180,
         LifeMin = 0.65, LifeMax = 1.05, SpdMin = 26, SpdMax = 38,
         Dir = Enum.NormalId.Bottom, Spread = v2(2, 2), Orient = Enum.ParticleOrientation.VelocityParallel,
         Squash = -1.6, Size = 0.26, Light = 1,
@@ -5556,15 +5604,26 @@ local WEATHER_DEFS = {
         Tr = { { 0, 0.25 }, { 1, 0.9 } },
     },
     Starfall = {
-        Name = "GlupostWeatherEmitter", vol = false, yOff = 14, yVec = v3(0, 14, 0), rate = 75,
+        Name = "GlupostWeatherEmitter", vol = false, volShape = true, initBurst = 0.35,
+        yOff = 10, yVec = v3(0, 10, 0), boxSize = v3(46, 10, 46), rate = 80,
         LifeMin = 0.75, LifeMax = 1.25, SpdMin = 30, SpdMax = 44,
         Dir = Enum.NormalId.Bottom, Spread = v2(16, 16), Accel = v3(-14, -4, -8),
         Orient = Enum.ParticleOrientation.VelocityParallel, Squash = -2.2, Size = 0.30, Light = 1,
         Color = ColorSequence.new(rgb(135, 235, 255), rgb(255, 225, 130)),
         Tr = { { 0, 0.15 }, { 0.75, 0.35 }, { 1, 1 } },
+        layer2 = {
+            Name = "GlupostWeatherEmitter2", volShape = true, rate = 50,
+            LifeMin = 1.1, LifeMax = 1.9, SpdMin = 6, SpdMax = 12,
+            Dir = Enum.NormalId.Bottom, Spread = v2(32, 32), Accel = v3(-5, -1, -3),
+            Rot = NumberRange.new(0, 360), RotSpd = NumberRange.new(-160, 160),
+            Size = { { 0, 0.1 }, { 0.35, 0.22 }, { 1, 0 } }, Light = 1,
+            Color = ColorSequence.new(rgb(200, 245, 255), rgb(255, 225, 155)),
+            Tr = { { 0, 0.8 }, { 0.3, 0.15 }, { 1, 1 } },
+        },
     },
     BloodRain = {
-        Name = "GlupostWeatherEmitter", vol = false, yOff = 13, yVec = v3(0, 13, 0), rate = 220,
+        Name = "GlupostWeatherEmitter", vol = false, volShape = true, initBurst = 0.25,
+        yOff = 9, yVec = v3(0, 9, 0), boxSize = v3(48, 10, 48), rate = 220,
         LifeMin = 0.50, LifeMax = 0.80, SpdMin = 44, SpdMax = 58,
         Dir = Enum.NormalId.Bottom, Spread = v2(6, 6), Orient = Enum.ParticleOrientation.VelocityParallel,
         Squash = -1.8, Size = 0.28, Light = 0.75,
@@ -5591,11 +5650,14 @@ local function ensureWeather(mode, intensity, cam)
             local now = clock()
             if now - lastWindTick >= 0.08 then
                 lastWindTick = now
-                local wx = 2.8 + sin(now * 0.68) * 2.5
-                local wz = 1.5 + cos(now * 0.52) * 2.1
-                weatherEmitter.Acceleration = v3(wx, -1.6, wz)
+                local wb, wa = def.windBase, def.windAmp
+                local bx, by, bz = wb and wb[1] or 2.8, wb and wb[2] or -1.6, wb and wb[3] or 1.5
+                local ax, az = wa and wa[1] or 2.5, wa and wa[2] or 2.1
+                local wx = bx + sin(now * 0.68) * ax
+                local wz = bz + cos(now * 0.52) * az
+                weatherEmitter.Acceleration = v3(wx, by, wz)
                 if weatherEmitter2 then
-                    weatherEmitter2.Acceleration = v3(wx * 0.75 + cos(now * 0.9) * 0.9, -1.2, wz * 0.75 + sin(now * 0.8) * 0.9)
+                    weatherEmitter2.Acceleration = v3(wx * 0.75 + cos(now * 0.9) * 0.9, by * 0.75, wz * 0.75 + sin(now * 0.8) * 0.9)
                 end
             end
         end
@@ -5616,10 +5678,10 @@ local function ensureWeather(mode, intensity, cam)
         em2.Rate = floor(def.layer2.rate * mult)
     end
     p.Parent = workspace.CurrentCamera or workspace
-    if def.windSway then
+    if def.initBurst then
         pcall(function()
-            em:Emit(floor(rate * 0.45))
-            if em2 then em2:Emit(floor(em2.Rate * 0.45)) end
+            em:Emit(floor(rate * def.initBurst))
+            if em2 then em2:Emit(floor(em2.Rate * def.initBurst)) end
         end)
     end
     weatherPart, weatherEmitter, weatherEmitter2 = p, em, em2
@@ -6185,10 +6247,11 @@ do
     end
 
     local function downloadUrlAsync(url)
-        if urlPending[url] or urlFailed[url] then return end
+        local failAt = urlFailed[url]
+        if urlPending[url] or (failAt and clock() - failAt < 10) then return end
         local assetFn = getCustomAssetFn()
         if type(assetFn) ~= "function" or type(writefile) ~= "function" then
-            urlFailed[url] = true
+            urlFailed[url] = clock()
             pcall(function()
                 Library:Notify({
                     Title = "Фон UI",
@@ -6204,7 +6267,7 @@ do
             local ext = body and detectImageExt(body, url)
             if not ext then
                 urlPending[url] = nil
-                urlFailed[url] = true
+                urlFailed[url] = clock()
                 pcall(function()
                     Library:Notify({
                         Title = "Фон UI",
@@ -6232,7 +6295,7 @@ do
                     end)
                 end
             else
-                urlFailed[url] = true
+                urlFailed[url] = clock()
                 pcall(function()
                     Library:Notify({ Title = "Фон UI", Description = "Ошибка создания custom asset из файла", Time = 4 })
                 end)
