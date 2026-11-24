@@ -1288,6 +1288,11 @@ local function rayGroundPos(char, root)
     return origin - DEF_DROP
 end
 
+local function projW2(cam, wp)
+    local sp = cam:WorldToViewportPoint(wp)
+    return (sp.Z > 0.1) and v2(sp.X, sp.Y) or nil
+end
+
 local function setRingPair(glowArr, lineArr, idx, p1, p2, vis, col, glowCol, alpha, thick)
     local gl = glowArr[idx]
     if not gl then gl = poolGet("Line") pcall(function() gl.ZIndex = 2 end) glowArr[idx] = gl end
@@ -2016,11 +2021,6 @@ local function setAuraNode(idx, worldPos, cam, rad, col, alpha)
     else
         nd.Visible = false
     end
-end
-
-local function projW2(cam, wp)
-    local sp = cam:WorldToViewportPoint(wp)
-    return (sp.Z > 0.1) and v2(sp.X, sp.Y) or nil
 end
 
 local function updateAuraShape(cam, char, root, dt, aura)
@@ -2793,7 +2793,13 @@ local function updateLocalEffects(dt)
             end
             if item.trail then
                 if item.trail.Enabled ~= wantTrail then item.trail.Enabled = wantTrail end
-                if wantTrail then item.trail.Color = ColorSequence.new(c1, c2) end
+                if wantTrail then
+                    if not item.seq or colorDelta(c1, item.seqC1) > 0.015 or colorDelta(c2, item.seqC2) > 0.015 then
+                        item.seqC1, item.seqC2 = c1, c2
+                        item.seq = ColorSequence.new(c1, c2)
+                        item.trail.Color = item.seq
+                    end
+                end
             end
 
             local baseCF
@@ -2850,7 +2856,11 @@ local function updateLocalEffects(dt)
 
     local aw = cfg().AnimeWings
     local torsoPart = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
-    local hideWingsFP = aw.HideFirstPerson and isPartValid(torsoPart) and (cam.CFrame.Position - partPos(torsoPart)).Magnitude < 2.6
+    local headPart = char:FindFirstChild("Head")
+    local hideWingsFP = aw.HideFirstPerson and (
+        (isPartValid(headPart) and (cam.CFrame.Position - partPos(headPart)).Magnitude < 2.4)
+        or (isPartValid(torsoPart) and (cam.CFrame.Position - partPos(torsoPart)).Magnitude < 2.8)
+    )
     if aw.Enabled and isPartValid(torsoPart) and not hideWingsFP and (not humanoid or humanoid.Health > 0) then
         local wShape = aw.Shape or "Seraph"
         local wSz = clamp(aw.Size or 1.15, 0.5, 2.2)
@@ -2966,10 +2976,10 @@ local function updateLocalEffects(dt)
                 local reach = 0.52 + s * 0.56 * wSz
                 local px = sin(spread) * reach + wave
                 local pz = 0.45 + cos(spread) * reach
-                seg.part.CFrame = tCF * cfNew(px, -0.35 + lift, pz) * cfAng(0.32 + s * 0.08, -spread, wave * 0.5)
+                seg.part.CFrame = tCF * cfNew(px, -0.35 + lift, pz) * cfAng(-(0.28 + s * 0.07), spread, wave * 0.5)
             else -- Cyber Mecha
                 local pulse = sin(tNow * 3.2 * fSpd + seg.seg * 0.5) * 0.14
-                local angleZ = seg.side * (0.28 + seg.seg * 0.24 + pulse)
+                local angleZ = -seg.side * (0.28 + seg.seg * 0.24 + pulse)
                 local anchor = tCF * cfNew(seg.side * (0.55 + seg.seg * 0.28 * wSz), 0.72 - seg.seg * 0.14 * wSz, 0.58 + seg.seg * 0.08)
                 seg.part.CFrame = anchor * cfAng(-0.22, seg.side * -0.25, angleZ) * cfNew(0, 0.55 * wSz, 0)
             end
@@ -3682,7 +3692,8 @@ local function drawBox(d, parts, rd)
     if rd.dynL then
         top, bottom, left, right = rd.dynT, rd.dynB, rd.dynL, rd.dynR
     else
-        top, bottom = rd.headScreen.Y, rd.legScreen.Y
+        local y1, y2 = rd.headScreen.Y, rd.legScreen.Y
+        top, bottom = min(y1, y2), max(y1, y2)
     end
     local h = math.abs(bottom - top)
     if h < 0.1 then hideBox(d, rd) return end
@@ -4050,6 +4061,10 @@ local function drawLook(d, parts, rd)
         return
     end
     local cam = workspace.CurrentCamera
+    if not cam then
+        hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot")
+        return
+    end
     local p1 = partPos(head)
     local lookVec = partCF(head).LookVector
     local dir = lookVec * e.LookLength
@@ -4410,7 +4425,11 @@ local function drawTracer(d, rd)
     if not e.ShowTracer or not rd.onScreen or not rd.hrpScreen then
         hideKey(d, "tracerglow") hideKey(d, "tracer") hideKey(d, "tracerbg") hideKey(d, "tracerdot") return
     end
-    local vp = workspace.CurrentCamera.ViewportSize
+    local cam = workspace.CurrentCamera
+    if not cam then
+        hideKey(d, "tracerglow") hideKey(d, "tracer") hideKey(d, "tracerbg") hideKey(d, "tracerdot") return
+    end
+    local vp = cam.ViewportSize
     local from
     if e.TracerOrigin == "Mouse" then from = UIS:GetMouseLocation()
     elseif e.TracerOrigin == "Center" then from = v2(vp.X / 2, vp.Y / 2)
@@ -4463,7 +4482,9 @@ local function drawArrow(d, rd)
     if dir2.Magnitude < 0.001 then hideList(d, ARROW_KEYS) return end
     local dir = dir2.Unit
 
-    local vp = workspace.CurrentCamera.ViewportSize
+    local cam = workspace.CurrentCamera
+    if not cam then hideList(d, ARROW_KEYS) return end
+    local vp = cam.ViewportSize
     local base = vp / 2 + dir * (min(vp.X, vp.Y) * 0.4)
     base = v2(clamp(base.X, e.ArrowSize + 6, vp.X - e.ArrowSize - 6),
               clamp(base.Y, e.ArrowSize + 6, vp.Y - e.ArrowSize - 6))
@@ -4787,7 +4808,8 @@ local radarReady = false
 local function updateRadarFrame()
     local R = cfg().Radar
     local O = cfg().Overlay
-    if not R.Enabled then
+    local cam = workspace.CurrentCamera
+    if not R.Enabled or not cam then
         if ovState.rd then hideGroup("rd") ovState.rd = false end
         radarReady = false
         hudState.rects.radar = nil
@@ -4795,7 +4817,7 @@ local function updateRadarFrame()
     end
     ovState.rd = true
 
-    local vp = workspace.CurrentCamera.ViewportSize
+    local vp = cam.ViewportSize
     local half = R.Size / 2
     local m = 18
     local cx, cy
@@ -5368,13 +5390,14 @@ end
 
 local function updateCrosshair(dt)
     local X = cfg().Crosshair
-    if not X.Enabled then
+    local cam = workspace.CurrentCamera
+    if not X.Enabled or not cam then
         if ovState.xh then hideGroup("xh") ovState.xh = false end
         return
     end
     ovState.xh = true
 
-    local vp = workspace.CurrentCamera.ViewportSize
+    local vp = cam.ViewportSize
     local c = v2(floor(vp.X / 2), floor(vp.Y / 2))
     local col = X.Rainbow and rainbow or X.Color
     local s, th, hasOut = X.Size, X.Thickness, X.Outline
@@ -5495,14 +5518,15 @@ end
 
 local function updateHitmarker()
     local H = cfg().Hitmarker
+    local cam = workspace.CurrentCamera
     local elapsed = clock() - hitmarkerState.born
     local dur = clamp(H.Duration, 0.1, 0.8)
-    if not H.Enabled or elapsed < 0 or elapsed >= dur then
+    if not H.Enabled or not cam or elapsed < 0 or elapsed >= dur then
         if ovState.hm then hideGroup("hm") ovState.hm = false end
         return
     end
     ovState.hm = true
-    local vp = workspace.CurrentCamera.ViewportSize
+    local vp = cam.ViewportSize
     local c = v2(floor(vp.X * 0.5), floor(vp.Y * 0.5))
     local prog = clamp(elapsed / dur, 0, 1)
     local alpha = 1 - prog * prog
@@ -5953,6 +5977,7 @@ local KB_DEFS = {
     { function() return cfg().ChinaHat.Enabled end, "Шляпа / Нимб" },
     { function() return cfg().PlayerAura.Enabled end, "Аура" },
     { function() return cfg().Satellites.Enabled end, "Спутники" },
+    { function() return cfg().AnimeWings.Enabled end, "Крылья / Хвосты" },
     { function() return cfg().ParticleTrail.Enabled end, "Ленты (Trail)" },
     { function() return cfg().Overlay.SpeedLines end, "Линии скорости" },
     { function() return cfg().Objects.Enabled end, "Object ESP" },
@@ -6992,8 +7017,8 @@ local function applySkyPreset(presetName, wantClouds, noFog, hasWorldPreset, tim
     if not timeEnabled and not hasWorldPreset then
         if worldOrig.skyTime == nil then worldOrig.skyTime = Lighting.ClockTime end
         if abs(Lighting.ClockTime - def.clock) > 0.05 then Lighting.ClockTime = def.clock end
-    elseif worldOrig.skyTime ~= nil and not timeEnabled then
-        Lighting.ClockTime = worldOrig.skyTime
+    elseif worldOrig.skyTime ~= nil then
+        if not timeEnabled then Lighting.ClockTime = worldOrig.skyTime end
         worldOrig.skyTime = nil
     end
 
@@ -7249,7 +7274,7 @@ local function update(dt)
     end
 
     if W.TimeEnabled then
-        if worldOrig.time == nil then worldOrig.time = Lighting.ClockTime end
+        if worldOrig.time == nil then worldOrig.time = worldOrig.skyTime or Lighting.ClockTime end
         if abs(Lighting.ClockTime - W.Time) > 0.005 then Lighting.ClockTime = W.Time end
     elseif worldOrig.time ~= nil then
         Lighting.ClockTime = worldOrig.time
@@ -10115,6 +10140,7 @@ Library, SaveManager = (function()
         local okD, data = pcall(HttpSvc.JSONDecode, HttpSvc, raw)
         if not okD or type(data) ~= "table" then return false end
         local objs = data.objects or data
+        lib._loadingConfig = true
         for idx, entry in pairs(objs) do
             if not sm.ignore[idx] and type(entry) == "table" then
                 if entry.type == "Toggle" and lib.Toggles[idx] then
@@ -10129,6 +10155,7 @@ Library, SaveManager = (function()
                 end
             end
         end
+        lib._loadingConfig = false
         return true
     end
 
@@ -11461,7 +11488,7 @@ do
         { "None", "Clean Night", "Cyberpunk", "Cold Frost", "Warm Sunset", "Blood Moon", "Emerald Matrix", "Solar Gold", "Tokyo Neon", "Sakura Dusk", "Crimson Void", "Golden Dawn", "Midnight Mist" },
         "Готовая тема освещения: автоматически выставляет время суток, цветокоррекцию, туман и неон.",
         function(v)
-            if isSyncingUI then return end
+            if isSyncingUI or (Library and Library._loadingConfig) then return end
             local p = WORLD_PRESETS[v]
             if not p then
                 if v == "None" then
@@ -11858,9 +11885,11 @@ do
                 SelfChams = { Enabled = true, Style = "Liquid Glass", FillTransparency = 0.58, OutlineTransparency = 0.2, IncludeTools = true, FillColor = rgb(120, 225, 255), OutlineColor = rgb(220, 140, 255) },
                 Afterimage = { Enabled = true, Style = "Sandevistan", FadeMode = "Glitch", Material = "Neon", ConnectArc = true, SolidGlow = true, TriggerMode = "Moving", Interval = 0.04, Lifetime = 0.48, Transparency = 0.36 },
                 ParticleTrail = { Enabled = false },
+                AnimeWings = { Enabled = false },
+                Satellites = { Enabled = false },
                 ChinaHat = { Enabled = true, Shape = "Crown", Style = "Cyber", Size = 1.45, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Orbitals", Style = "Cyber", Size = 2.6, Transparency = 0.72, Particles = true, GlowLight = true },
-                JumpRings = { Enabled = true, Style = "Cyber", MaxRadius = 5.0, Lifetime = 0.65, Sparks = true },
+                JumpRings = { Enabled = true, Shape = "Ring", Style = "Cyber", MaxRadius = 5.0, Lifetime = 0.65, Sparks = true },
                 Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, Accent = rgb(0, 235, 200) },
                 Hitmarker = { Enabled = true, KillEffect = true },
                 Vignette = { LowHP = true, KillFlash = true, KillColor = rgb(0, 245, 205) },
@@ -11876,10 +11905,12 @@ do
                 ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, Chams = false },
                 SelfChams = { Enabled = true, Style = "Liquid Glass", FillTransparency = 0.55, OutlineTransparency = 0.16, IncludeTools = true, FillColor = rgb(150, 225, 255), OutlineColor = rgb(240, 252, 255) },
                 Afterimage = { Enabled = false },
+                AnimeWings = { Enabled = false },
+                Satellites = { Enabled = false },
                 ParticleTrail = { Enabled = true, Mode = "Helix", Pattern = "Starlight", Style = "Frost", Lifetime = 0.55, Width = 0.16, Speed = 1.15, Sparks = true },
                 ChinaHat = { Enabled = true, Shape = "Halo", Style = "Aurora", Size = 1.45, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Helix", Style = "Aurora", Size = 2.6, Transparency = 0.72, Particles = true, GlowLight = false },
-                JumpRings = { Enabled = true, Style = "Aurora", MaxRadius = 4.8, Lifetime = 0.68, Sparks = true },
+                JumpRings = { Enabled = true, Shape = "Ring", Style = "Aurora", MaxRadius = 4.8, Lifetime = 0.68, Sparks = true },
                 Overlay = { Watermark = true, Keybinds = false, TargetHUD = true, Speedometer = false, Accent = rgb(130, 210, 255) },
                 World = worldFromPreset("Cold Frost", { SkyPreset = "Auto", Weather = "Snow", WeatherIntensity = 0.7, SpeedFOV = false }),
             })
@@ -11909,10 +11940,13 @@ do
             applyStylePreset("Tokyo Neon Anime FX", {
                 ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, DamageNumbers = true },
                 SelfChams = { Enabled = true, Style = "Liquid Glass", FillTransparency = 0.55, OutlineTransparency = 0.14, Reflectance = 0.42, IncludeTools = true, FillColor = rgb(110, 215, 255), OutlineColor = rgb(255, 115, 215) },
+                Afterimage = { Enabled = false },
+                ParticleTrail = { Enabled = false },
+                AnimeWings = { Enabled = false },
                 ChinaHat = { Enabled = true, Shape = "Crystal", Style = "Cyber", Size = 1.45, Height = 0.65, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Galaxy", Style = "Cyber", Size = 2.7, Transparency = 0.7, Particles = true, GlowLight = true },
-                Satellites = { Enabled = true, Count = 3, Shape = "Star", Style = "Cyber", Radius = 3.2, Height = 0.8, Speed = 1.5, Size = 0.45 },
-                JumpRings = { Enabled = true, Style = "Cyber", MaxRadius = 5.0, Lifetime = 0.65, Sparks = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Star", Style = "Cyber", Radius = 3.2, Height = 0.8, Speed = 1.5, Size = 0.45, Trail = false },
+                JumpRings = { Enabled = true, Shape = "Ring", Style = "Cyber", MaxRadius = 5.0, Lifetime = 0.65, Sparks = true },
                 Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 20, SpeedLinesOpacity = 0.65, SpeedLinesColor = rgb(0, 235, 255), Accent = rgb(0, 225, 255) },
                 World = worldFromPreset("Tokyo Neon", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.75, SpeedFOV = true, SpeedFOVMax = 15 }),
             })
@@ -11927,10 +11961,11 @@ do
                 SelfChams = { Enabled = true, Style = "Liquid Glass", FillTransparency = 0.58, OutlineTransparency = 0.12, Reflectance = 0.38, IncludeTools = true, FillColor = rgb(255, 65, 85), OutlineColor = rgb(255, 120, 135) },
                 Afterimage = { Enabled = true, Style = "Inferno", FadeMode = "Ascend", Material = "Neon", ConnectArc = true, SolidGlow = true, TriggerMode = "Moving", Interval = 0.04, Lifetime = 0.48, Transparency = 0.38 },
                 ParticleTrail = { Enabled = false },
+                AnimeWings = { Enabled = false },
                 ChinaHat = { Enabled = true, Shape = "Crown", Style = "Flame", Size = 1.45, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Sigil", Style = "Flame", Size = 2.8, Transparency = 0.72, Particles = true, GlowLight = true },
-                Satellites = { Enabled = true, Count = 3, Shape = "Crescent", Style = "Flame", Radius = 3.2, Height = 0.7, Speed = 1.8, Size = 0.45 },
-                JumpRings = { Enabled = true, Style = "Flame", MaxRadius = 5.2, Lifetime = 0.65, Sparks = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Crescent", Style = "Flame", Radius = 3.2, Height = 0.7, Speed = 1.8, Size = 0.45, Trail = false },
+                JumpRings = { Enabled = true, Shape = "Ring", Style = "Flame", MaxRadius = 5.2, Lifetime = 0.65, Sparks = true },
                 Crosshair = { Enabled = true, Style = "X-Cross", Size = 6, Gap = 4, Dot = true, Color = rgb(255, 90, 110) },
                 Hitmarker = { Enabled = true, Style = "Diamond", KillEffect = true, Color = rgb(255, 110, 125), KillColor = rgb(255, 45, 70) },
                 Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, Accent = rgb(255, 65, 88) },
@@ -11950,8 +11985,8 @@ do
                 ParticleTrail = { Enabled = true, Mode = "Spiral Halo", Pattern = "Starlight", Style = "Sakura", Lifetime = 0.58, Width = 0.16, Speed = 1.1, Sparks = true },
                 ChinaHat = { Enabled = true, Shape = "CyberRing", Style = "Sakura", Size = 1.45, Height = 0.55, Opacity = 0.65 },
                 PlayerAura = { Enabled = true, Shape = "Atom", Style = "Sakura", Size = 2.7, Transparency = 0.72, Particles = true, GlowLight = true },
-                Satellites = { Enabled = true, Count = 3, Shape = "Sakura", Style = "Sakura", Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45 },
-                JumpRings = { Enabled = true, Style = "Sakura", MaxRadius = 5.0, Lifetime = 0.68, Sparks = true },
+                Satellites = { Enabled = true, Count = 3, Shape = "Sakura", Style = "Sakura", Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45, Trail = false },
+                JumpRings = { Enabled = true, Shape = "Ring", Style = "Sakura", MaxRadius = 5.0, Lifetime = 0.68, Sparks = true },
                 AnimeWings = { Enabled = false },
                 Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 22, SpeedLinesOpacity = 0.6, SpeedLinesColor = rgb(255, 170, 215), Accent = rgb(255, 130, 195) },
                 World = worldFromPreset("Sakura Dusk", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.78, SpeedFOV = true, SpeedFOVMax = 14 }),
