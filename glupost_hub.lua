@@ -357,7 +357,7 @@ local Profile = {
         Opacity = 0.62, HideFirstPerson = true, Color = Color3.fromRGB(115, 205, 255),
     },
     JumpRings = {
-        Enabled = false, Style = "Aurora", MaxRadius = 5.2, Lifetime = 0.7, Sparks = true,
+        Enabled = false, Shape = "Ring", Style = "Aurora", MaxRadius = 5.2, Lifetime = 0.7, Sparks = true,
         Color = Color3.fromRGB(95, 225, 255),
     },
     FootstepRings = {
@@ -394,8 +394,13 @@ local Profile = {
     },
     Satellites = {
         Enabled = false, Count = 3, Shape = "Star", Style = "Aurora",
-        Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45,
+        Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45, Trail = false,
         Color = Color3.fromRGB(95, 225, 255),
+    },
+    AnimeWings = {
+        Enabled = false, Shape = "Seraph", Style = "Gojo Infinity",
+        Size = 1.15, FlapSpeed = 1.4, Transparency = 0.18, HideFirstPerson = true,
+        Color = Color3.fromRGB(115, 210, 255),
     },
     Misc = { JoinLeave = false },
     UI = {
@@ -597,6 +602,18 @@ local function styleColors(style, base, speed, offset)
     elseif style == "Gold" then
         local k = (sin(phase * 1.05) + 1) * 0.5
         return rgb(255, 225, 95):Lerp(rgb(255, 165, 35), k), rgb(255, 248, 210)
+    elseif style == "Super Saiyan" then
+        local k = (sin(phase * 2.2) + 1) * 0.5
+        return rgb(255, 220, 35):Lerp(rgb(255, 250, 155), k), rgb(255, 252, 220)
+    elseif style == "Gojo Infinity" then
+        local k = (sin(phase * 1.15) + 1) * 0.5
+        return rgb(55, 195, 255):Lerp(rgb(185, 65, 255), k), rgb(235, 225, 255)
+    elseif style == "Domain" then
+        local k = (sin(phase * 1.45) + 1) * 0.5
+        return rgb(225, 20, 55):Lerp(rgb(125, 20, 165), k), rgb(255, 120, 145)
+    elseif style == "Ultra Instinct" then
+        local k = (sin(phase * 1.35) + 1) * 0.5
+        return rgb(225, 242, 255):Lerp(rgb(105, 175, 255), k), WHITE
     end
     local col = base or rgb(80, 220, 255)
     return col, col:Lerp(WHITE, 0.45)
@@ -626,6 +643,7 @@ local jumpRings = {}
 local lastFloorMaterial = nil
 local lastJumpTime = 0
 local satItems, satShapeCur, satCountCur, satSizeCur = {}, nil, 0, 0
+local wingItems, wingShapeCur, wingSizeCur = {}, nil, 0
 local auraSeqC1, auraSeqC2, auraSeq = nil, nil, nil
 local trailSeqC1, trailSeqC2, trailSeq = nil, nil, nil
 local DOWN_14 = Vector3.new(0, -14, 0)
@@ -820,6 +838,14 @@ local function clearSatellites()
     satShapeCur, satCountCur, satSizeCur = nil, 0, 0
 end
 
+local function clearAnimeWings()
+    for _, seg in ipairs(wingItems) do
+        safeDestroy(seg.part)
+    end
+    tclear(wingItems)
+    wingShapeCur, wingSizeCur = nil, 0
+end
+
 local function clearLocalEffects()
     clearAura()
     clearTrail()
@@ -827,6 +853,7 @@ local function clearLocalEffects()
     clearHat()
     clearJumpRings()
     clearSatellites()
+    clearAnimeWings()
     lastEffectCharacter = nil
     lastFloorMaterial = nil
 end
@@ -859,6 +886,8 @@ local TRAIL_PATTERNS = {
     Starlight = { br = 3.8, mode = Enum.TextureMode.Wrap, tex = "rbxasset://textures/particles/sparkles_main.dds", tlen = 1.6, w = { {0,1.15},{0.4,0.85},{1,0} }, t = { {0,0.05},{0.6,0.35},{1,1} } },
     Blade = { br = 4.0, mode = Enum.TextureMode.Stretch, w = { {0,1.35},{0.18,1.05},{0.65,0.35},{1,0} }, t = { {0,0},{0.22,0.12},{0.75,0.68},{1,1} } },
     ["Neon Core"] = { br = 4.6, mode = Enum.TextureMode.Stretch, w = { {0,1.15},{0.55,0.95},{0.85,0.55},{1,0} }, t = { {0,0.02},{0.7,0.25},{1,1} } },
+    Chakra = { br = 4.8, mode = Enum.TextureMode.Stretch, w = { {0,1.4},{0.22,0.9},{0.45,1.25},{0.75,0.45},{1,0} }, t = { {0,0.02},{0.45,0.22},{0.8,0.62},{1,1} } },
+    ["Slash Arc"] = { br = 5.2, mode = Enum.TextureMode.Stretch, w = { {0,1.65},{0.15,1.25},{0.45,0.35},{1,0} }, t = { {0,0},{0.18,0.08},{0.55,0.6},{1,1} } },
     Smooth = { br = 2.8, mode = Enum.TextureMode.Stretch, w = { {0,1},{0.28,0.72},{0.7,0.25},{1,0} }, t = { {0,0.06},{0.5,0.45},{1,1} } },
 }
 local TRAIL_SPARK_DEF = {
@@ -928,6 +957,38 @@ local function ensureTrail(char, root, mode, pattern, width, lifetime, withSpark
             local a0, a1 = makeRibbonPair(root, defPos, defPos + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
             trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * ((math.pi * 2) / cnt), hw = hw, kind = kind }
         end
+    elseif mode == "Kagune" then
+        local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
+        for k = 1, 4 do
+            local side = (k <= 2) and -1 or 1
+            local tier = (k % 2 == 1) and 0.65 or -0.15
+            local base = v3(side * 0.55, tier, 1.35)
+            local a0, a1 = makeRibbonPair(torso, base, base + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * 1.1, hw = hw, kind = "Kagune", side = side, tier = tier }
+        end
+    elseif mode == "Bankai" then
+        for k = 1, 2 do
+            local defPos = v3(2.0, 0, 0)
+            local a0, a1 = makeRibbonPair(root, defPos, defPos + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * math.pi, hw = hw, kind = "Bankai" }
+        end
+    elseif mode == "Nine-Tails" then
+        local torso = char:FindFirstChild("LowerTorso") or char:FindFirstChild("Torso") or root
+        for k = 1, 7 do
+            local spread = (k - 4) * 0.34
+            local base = v3(sin(spread) * 1.9, -0.25 + abs(k - 4) * 0.25, 1.6)
+            local a0, a1 = makeRibbonPair(torso, base, base + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = k * 0.72, hw = hw, kind = "NineTails", spread = spread, rank = k - 4 }
+        end
+    elseif mode == "Angel Wings" then
+        local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
+        for k = 1, 4 do
+            local side = (k <= 2) and -1 or 1
+            local upper = (k % 2 == 1)
+            local base = v3(side * 1.6, upper and 0.8 or 0.1, 0.9)
+            local a0, a1 = makeRibbonPair(torso, base, base + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = upper and 0 or 0.8, hw = hw, kind = "WingTip", side = side, upper = upper }
+        end
     else
         makeRibbonPair(root, v3(-1.45, 0.55 + hw, 0.35), v3(-1.45, 0.55 - hw, 0.35), lifetime, pattern, withSparks)
         makeRibbonPair(root, v3(1.45, 0.55 + hw, 0.35), v3(1.45, 0.55 - hw, 0.35), lifetime, pattern, withSparks)
@@ -977,6 +1038,14 @@ local function sandevistanColor(prog, style, customCol, spawnHue)
         return Color3.fromRGB(255, 215, 90):Lerp(Color3.fromRGB(230, 60, 145), prog)
     elseif style == "Gold" then
         return Color3.fromRGB(255, 245, 175):Lerp(Color3.fromRGB(245, 160, 25), prog)
+    elseif style == "Super Saiyan" then
+        return Color3.fromRGB(255, 252, 185):Lerp(Color3.fromRGB(255, 195, 25), prog)
+    elseif style == "Gojo Infinity" then
+        return Color3.fromRGB(70, 205, 255):Lerp(Color3.fromRGB(185, 65, 255), prog)
+    elseif style == "Domain" then
+        return Color3.fromRGB(235, 25, 60):Lerp(Color3.fromRGB(115, 15, 155), prog)
+    elseif style == "Ultra Instinct" then
+        return Color3.fromRGB(240, 248, 255):Lerp(Color3.fromRGB(105, 170, 255), prog)
     end
     return customCol or Color3.fromRGB(0, 255, 190)
 end
@@ -1152,6 +1221,10 @@ local function updateAfterimages(cam, root)
                             local rz = out.X * sn + out.Z * cs
                             local targetPos = item.originPos + Vector3.new(rx, out.Y + prog * 1.25, rz)
                             p.CFrame = (bcf - bcf.Position) + targetPos
+                        elseif fm == "Shunpo" then
+                            local dash = math.sin(now * 65 + idx * 3.2) * 0.08 * (1 - prog)
+                            p.CFrame = bcf * cfAng(0, prog * 0.4, 0) + Vector3.new(dash, prog * 0.65, 0)
+                            p.Color = col:Lerp(WHITE, (1 - prog) * 0.55)
                         end
                     end
                 end
@@ -1272,6 +1345,7 @@ local function spawnJumpRing(pos)
     end
     tinsert(jumpRings, {
         pos = pos, born = clock(), life = clamp(jr.Lifetime, 0.2, 2.0), maxR = clamp(jr.MaxRadius, 2, 12),
+        shape = jr.Shape or "Ring",
         col = col1, glowCol = col2, glow = {}, lines = {}, glow2 = {}, lines2 = {}, sparks = sparks,
     })
 end
@@ -1309,10 +1383,67 @@ local function updateJumpRings(cam, char, root, humanoid)
             local ease = 1 - (1 - t) * (1 - t)
             local curR = 0.45 + (r.maxR - 0.45) * ease
             local alpha = (1 - t) * 0.92
+            local sh = r.shape or "Ring"
             drawRing(cam, r.pos, false, curR, t * 1.4, C.RING_SEGMENTS, r.glow, r.lines, 0, r.col, r.glowCol, alpha, 1.8)
-            if jr.Sparks ~= false then
+            local used2 = 0
+            if sh == "Magic Seal" then
+                local rot = t * 2.2
+                local step = (math.pi * 2) / 6
+                local sr = curR * 0.94
+                for k = 1, 6 do
+                    local a1 = rot + (k - 1) * step
+                    local a2 = a1 + step * 2
+                    local p1 = projW2(cam, r.pos + v3(cos(a1) * sr, 0.04, sin(a1) * sr))
+                    local p2 = projW2(cam, r.pos + v3(cos(a2) * sr, 0.04, sin(a2) * sr))
+                    used2 += 1
+                    setRingPair(r.glow2, r.lines2, used2, p1, p2, p1 ~= nil and p2 ~= nil, r.glowCol, r.col, alpha * 0.92, 1.35)
+                end
+                local rIn = curR * 0.54
+                for k = 1, 4 do
+                    local a1 = -rot * 1.4 + (k - 1) * (math.pi * 0.5)
+                    local a2 = a1 + math.pi * 0.5
+                    local p1 = projW2(cam, r.pos + v3(cos(a1) * rIn, 0.06, sin(a1) * rIn))
+                    local p2 = projW2(cam, r.pos + v3(cos(a2) * rIn, 0.06, sin(a2) * rIn))
+                    used2 += 1
+                    setRingPair(r.glow2, r.lines2, used2, p1, p2, p1 ~= nil and p2 ~= nil, r.col, r.glowCol, alpha * 0.85, 1.2)
+                end
+            elseif sh == "Shuriken" then
+                local rot = t * 5.2
+                for k = 1, 4 do
+                    local a1 = rot + (k - 1) * (math.pi * 0.5)
+                    local pTip = projW2(cam, r.pos + v3(cos(a1) * curR * 1.05, 0.05, sin(a1) * curR * 1.05))
+                    local pL = projW2(cam, r.pos + v3(cos(a1 - 0.36) * curR * 0.42, 0.05, sin(a1 - 0.36) * curR * 0.42))
+                    local pR = projW2(cam, r.pos + v3(cos(a1 + 0.36) * curR * 0.42, 0.05, sin(a1 + 0.36) * curR * 0.42))
+                    used2 += 1
+                    setRingPair(r.glow2, r.lines2, used2, pL, pTip, pL ~= nil and pTip ~= nil, r.glowCol, r.col, alpha * 0.92, 1.45)
+                    used2 += 1
+                    setRingPair(r.glow2, r.lines2, used2, pTip, pR, pTip ~= nil and pR ~= nil, r.glowCol, r.col, alpha * 0.92, 1.45)
+                end
+            elseif sh == "Sakura" then
+                local rot = t * 1.8
+                local pStep = (math.pi * 2) / 5
+                for k = 1, 5 do
+                    local a = rot + (k - 1) * pStep
+                    local pBase = projW2(cam, r.pos + v3(cos(a) * curR * 0.25, 0.05, sin(a) * curR * 0.25))
+                    local pL = projW2(cam, r.pos + v3(cos(a - 0.28) * curR * 0.72, 0.06, sin(a - 0.28) * curR * 0.72))
+                    local pTip = projW2(cam, r.pos + v3(cos(a) * curR * 0.96, 0.07, sin(a) * curR * 0.96))
+                    local pR = projW2(cam, r.pos + v3(cos(a + 0.28) * curR * 0.72, 0.06, sin(a + 0.28) * curR * 0.72))
+                    used2 += 1
+                    setRingPair(r.glow2, r.lines2, used2, pBase, pL, pBase ~= nil and pL ~= nil, r.glowCol, r.col, alpha * 0.88, 1.35)
+                    used2 += 1
+                    setRingPair(r.glow2, r.lines2, used2, pL, pTip, pL ~= nil and pTip ~= nil, r.glowCol, r.col, alpha * 0.88, 1.35)
+                    used2 += 1
+                    setRingPair(r.glow2, r.lines2, used2, pTip, pR, pTip ~= nil and pR ~= nil, r.glowCol, r.col, alpha * 0.88, 1.35)
+                end
+            elseif jr.Sparks ~= false then
                 local r2 = 0.3 + (r.maxR * 0.66 - 0.3) * min(ease * 1.15, 1)
                 drawRing(cam, r.pos + v3(0, 0.25 * ease, 0), false, r2, -t * 1.9, C.RING_SEGMENTS, r.glow2, r.lines2, 0, r.glowCol, r.col, alpha * 0.72, 1.1)
+                used2 = C.RING_SEGMENTS
+            end
+            for k = used2 + 1, #r.glow2 do r.glow2[k].Visible = false end
+            for k = used2 + 1, #r.lines2 do r.lines2[k].Visible = false end
+
+            if jr.Sparks ~= false then
                 for _, sp in ipairs(r.sparks) do
                     local dRad = (0.4 + sp.rad * curR * 0.48) * (1 + ease * 0.16)
                     local yB = sp.ht * (t * 0.72)
@@ -1329,8 +1460,6 @@ local function updateJumpRings(cam, char, root, humanoid)
                     end
                 end
             else
-                for _, o in ipairs(r.glow2) do o.Visible = false end
-                for _, o in ipairs(r.lines2) do o.Visible = false end
                 for _, sp in ipairs(r.sparks) do sp.line.Visible = false end
             end
         end
@@ -1625,6 +1754,172 @@ local function updateChinaHat(cam, char)
             end
         end
         for n = 4, #hatNodes do hatNodes[n].Visible = false end
+        return
+    elseif ch.Shape == "Kitsune Ears" then
+        local headCF = head.CFrame
+        local s = ch.Size * 0.58
+        local h = max(0.35, ch.Height * 0.92)
+        local fillAlpha = clamp(ch.Opacity, 0.1, 0.9)
+        local twitchL = sin(t * 3.1) * 0.05
+        local twitchR = sin(t * 3.1 + 1.2) * 0.05
+        local eIdx, tIdx = 0, 0
+        for side = -1, 1, 2 do
+            local twOff = (side < 0) and twitchL or twitchR
+            local pOut = projW2(cam, headCF:PointToWorldSpace(v3(side * 0.62 * s, 0.44, 0.04)))
+            local pIn  = projW2(cam, headCF:PointToWorldSpace(v3(side * 0.18 * s, 0.52, -0.05)))
+            local pTip = projW2(cam, headCF:PointToWorldSpace(v3(side * (0.76 * s + twOff), 0.52 + h, 0.10)))
+            local pMidO = projW2(cam, headCF:PointToWorldSpace(v3(side * 0.52 * s, 0.48, 0.02)))
+            local pMidI = projW2(cam, headCF:PointToWorldSpace(v3(side * 0.28 * s, 0.52, -0.02)))
+            local pMidT = projW2(cam, headCF:PointToWorldSpace(v3(side * (0.64 * s + twOff * 0.7), 0.50 + h * 0.72, 0.06)))
+            if hasTriangle then
+                tIdx += 1
+                local triO = hatTris[tIdx]
+                if not triO then triO = poolGet("Triangle") pcall(function() triO.ZIndex = 2 end) hatTris[tIdx] = triO end
+                if pOut and pIn and pTip then
+                    triO.PointA, triO.PointB, triO.PointC = pTip, pOut, pIn
+                    triO.Filled, triO.Color, triO.Transparency, triO.Visible = true, col, fillAlpha, true
+                else
+                    triO.Visible = false
+                end
+                tIdx += 1
+                local triI = hatTris[tIdx]
+                if not triI then triI = poolGet("Triangle") pcall(function() triI.ZIndex = 3 end) hatTris[tIdx] = triI end
+                if pMidO and pMidI and pMidT then
+                    triI.PointA, triI.PointB, triI.PointC = pMidT, pMidO, pMidI
+                    triI.Filled, triI.Color, triI.Transparency, triI.Visible = true, rimCol, clamp(fillAlpha * 0.78, 0.05, 0.85), true
+                else
+                    triI.Visible = false
+                end
+            end
+            eIdx += 1; setHatEdge(eIdx, pOut, pTip, rimCol, col, rimAlpha)
+            eIdx += 1; setHatEdge(eIdx, pIn, pTip, rimCol, col, rimAlpha)
+            eIdx += 1; setHatEdge(eIdx, pOut, pIn, col, rimCol, rimAlpha * 0.75)
+            local nd = hatNodes[(side < 0) and 1 or 2]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 20 end) hatNodes[(side < 0) and 1 or 2] = nd end
+            if pTip then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = pTip, 2.5, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(rimCol, 0.3), rimAlpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        for k = tIdx + 1, #hatTris do hatTris[k].Visible = false end
+        for k = eIdx + 1, #hatGlow do hatGlow[k].Visible = false end
+        for k = eIdx + 1, #hatLines do hatLines[k].Visible = false end
+        for n = 3, #hatNodes do hatNodes[n].Visible = false end
+        return
+    elseif ch.Shape == "Angel Halo" then
+        for _, o in ipairs(hatTris) do o.Visible = false end
+        local haloPos = headPos + v3(0, 0.72 + ch.Height * 0.56 + sin(t * 2.4) * 0.05, 0)
+        local tilt1 = cfNew(haloPos) * cfAng(sin(t * 1.1) * 0.14, spin, cos(t * 0.9) * 0.12)
+        local tilt2 = cfNew(haloPos + v3(0, 0.09, 0)) * cfAng(-sin(t * 1.1) * 0.14, -spin * 1.3, -cos(t * 0.9) * 0.12)
+        drawRing(cam, tilt1, true, ch.Size * 0.62, 0, segs, hatGlow, hatLines, 0, rimCol, col, rimAlpha, 1.8)
+        drawRing(cam, tilt2, true, ch.Size * 0.44, 0, segs, hatGlow, hatLines, segs, col, rimCol, rimAlpha * 0.8, 1.25)
+        local eIdx = segs * 2
+        local wingSpan = ch.Size * 0.75
+        local flap = sin(t * 3.4) * 0.18
+        for side = -1, 1, 2 do
+            local rootW = tilt1:PointToWorldSpace(v3(side * ch.Size * 0.62, 0, 0))
+            local pRoot = projW2(cam, rootW)
+            for tier = 1, 2 do
+                local dy = (tier == 1) and (0.28 * ch.Height + flap) or (-0.12 * ch.Height - flap * 0.6)
+                local len = (tier == 1) and wingSpan or (wingSpan * 0.72)
+                local pTip = projW2(cam, tilt1:PointToWorldSpace(v3(side * (ch.Size * 0.62 + len), dy, -0.18)))
+                local pMid = projW2(cam, tilt1:PointToWorldSpace(v3(side * (ch.Size * 0.62 + len * 0.55), dy + 0.14, 0.08)))
+                eIdx += 1; setHatEdge(eIdx, pRoot, pTip, rimCol, col, rimAlpha)
+                eIdx += 1; setHatEdge(eIdx, pRoot, pMid, col, rimCol, rimAlpha * 0.85)
+                eIdx += 1; setHatEdge(eIdx, pMid, pTip, rimCol, col, rimAlpha * 0.9)
+            end
+            local ndIdx = (side < 0) and 1 or 2
+            local nd = hatNodes[ndIdx]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 20 end) hatNodes[ndIdx] = nd end
+            if pRoot then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = pRoot, 2.7, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(rimCol, 0.25), rimAlpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        local cNd = hatNodes[3]
+        if not cNd then cNd = poolGet("Circle") pcall(function() cNd.ZIndex = 20 end) hatNodes[3] = cNd end
+        local pCenter = projW2(cam, haloPos + v3(0, 0.04, 0))
+        if pCenter then
+            cNd.Position, cNd.Radius, cNd.NumSides, cNd.Filled = pCenter, 3.0 + sin(t * 4) * 0.5, 10, true
+            cNd.Color, cNd.Transparency, cNd.Visible = WHITE:Lerp(col, 0.3), rimAlpha * 0.9, true
+        else
+            cNd.Visible = false
+        end
+        for k = eIdx + 1, #hatGlow do hatGlow[k].Visible = false end
+        for k = eIdx + 1, #hatLines do hatLines[k].Visible = false end
+        for n = 4, #hatNodes do hatNodes[n].Visible = false end
+        return
+    elseif ch.Shape == "Demon Horns" then
+        for _, o in ipairs(hatTris) do o.Visible = false end
+        local headCF = head.CFrame
+        local s = ch.Size * 0.55
+        local h = max(0.35, ch.Height * 0.95)
+        local eIdx = 0
+        for side = -1, 1, 2 do
+            local prevPt, lastPt = nil, nil
+            for st = 0, 4 do
+                local f = st / 4
+                local hx = side * (0.28 + f * 0.64 - (f ^ 2) * 0.18) * s
+                local hy = 0.44 + (f ^ 1.15) * h * 1.15
+                local hz = -0.22 + f * 0.34 - (f ^ 2) * 0.22
+                local pt = projW2(cam, headCF:PointToWorldSpace(v3(hx, hy, hz)))
+                if st > 0 then
+                    eIdx += 1; setHatEdge(eIdx, prevPt, pt, rimCol, col, rimAlpha)
+                end
+                prevPt = pt
+                lastPt = pt
+            end
+            local ndIdx = (side < 0) and 1 or 2
+            local nd = hatNodes[ndIdx]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 20 end) hatNodes[ndIdx] = nd end
+            if lastPt then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = lastPt, 2.6, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(rimCol, 0.3), rimAlpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        for k = eIdx + 1, #hatGlow do hatGlow[k].Visible = false end
+        for k = eIdx + 1, #hatLines do hatLines[k].Visible = false end
+        for n = 3, #hatNodes do hatNodes[n].Visible = false end
+        return
+    elseif ch.Shape == "Oni Crown" then
+        for _, o in ipairs(hatTris) do o.Visible = false end
+        local headCF = head.CFrame
+        local wheelCF = (headCF * cfNew(0, 0.28 + ch.Height * 0.24, 0.78)) * cfAng(math.pi * 0.5, 0, 0) * cfAng(0, spin * 1.25, 0)
+        local rOut = ch.Size * 0.78
+        local rIn = rOut * 0.64
+        drawRing(cam, wheelCF, true, rOut, 0, segs, hatGlow, hatLines, 0, rimCol, col, rimAlpha, 1.8)
+        local eIdx = segs
+        local spokeStep = (math.pi * 2) / 6
+        local isCustom = (ch.Style == "Custom")
+        for k = 1, 6 do
+            local a = (k - 1) * spokeStep
+            local sc, sr = col, rimCol
+            if not isCustom then sc, sr = styleColors(ch.Style, ch.Color, 1, k * 0.35) end
+            local wIn = wheelCF:PointToWorldSpace(v3(cos(a) * rIn, 0, sin(a) * rIn))
+            local wOut = wheelCF:PointToWorldSpace(v3(cos(a) * (rOut * 1.18), 0, sin(a) * (rOut * 1.18)))
+            local pIn, pOut = projW2(cam, wIn), projW2(cam, wOut)
+            eIdx += 1; setHatEdge(eIdx, pIn, pOut, sr, sc, rimAlpha)
+            local aNext = a + spokeStep
+            local pN = projW2(cam, wheelCF:PointToWorldSpace(v3(cos(aNext) * rIn, 0, sin(aNext) * rIn)))
+            eIdx += 1; setHatEdge(eIdx, pIn, pN, sc, sr, rimAlpha * 0.8)
+            local nd = hatNodes[k]
+            if not nd then nd = poolGet("Circle") pcall(function() nd.ZIndex = 20 end) hatNodes[k] = nd end
+            if pOut then
+                nd.Position, nd.Radius, nd.NumSides, nd.Filled = pOut, 2.8 + sin(t * 4 + k) * 0.5, 10, true
+                nd.Color, nd.Transparency, nd.Visible = WHITE:Lerp(sr, 0.35), rimAlpha, true
+            else
+                nd.Visible = false
+            end
+        end
+        for k = eIdx + 1, #hatGlow do hatGlow[k].Visible = false end
+        for k = eIdx + 1, #hatLines do hatLines[k].Visible = false end
+        for n = 7, #hatNodes do hatNodes[n].Visible = false end
         return
     end
 
@@ -1990,6 +2285,113 @@ local function updateAuraShape(cam, char, root, dt, aura)
         end
         setAuraNode(7, bodyCenter, cam, 3.6 + sin(t * 5.0) * 0.7, WHITE:Lerp(c1, 0.25), alpha * 0.95)
         usedNodes = 7
+    elseif shape == "Ki Burst" then
+        local gPos = rayGroundPos(char, root)
+        local rBase = aura.Size * 0.92 * pulse
+        drawRing(cam, gPos, false, rBase, auraAngle * 1.2, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.92, 1.7)
+        usedSegs = C.RING_SEGMENTS
+        for k = 1, 8 do
+            local baseAng = auraAngle * 0.9 + (k - 1) * (math.pi * 0.25)
+            local flicker = ((t * 1.85 + k * 0.37) % 1)
+            local rad = rBase * (0.58 + 0.38 * (1 - flicker * 0.6))
+            local prevPt = nil
+            for s = 0, 4 do
+                local f = s / 4
+                local y = -2.4 + (f + flicker * 0.45) * 4.8
+                local twist = baseAng + sin(t * 7.5 + k + f * 3.0) * 0.28
+                local rAt = rad * (1 - f * 0.42)
+                local pt = projW2(cam, bodyCenter + v3(cos(twist) * rAt, y, sin(twist) * rAt))
+                if s > 0 then
+                    usedSegs += 1
+                    local sc, sr = c1, c2
+                    if not isCustom then sc, sr = styleColors(aura.Style, aura.Color, 1.4, k * 0.3 + f) end
+                    setAuraSeg(usedSegs, prevPt, pt, sc, sr, alpha * (1 - f * 0.45), 1.8 - f * 0.6)
+                end
+                prevPt = pt
+            end
+            local boltTop = bodyCenter + v3(cos(baseAng) * (rBase * 0.82), -1.8 + flicker * 4.6, sin(baseAng) * (rBase * 0.82))
+            local boltBot = boltTop - v3(0, 1.15, 0)
+            usedInner += 1
+            setAuraInner(usedInner, projW2(cam, boltBot), projW2(cam, boltTop), WHITE:Lerp(c2, 0.35), alpha * sin(flicker * math.pi), 1.45)
+            usedNodes += 1
+            setAuraNode(usedNodes, boltTop, cam, 2.3 + sin(t * 6 + k) * 0.6, WHITE:Lerp(c1, 0.25), alpha * sin(flicker * math.pi))
+        end
+    elseif shape == "Magic Circle" then
+        local gPos = rayGroundPos(char, root)
+        local rOut = aura.Size * 1.12 * pulse
+        local rMid = rOut * 0.78
+        local rIn = rOut * 0.52
+        drawRing(cam, gPos, false, rOut, auraAngle * 0.55, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha, 1.65)
+        drawRing(cam, gPos + v3(0, 0.03, 0), false, rIn, -auraAngle * 0.9, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.88, 1.3)
+        usedSegs = C.RING_SEGMENTS * 2
+        local hStep = (math.pi * 2) / 6
+        for k = 1, 6 do
+            local a1 = auraAngle * 0.55 + (k - 1) * hStep
+            local a2 = a1 + hStep * 2
+            local w1 = gPos + v3(cos(a1) * rOut * 0.97, 0.02, sin(a1) * rOut * 0.97)
+            local w2 = gPos + v3(cos(a2) * rOut * 0.97, 0.02, sin(a2) * rOut * 0.97)
+            usedSegs += 1
+            setAuraSeg(usedSegs, projW2(cam, w1), projW2(cam, w2), c1:Lerp(c2, 0.4), c2, alpha * 0.92, 1.45)
+            usedInner += 1
+            setAuraInner(usedInner, projW2(cam, w1), projW2(cam, w1 + v3(0, 1.4 + sin(t * 3 + k) * 0.4, 0)), c2, alpha * 0.52, 1.15)
+            usedNodes += 1
+            setAuraNode(usedNodes, w1, cam, 2.7 + sin(t * 4 + k) * 0.4, WHITE:Lerp(c2, 0.3), alpha)
+        end
+        for k = 1, 4 do
+            local a1 = -auraAngle * 0.85 + (k - 1) * (math.pi * 0.5)
+            local a2 = a1 + math.pi * 0.5
+            usedSegs += 1
+            setAuraSeg(usedSegs, projW2(cam, gPos + v3(cos(a1) * rMid, 0.04, sin(a1) * rMid)), projW2(cam, gPos + v3(cos(a2) * rMid, 0.04, sin(a2) * rMid)), c2, c1, alpha * 0.85, 1.25)
+        end
+    elseif shape == "Sakura Storm" then
+        local rBase = aura.Size * 0.95 * pulse
+        local gPos = rayGroundPos(char, root)
+        drawRing(cam, gPos, false, rBase * 0.95, auraAngle * 0.8, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.72, 1.3)
+        usedSegs = C.RING_SEGMENTS
+        for k = 1, 12 do
+            local prog = ((t * 0.36 + (k - 1) / 12) % 1)
+            local fade = sin(prog * math.pi)
+            local ang = auraAngle * 1.8 + k * 0.52 + prog * 3.8
+            local rad = rBase * (0.68 + 0.42 * sin(prog * math.pi + k))
+            local cy = -2.2 + prog * 4.5
+            local center = bodyCenter + v3(cos(ang) * rad, cy, sin(ang) * rad)
+            local pCF = cfNew(center) * cfAng(t * 2.2 + k, ang + t * 1.4, sin(t * 2.5 + k) * 0.9)
+            local sc, sr = c1, c2
+            if not isCustom then sc, sr = styleColors(aura.Style, aura.Color, 1, k * 0.35) end
+            local pTop = projW2(cam, pCF:PointToWorldSpace(v3(0, 0.22, 0)))
+            local pBot = projW2(cam, pCF:PointToWorldSpace(v3(0, -0.22, 0)))
+            local pL = projW2(cam, pCF:PointToWorldSpace(v3(-0.14, 0, 0)))
+            local pR = projW2(cam, pCF:PointToWorldSpace(v3(0.14, 0, 0)))
+            usedSegs += 1; setAuraSeg(usedSegs, pTop, pL, sc, sr, alpha * fade, 1.35)
+            usedSegs += 1; setAuraSeg(usedSegs, pL, pBot, sc, sr, alpha * fade, 1.35)
+            usedSegs += 1; setAuraSeg(usedSegs, pBot, pR, sr, sc, alpha * fade, 1.35)
+            usedInner += 1; setAuraInner(usedInner, pR, pTop, sr, alpha * fade, 1.25)
+            usedNodes += 1; setAuraNode(usedNodes, center, cam, 2.0 + fade * 0.7, WHITE:Lerp(sr, 0.35), alpha * fade * 0.85)
+        end
+    elseif shape == "Domain Sphere" then
+        local r = aura.Size * 1.08 * pulse
+        local cf1 = cfNew(bodyCenter) * cfAng(0.45, auraAngle * 0.55, 0.15)
+        local cf2 = cfNew(bodyCenter) * cfAng(-0.55, -auraAngle * 0.65, 0.92)
+        local cf3 = cfNew(bodyCenter) * cfAng(0.95, auraAngle * 0.45, -0.65)
+        drawRing(cam, cf1, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, 0, c1, c2, alpha * 0.88, 1.5)
+        drawRing(cam, cf2, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS, c2, c1, alpha * 0.85, 1.4)
+        drawRing(cam, cf3, true, r, 0, C.RING_SEGMENTS, auraDrawGlow, auraDrawOuter, C.RING_SEGMENTS * 2, c1:Lerp(c2, 0.5), c2, alpha * 0.78, 1.3)
+        usedSegs = C.RING_SEGMENTS * 3
+        for m = 1, 6 do
+            local ma = auraAngle * 0.4 + (m - 1) * (math.pi / 3)
+            local pN = projW2(cam, bodyCenter + v3(0, r * 0.96, 0))
+            local pE = projW2(cam, bodyCenter + v3(cos(ma) * r * 0.96, 0, sin(ma) * r * 0.96))
+            local pS = projW2(cam, bodyCenter + v3(0, -r * 0.96, 0))
+            usedInner += 1; setAuraInner(usedInner, pN, pE, (m % 2 == 0) and c1 or c2, alpha * 0.48, 1.1)
+            usedInner += 1; setAuraInner(usedInner, pE, pS, (m % 2 == 0) and c2 or c1, alpha * 0.48, 1.1)
+        end
+        for n = 1, 8 do
+            local rIdx = ((n - 1) % 3) + 1
+            local rCF = (rIdx == 1) and cf1 or ((rIdx == 2) and cf2 or cf3)
+            local na = auraAngle * 1.4 + n * 0.9
+            setAuraNode(n, rCF:PointToWorldSpace(v3(cos(na) * r, 0, sin(na) * r)), cam, 2.6 + sin(t * 4.5 + n) * 0.5, WHITE:Lerp(rIdx == 2 and c1 or c2, 0.35), alpha)
+        end
+        usedNodes = 8
     else
         local gPos = rayGroundPos(char, root)
         local outerR = aura.Size * pulse
@@ -2108,6 +2510,28 @@ local function updateLocalEffects(dt)
                         local rad = 1.18
                         local y = 2.25 + sin(tNow * 1.2 + k) * 0.22
                         pos = v3(cos(ang) * rad, y, sin(ang) * rad)
+                    elseif pair.kind == "Kagune" then
+                        ang = tNow * 1.15 + pair.phase
+                        local swayX = pair.side * (0.95 + sin(ang) * 0.65)
+                        local swayY = pair.tier + cos(ang * 0.85) * 0.75
+                        local swayZ = 1.55 + sin(ang * 0.7) * 0.45
+                        pos = v3(swayX, swayY, swayZ)
+                    elseif pair.kind == "Bankai" then
+                        ang = tNow * 1.85 + pair.phase
+                        local rad = 1.85 + sin(ang * 2) * 0.45
+                        local y = sin(ang * 2) * 1.45
+                        pos = v3(cos(ang) * rad, y, sin(ang) * rad)
+                    elseif pair.kind == "NineTails" then
+                        ang = tNow * 1.1 + pair.phase
+                        local swayX = sin(pair.spread) * 2.2 + sin(ang) * 0.55
+                        local swayY = -0.1 + abs(pair.rank) * 0.28 + cos(ang * 0.9) * 0.45
+                        local swayZ = 1.85 + cos(pair.spread) * 0.65
+                        pos = v3(swayX, swayY, swayZ)
+                    elseif pair.kind == "WingTip" then
+                        ang = tNow * 1.25 + pair.phase
+                        local flapY = sin(ang) * 0.75 + (pair.upper and 0.95 or -0.05)
+                        local spanX = pair.side * (1.85 + cos(ang) * 0.38)
+                        pos = v3(spanX, flapY, 1.05 + sin(ang * 0.5) * 0.25)
                     else
                         ang = tNow + pair.phase
                         local rad = 2.15 + sin(tNow * 0.7 + k) * 0.3
@@ -2173,8 +2597,8 @@ local function updateLocalEffects(dt)
         elseif shape == "Seraph" then shape = "Sakura"
         elseif shape == "Crystal" then shape = "Lotus"
         elseif shape == "Lantern" then shape = "Clover"
-        elseif shape == "Katana" or shape == "Blade" then shape = "Crescent"
-        elseif shape == "Shuriken" or shape == "Disc" then shape = "Snowflake"
+        elseif shape == "Blade" then shape = "Crescent"
+        elseif shape == "Disc" then shape = "Snowflake"
         elseif shape == "Orb" then shape = "Planet" end
         local sz = clamp(sat.Size or 0.45, 0.2, 1.2)
         local needBuild = (#satItems ~= cnt or satShapeCur ~= shape or abs(satSizeCur - sz) > 0.005)
@@ -2281,6 +2705,40 @@ local function updateLocalEffects(dt)
                     subs[#subs + 1] = mkOrb(p, v3(sz * 0.84, sz * 0.04, sz * 0.56), "sphere", Enum.Material.Neon, 0.20, 1, cfNew(0.44 * sz, 0, -0.14 * sz), "wingR", 0.44 * sz, 0, -0.14 * sz)
                     subs[#subs + 1] = mkOrb(p, v3(sz * 0.56, sz * 0.04, sz * 0.44), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(-0.30 * sz, 0, 0.30 * sz), "wingL2", -0.30 * sz, 0, 0.30 * sz)
                     subs[#subs + 1] = mkOrb(p, v3(sz * 0.56, sz * 0.04, sz * 0.44), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(0.30 * sz, 0, 0.30 * sz), "wingR2", 0.30 * sz, 0, 0.30 * sz)
+                elseif shape == "Kunai" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.08, sz * 0.08, sz * 0.52)
+                    rootMode, rootBaseTr = 2, 0.06
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.28, sz * 0.06, sz * 0.85), "sphere", Enum.Material.Neon, 0.06, "blade", cfNew(0, 0, -0.64 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.04, sz * 0.42), "sphere", Enum.Material.Neon, 0.14, 1, cfNew(0, 0, -0.68 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.24, sz * 0.06, sz * 0.24), "ball", Enum.Material.Neon, 0.08, 1, cfNew(0, 0, 0.34 * sz))
+                elseif shape == "Shuriken" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.22, sz * 0.14, sz * 0.22)
+                    rootMode, rootBaseTr = 2, 0.04
+                    for k = 1, 4 do
+                        local ba = (k - 1) * (math.pi * 0.5)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.18, sz * 0.05, sz * 0.72), "sphere", Enum.Material.Neon, 0.06, "blade", cfAng(0, ba, 0) * cfNew(0.12 * sz, 0, -0.42 * sz) * cfAng(0, -0.35, 0))
+                    end
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.46, sz * 0.06, sz * 0.46), "sphere", Enum.Material.Neon, 0.18, 1, cfNew(0, 0, 0))
+                elseif shape == "Spirit Flame" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.38, sz * 0.42, sz * 0.38)
+                    rootMode, rootBaseTr = 1, 0.08
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.78, sz * 0.26), "sphere", Enum.Material.Neon, 0.18, 2, cfNew(0, 0.32 * sz, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.55, sz * 0.16), "sphere", Enum.Material.Neon, 0.26, "blade", cfNew(0.12 * sz, 0.42 * sz, 0.06 * sz) * cfAng(0, 0, -0.2))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.14, sz * 0.48, sz * 0.14), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(-0.12 * sz, 0.38 * sz, -0.06 * sz) * cfAng(0, 0, 0.2))
+                elseif shape == "Katana" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.09, sz * 0.12, sz * 0.55)
+                    rootMode, rootBaseTr = 2, 0.08
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.26, sz * 0.05), "sphere", Enum.Material.Neon, 0.04, 1, cfNew(0, 0, -0.28 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.12, sz * 1.55), "sphere", Enum.Material.Neon, 0.05, "blade", cfNew(0, 0.04 * sz, -1.06 * sz) * cfAng(-0.04, 0, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.04, sz * 0.06, sz * 1.35), "sphere", Enum.Material.Neon, 0.16, 1, cfNew(0, 0.02 * sz, -1.02 * sz))
+                elseif shape == "Magic Card" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.56, sz * 0.86, sz * 0.04)
+                    rootMode, rootBaseTr = 1, 0.24
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.62, sz * 0.06, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(0, 0.43 * sz, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.62, sz * 0.06, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(0, -0.43 * sz, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.06, sz * 0.90, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(0.28 * sz, 0, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.06, sz * 0.90, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(-0.28 * sz, 0, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.24, sz * 0.24, sz * 0.07), "sphere", Enum.Material.Neon, 0.04, "blade", cfNew(0, 0, 0) * cfAng(0, 0, math.pi * 0.25))
                 else -- "Planet"
                     p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.62, sz * 0.62, sz * 0.62)
                     rootMode, rootBaseTr = 1, 0.12
@@ -2291,10 +2749,22 @@ local function updateLocalEffects(dt)
                     subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.16, sz * 0.16), "ball", Enum.Material.Neon, 0.06, "blade", cfNew(0.84 * sz, 0, 0), "moon", 0.84 * sz)
                 end
 
+                local ta0 = Instance.new("Attachment")
+                ta0.Position, ta0.Parent = v3(0, sz * 0.14, 0), p
+                local ta1 = Instance.new("Attachment")
+                ta1.Position, ta1.Parent = v3(0, -sz * 0.14, 0), p
+                local sTr = Instance.new("Trail")
+                sTr.Name, sTr.Enabled = "GlupostSatTrail", false
+                sTr.Attachment0, sTr.Attachment1 = ta0, ta1
+                sTr.FaceCamera, sTr.LightEmission, sTr.Lifetime, sTr.MinLength = true, 1, 0.36, 0.03
+                sTr.WidthScale = numSeq({ {0, 1}, {0.5, 0.55}, {1, 0} })
+                sTr.Transparency = numSeq({ {0, 0.12}, {1, 1} })
+                sTr.Parent = p
+
                 p.CFrame = cfNew(rootPos)
                 p.Parent = par
                 satItems[i] = {
-                    part = p, subs = subs, rootMode = rootMode, rootBaseTr = rootBaseTr,
+                    part = p, subs = subs, trail = sTr, rootMode = rootMode, rootBaseTr = rootBaseTr,
                     phase = (i - 1) * ((math.pi * 2) / cnt),
                     tilt = ((i % 2 == 0) and 1 or -1) * (0.28 + (i % 3) * 0.12),
                 }
@@ -2304,6 +2774,7 @@ local function updateLocalEffects(dt)
         local radBase = clamp(sat.Radius or 3.2, 1.2, 8.0)
         local hOff = clamp(sat.Height or 0.8, -3.0, 5.0)
         local tNow = clock()
+        local wantTrail = sat.Trail == true
         for _, item in ipairs(satItems) do
             local ang = tNow * spd * 1.85 + item.phase
             local r = radBase + sin(tNow * 2.1 + item.phase) * 0.22
@@ -2320,12 +2791,22 @@ local function updateLocalEffects(dt)
                 item.part.Color = c2
                 item.part.Transparency = item.rootBaseTr + shimmer * 0.08
             end
+            if item.trail then
+                if item.trail.Enabled ~= wantTrail then item.trail.Enabled = wantTrail end
+                if wantTrail then item.trail.Color = ColorSequence.new(c1, c2) end
+            end
 
             local baseCF
-            if shape == "Butterfly" then
+            if shape == "Butterfly" or shape == "Kunai" or shape == "Katana" then
                 local tx, tz = -sin(ang), cos(ang)
                 local ty = cos(ang + item.phase) * sin(item.tilt) * 0.65
-                baseCF = cfNew(pos, pos + v3(tx, ty, tz)) * cfAng(0, 0, item.tilt * 0.6)
+                baseCF = cfNew(pos, pos + v3(tx, ty, tz)) * cfAng(0, 0, (shape == "Katana") and (0.35 * sin(tNow * 2 + item.phase)) or (item.tilt * 0.6))
+            elseif shape == "Shuriken" then
+                baseCF = cfNew(pos) * cfAng(0.28 * sin(tNow * 1.6 + item.phase), tNow * 9.5 + item.phase, 0.18)
+            elseif shape == "Spirit Flame" then
+                baseCF = cfNew(pos) * cfAng(0.08 * sin(tNow * 4 + item.phase), tNow * 1.5, 0.08 * cos(tNow * 3.5 + item.phase))
+            elseif shape == "Magic Card" then
+                baseCF = cfNew(pos) * cfAng(0.18 * sin(tNow * 2.2 + item.phase), tNow * 1.4 + item.phase, 0.12 * cos(tNow * 1.8 + item.phase))
             elseif shape == "Crescent" then
                 baseCF = cfNew(pos) * cfAng(0.16 * sin(tNow * 1.8 + item.phase), tNow * 1.15 + item.phase, 0.12)
             elseif shape == "Planet" then
@@ -2365,6 +2846,136 @@ local function updateLocalEffects(dt)
         end
     elseif #satItems > 0 then
         clearSatellites()
+    end
+
+    local aw = cfg().AnimeWings
+    local torsoPart = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
+    local hideWingsFP = aw.HideFirstPerson and isPartValid(torsoPart) and (cam.CFrame.Position - partPos(torsoPart)).Magnitude < 2.6
+    if aw.Enabled and isPartValid(torsoPart) and not hideWingsFP and (not humanoid or humanoid.Health > 0) then
+        local wShape = aw.Shape or "Seraph"
+        local wSz = clamp(aw.Size or 1.15, 0.5, 2.2)
+        local needW = (#wingItems == 0 or wingShapeCur ~= wShape or abs(wingSizeCur - wSz) > 0.005)
+        if not needW then
+            for _, seg in ipairs(wingItems) do
+                if not seg.part or not seg.part.Parent then needW = true break end
+            end
+        end
+        if needW then
+            clearAnimeWings()
+            wingShapeCur, wingSizeCur = wShape, wSz
+            local par = workspace.CurrentCamera or workspace
+            local function addWSeg(size, isSphere, mode, meta)
+                local wp = Instance.new("Part")
+                wp.Name, wp.Anchored, wp.CastShadow, wp.Massless = "GlupostAnimeWing", true, false, true
+                wp.CanCollide, wp.CanTouch, wp.CanQuery = false, false, false
+                wp.Material = Enum.Material.Neon
+                wp.Shape = isSphere == "ball" and Enum.PartType.Ball or Enum.PartType.Block
+                wp.Size = size
+                if isSphere == "sphere" then
+                    local sm = Instance.new("SpecialMesh")
+                    sm.MeshType = Enum.MeshType.Sphere
+                    sm.Parent = wp
+                end
+                wp.Parent = par
+                local entry = { part = wp, mode = mode }
+                if meta then for k, v in pairs(meta) do entry[k] = v end end
+                wingItems[#wingItems + 1] = entry
+            end
+            if wShape == "Seraph" then
+                for side = -1, 1, 2 do
+                    for tier = 1, 3 do
+                        for f = 1, 4 do
+                            local len = (1.65 - (tier - 1) * 0.24 - (f - 1) * 0.18) * wSz
+                            addWSeg(v3(len, 0.14 * wSz, 0.28 * wSz), "sphere", (f % 2 == 1) and 1 or 2, { side = side, tier = tier, seg = f, len = len })
+                        end
+                    end
+                end
+            elseif wShape == "Demon" then
+                for side = -1, 1, 2 do
+                    addWSeg(v3(2.2 * wSz, 0.14 * wSz, 0.14 * wSz), "sphere", 1, { side = side, role = "arm" })
+                    for rib = 1, 4 do
+                        local rLen = (1.9 - (rib - 1) * 0.25) * wSz
+                        addWSeg(v3(0.08 * wSz, rLen, 0.08 * wSz), "sphere", (rib == 1) and 1 or 2, { side = side, role = "rib", rib = rib, len = rLen })
+                    end
+                end
+            elseif wShape == "Kagune" then
+                for k = 1, 4 do
+                    local side = (k <= 2) and -1 or 1
+                    local tier = (k % 2 == 1) and 1 or -1
+                    for s = 1, 5 do
+                        local w = (0.28 - (s - 1) * 0.042) * wSz
+                        addWSeg(v3(w, w, 0.72 * wSz), "sphere", (s >= 4) and 2 or 1, { side = side, tier = tier, seg = s, idx = k })
+                    end
+                end
+            elseif wShape == "Nine Tails" then
+                for k = 1, 7 do
+                    local rank = k - 4
+                    for s = 1, 5 do
+                        local w = (0.42 - abs(s - 2) * 0.065) * wSz
+                        addWSeg(v3(w, w, 0.76 * wSz), "sphere", (s >= 4) and 2 or 1, { rank = rank, seg = s, idx = k })
+                    end
+                end
+            else -- Cyber Mecha
+                for side = -1, 1, 2 do
+                    for b = 1, 4 do
+                        addWSeg(v3(0.16 * wSz, (1.95 - b * 0.22) * wSz, 0.34 * wSz), nil, (b % 2 == 1) and 1 or 2, { side = side, seg = b })
+                        addWSeg(v3(0.06 * wSz, (1.65 - b * 0.18) * wSz, 0.40 * wSz), nil, 2, { side = side, seg = b, core = true })
+                    end
+                end
+            end
+        end
+
+        local tNow = clock()
+        local fSpd = clamp(aw.FlapSpeed or 1.4, 0.2, 4.0)
+        local baseTr = clamp(aw.Transparency or 0.18, 0.02, 0.9)
+        local tCF = torsoPart.CFrame
+        local c1, c2 = styleColors(aw.Style, aw.Color, fSpd)
+        local cCore = c2:Lerp(WHITE, 0.45)
+
+        for _, seg in ipairs(wingItems) do
+            local col = (seg.mode == 2) and c2 or (seg.core and cCore or c1)
+            seg.part.Color = col
+            seg.part.Transparency = clamp(baseTr + (seg.mode == 2 and 0.06 or 0), 0.02, 0.96)
+            if wShape == "Seraph" then
+                local flap = sin(tNow * 2.8 * fSpd - seg.tier * 0.45 - seg.seg * 0.18) * 0.28
+                local pitch = (2 - seg.tier) * 0.38 - (seg.seg - 1) * 0.16
+                local anchor = tCF * cfNew(seg.side * 0.45, 0.55 - (seg.tier - 1) * 0.42, 0.52)
+                seg.part.CFrame = anchor * cfAng(0, seg.side * (-0.38 - flap), seg.side * pitch) * cfNew(seg.side * (seg.len * 0.5 + seg.seg * 0.12 * wSz), -seg.seg * 0.12 * wSz, 0)
+            elseif wShape == "Demon" then
+                local flap = sin(tNow * 2.6 * fSpd) * 0.24
+                if seg.role == "arm" then
+                    seg.part.CFrame = tCF * cfNew(seg.side * 0.35, 0.45, 0.52) * cfAng(0.18, seg.side * (-0.42 - flap), seg.side * 0.48) * cfNew(seg.side * 1.1 * wSz, 0, 0)
+                else
+                    local fan = -0.35 + (seg.rib - 1) * 0.34
+                    local rootArm = tCF * cfNew(seg.side * 0.35, 0.45, 0.52) * cfAng(0.18, seg.side * (-0.42 - flap), seg.side * 0.48) * cfNew(seg.side * (0.65 + seg.rib * 0.35) * wSz, 0, 0)
+                    seg.part.CFrame = rootArm * cfAng(0, 0, seg.side * fan) * cfNew(0, -seg.len * 0.48, 0)
+                end
+            elseif wShape == "Kagune" then
+                local s = seg.seg
+                local waveA = sin(tNow * 3.4 * fSpd - s * 0.65 + seg.idx * 1.1)
+                local waveB = cos(tNow * 2.7 * fSpd - s * 0.55 + seg.idx * 0.8)
+                local px = seg.side * (0.42 + s * 0.44 * wSz + waveA * 0.22 * s * 0.25)
+                local py = seg.tier * 0.45 + (s - 1) * (seg.tier > 0 and 0.28 or -0.08) * wSz + waveB * 0.24 * (s * 0.25)
+                local pz = 0.52 + s * 0.52 * wSz
+                seg.part.CFrame = tCF * cfNew(px, py, pz) * cfAng(waveB * 0.35, seg.side * (0.45 + waveA * 0.3), 0)
+            elseif wShape == "Nine Tails" then
+                local s = seg.seg
+                local wave = sin(tNow * 2.5 * fSpd - s * 0.55 + seg.idx * 0.7) * 0.22 * (s * 0.28)
+                local spread = seg.rank * 0.34
+                local lift = (0.18 + s * 0.24) * wSz + abs(seg.rank) * 0.08 * wSz
+                local reach = 0.52 + s * 0.56 * wSz
+                local px = sin(spread) * reach + wave
+                local pz = 0.45 + cos(spread) * reach
+                seg.part.CFrame = tCF * cfNew(px, -0.35 + lift, pz) * cfAng(0.32 + s * 0.08, -spread, wave * 0.5)
+            else -- Cyber Mecha
+                local pulse = sin(tNow * 3.2 * fSpd + seg.seg * 0.5) * 0.14
+                local angleZ = seg.side * (0.28 + seg.seg * 0.24 + pulse)
+                local anchor = tCF * cfNew(seg.side * (0.55 + seg.seg * 0.28 * wSz), 0.72 - seg.seg * 0.14 * wSz, 0.58 + seg.seg * 0.08)
+                seg.part.CFrame = anchor * cfAng(-0.22, seg.side * -0.25, angleZ) * cfNew(0, 0.55 * wSz, 0)
+            end
+        end
+    elseif #wingItems > 0 then
+        clearAnimeWings()
     end
 end
 
@@ -10342,8 +10953,8 @@ do
         end)
     withDep(self, "SelfChamsOn", true, function(d)
         addDropdown(d, "SelfChamsStyle", "Пресет стекла", { "SelfChams", "Style" },
-            { "Liquid Glass", "Frost", "Aurora", "Holographic", "Cyber", "Rainbow", "Sakura", "Flame", "Void", "Matrix", "Sunset", "Gold", "Obsidian", "Custom" },
-            "Готовые пресеты жидкого стекла: Liquid Glass, Frost, Aurora, Cyber, Sakura, Flame, Void, Matrix, Gold, Obsidian или свой цвет (Custom).")
+            { "Liquid Glass", "Frost", "Aurora", "Holographic", "Cyber", "Rainbow", "Sakura", "Flame", "Void", "Matrix", "Sunset", "Gold", "Obsidian", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
+            "Готовые пресеты жидкого стекла: Liquid Glass, Frost, Aurora, Cyber, Sakura, Flame, Void, Super Saiyan, Gojo Infinity, Domain, Ultra Instinct или свой цвет (Custom).")
         addSlider(d, "SelfChamsFillTr", "Прозр. стекла", { "SelfChams", "FillTransparency" }, 0.05, 0.95, 2,
             "Прозрачность стеклянного тела персонажа (0.05 — плотное тонированное стекло, 0.95 — почти прозрачное).")
         addSlider(d, "SelfChamsOutlineTr", "Прозр. контура", { "SelfChams", "OutlineTransparency" }, 0, 1, 2,
@@ -10367,10 +10978,10 @@ do
     withDep(snd, "AfterimageOn", true, function(d)
         addDropdown(d, "AfterimageTrig", "Условие срабатывания", { "Afterimage", "TriggerMode" }, { "Moving", "Dash/Air", "Always" },
             "Moving — при ходьбе/беге выше мин. скорости; Dash/Air — только в прыжке, падении или быстром рывке; Always — постоянно.")
-        addDropdown(d, "AfterimageStyle", "Стиль силуэтов", { "Afterimage", "Style" }, { "Sandevistan", "Phantom", "Inferno", "Void", "Cyber", "Rainbow", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
-            "Цветовая палитра клонов: Sandevistan, Phantom, Inferno, Void, Cyber, Rainbow, Sakura, Matrix, Sunset, Gold или Custom.")
-        addDropdown(d, "AfterimageFade", "Исчезновение", { "Afterimage", "FadeMode" }, { "Static", "Ascend", "Expand", "Implode", "Glitch", "Spiral" },
-            "Static — на месте; Ascend — всплытие; Expand/Implode — разлёт или сжатие; Glitch — цифровое мерцание; Spiral — вихрь.")
+        addDropdown(d, "AfterimageStyle", "Стиль силуэтов", { "Afterimage", "Style" }, { "Sandevistan", "Phantom", "Inferno", "Void", "Cyber", "Rainbow", "Sakura", "Matrix", "Sunset", "Gold", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
+            "Цветовая палитра клонов: Sandevistan, Phantom, Inferno, Super Saiyan, Gojo Infinity, Domain, Ultra Instinct и др.")
+        addDropdown(d, "AfterimageFade", "Исчезновение", { "Afterimage", "FadeMode" }, { "Static", "Ascend", "Expand", "Implode", "Glitch", "Spiral", "Shunpo" },
+            "Static — на месте; Ascend — всплытие; Expand/Implode — разлёт/сжатие; Glitch — сбой; Spiral — вихрь; Shunpo — аниме-блинк.")
         addDropdown(d, "AfterimageMat", "Материал силуэта", { "Afterimage", "Material" }, { "Neon", "ForceField", "Glass", "Wireframe", "SmoothPlastic" },
             "Neon — яркое свечение; ForceField — энерго-сетка; Glass — ледяной силуэт; Wireframe — неоновый каркас линий; SmoothPlastic — матовый.")
         addToggle(d, "AfterimageArc", "Векторная нить", { "Afterimage", "ConnectArc" },
@@ -10397,22 +11008,44 @@ do
     addToggle(tr, "TrailOn", "Включить ленты", { "ParticleTrail", "Enabled" },
         "Рисует светящиеся ленты (Trail) и шлейфы с разными узорами вокруг тела, за головой, спиной или конечностями.")
     withDep(tr, "TrailOn", true, function(d)
-        addDropdown(d, "TrailMode", "Форма лент", { "ParticleTrail", "Mode" }, { "Orbit", "Helix", "Void Slash", "Spiral Halo", "Hands", "Feet", "Wings", "Full" },
-            "Orbit — 3 орбиты вокруг тела; Helix — двойная спираль; Void Slash — 4-ленточный плащ; Spiral Halo — витки над головой; Hands/Feet/Wings/Full.")
-        addDropdown(d, "TrailPattern", "Узор ленты", { "ParticleTrail", "Pattern" }, { "Smooth", "Pulse", "Starlight", "Blade", "Neon Core" },
-            "Smooth — классика; Pulse — прерывистый лазер; Starlight — звёздная дорожка; Blade — острый шлейф катаны; Neon Core — плотный неон.")
-        addDropdown(d, "TrailStyle", "Цветовой стиль", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+        addDropdown(d, "TrailMode", "Форма лент", { "ParticleTrail", "Mode" }, { "Orbit", "Helix", "Void Slash", "Spiral Halo", "Kagune", "Bankai", "Nine-Tails", "Angel Wings", "Hands", "Feet", "Wings", "Full" },
+            "Orbit/Helix/Void Slash/Spiral Halo; аниме-режимы: Kagune (щупальца), Bankai (режущие дуги), Nine-Tails (7 хвостов), Angel Wings.")
+        addDropdown(d, "TrailPattern", "Узор ленты", { "ParticleTrail", "Pattern" }, { "Smooth", "Pulse", "Starlight", "Blade", "Neon Core", "Chakra", "Slash Arc" },
+            "Smooth, Pulse, Starlight, Blade, Neon Core, а также аниме-узоры: Chakra (волна чакры) и Slash Arc (лезвие катаны).")
+        addDropdown(d, "TrailStyle", "Цветовой стиль", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
             "Цветовая палитра свечения шлейфа и искр.")
         addSlider(d, "TrailLife", "Длина шлейфа", { "ParticleTrail", "Lifetime" }, 0.1, 1.5, 2,
             "Как долго лента держится в воздухе за персонажем (в секундах).")
         addSlider(d, "TrailWidth", "Ширина ленты", { "ParticleTrail", "Width" }, 0.05, 0.6, 2,
             "Толщина светящейся полосы в стадах.")
         addSlider(d, "TrailSpeed", "Скорость лент", { "ParticleTrail", "Speed" }, 0.3, 2.5, 2,
-            "Управляет скоростью движения орбит (Orbit / Helix / Spiral Halo) и скоростью анимации цвета.")
+            "Управляет скоростью движения орбит и анимации цвета лент.")
         addToggle(d, "TrailSparks", "Искры вдоль лент", { "ParticleTrail", "Sparks" },
             "Добавляет светящиеся микро-искры ParticleEmitter, осыпающиеся прямо с траектории движения лент.")
         addColorPicker(d, "TrailColor", "Свой цвет лент", { "ParticleTrail", "Color" })
     end)
+
+    do
+        CUR_GROUP = "Аниме крылья и хвосты"
+        local awg = Tabs.SelfFX:AddLeftGroupbox("Аниме крылья и хвосты")
+        addToggle(awg, "AwOn", "Включить крылья / хвосты", { "AnimeWings", "Enabled" },
+            "Добавляет за спину анимированные неоновые крылья, кагуне из Tokyo Ghoul, 7 хвостов кицунэ или крылья кибер-меха.")
+        withDep(awg, "AwOn", true, function(d)
+            addDropdown(d, "AwShape", "Форма за спиной", { "AnimeWings", "Shape" }, { "Seraph", "Demon", "Kagune", "Nine Tails", "Cyber Mecha" },
+                "Seraph — 6 крыльев серафима; Demon — крылья демона; Kagune — 4 кагуне; Nine Tails — 7 хвостов кицунэ; Cyber Mecha — клинки.")
+            addDropdown(d, "AwStyle", "Цветовой стиль", { "AnimeWings", "Style" }, { "Gojo Infinity", "Super Saiyan", "Domain", "Ultra Instinct", "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+                "Аниме и градиентные палитры свечения крыльев и хвостов.")
+            addSlider(d, "AwSize", "Размер", { "AnimeWings", "Size" }, 0.5, 2.2, 2,
+                "Масштаб крыльев, кагуне или хвостов за спиной.")
+            addSlider(d, "AwSpeed", "Скорость взмахов", { "AnimeWings", "FlapSpeed" }, 0.2, 4.0, 1,
+                "Скорость анимации взмахов крыльев и колыхания хвостов.")
+            addSlider(d, "AwTransp", "Прозрачность", { "AnimeWings", "Transparency" }, 0.02, 0.9, 2,
+                "Прозрачность неоновых сегментов (меньше — ярче и плотнее).")
+            addToggle(d, "AwHideFP", "Скрывать в 1-м лице", { "AnimeWings", "HideFirstPerson" },
+                "Автоматически прячет крылья и хвосты, когда камера вплотную к персонажу.")
+            addColorPicker(d, "AwColor", "Свой цвет", { "AnimeWings", "Color" })
+        end)
+    end
 
     CUR_GROUP = "Камера от 3-го лица"
     local tp = Tabs.SelfFX:AddRightGroupbox("Камера от 3-го лица")
@@ -10436,16 +11069,16 @@ do
     CUR_GROUP = "Шляпа / Нимб"
     local hat = Tabs.SelfFX:AddRightGroupbox("Шляпа / Нимб / Корона")
     addToggle(hat, "HatOn", "Включить шляпу / нимб", { "ChinaHat", "Enabled" },
-        "Рисует объёмный градиентный конус, двойной парящий нимб, кибер-корону, 3D-кристалл или двойной гекса-обруч CyberRing над головой.")
+        "Рисует объёмный конус, нимб, корону, кристалл, CyberRing, а также аниме-украшения: ушки кицунэ, крылатый нимб, рога демона и колесо богов (Oni Crown).")
     withDep(hat, "HatOn", true, function(d)
-        addDropdown(d, "HatShape", "Форма", { "ChinaHat", "Shape" }, { "Cone", "Halo", "Crown", "Crystal", "CyberRing" },
-            "Cone — конус; Halo — двойной наклонный нимб; Crown — 8-лучевая корона; Crystal — 3D-кристалл; CyberRing — двойной гексагон.")
-        addDropdown(d, "HatStyle", "Цветовой стиль", { "ChinaHat", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
-            "Выбор градиента или своего цвета для шляпы/нимба/короны.")
+        addDropdown(d, "HatShape", "Форма", { "ChinaHat", "Shape" }, { "Cone", "Halo", "Crown", "Crystal", "CyberRing", "Kitsune Ears", "Angel Halo", "Demon Horns", "Oni Crown" },
+            "Cone, Halo, Crown, Crystal, CyberRing + аниме: Kitsune Ears (ушки лисы), Angel Halo (нимб с крыльями), Demon Horns (рога), Oni Crown (божественный круг).")
+        addDropdown(d, "HatStyle", "Цветовой стиль", { "ChinaHat", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
+            "Выбор градиента, аниме-палитры или своего цвета для головного украшения.")
         addSlider(d, "HatSize", "Радиус", { "ChinaHat", "Size" }, 1, 3.2, 2,
             "Ширина украшения в стадах.")
         addSlider(d, "HatHeight", "Высота формы", { "ChinaHat", "Height" }, 0.3, 1.4, 2,
-            "Высота вершины конуса, кристалла или шипов короны.")
+            "Высота вершины конуса, ушек, рогов или шипов короны.")
         addSlider(d, "HatOpacity", "Непрозрачность", { "ChinaHat", "Opacity" }, 0.1, 0.9, 2,
             "Плотность цвета заливки и линий.")
         addToggle(d, "HatHideFP", "Скрывать в 1-м лице", { "ChinaHat", "HideFirstPerson" },
@@ -10456,11 +11089,11 @@ do
     CUR_GROUP = "Аура персонажа"
     local au = Tabs.SelfFX:AddRightGroupbox("Аура персонажа")
     addToggle(au, "AuraOn", "Включить ауру", { "PlayerAura", "Enabled" },
-        "Создаёт объёмную энергетическую ауру вокруг персонажа (Orbitals, Helix, Crown, Ground, Sigil, Galaxy, Vortex или Atom).")
+        "Создаёт объёмную энергетическую ауру вокруг персонажа, включая аниме-ауры Ki Burst, Magic Circle, Sakura Storm и Domain Sphere.")
     withDep(au, "AuraOn", true, function(d)
-        addDropdown(d, "AuraShape", "Форма ауры", { "PlayerAura", "Shape" }, { "Orbitals", "Helix", "Crown", "Ground", "Sigil", "Galaxy", "Vortex", "Atom" },
-            "Orbitals/Helix/Crown/Ground; Sigil — печать на земле; Galaxy — кольца Сатурна; Vortex — восходящий вихрь; Atom — электронные орбитали.")
-        addDropdown(d, "AuraStyle", "Стиль ауры", { "PlayerAura", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+        addDropdown(d, "AuraShape", "Форма ауры", { "PlayerAura", "Shape" }, { "Orbitals", "Helix", "Crown", "Ground", "Sigil", "Galaxy", "Vortex", "Atom", "Ki Burst", "Magic Circle", "Sakura Storm", "Domain Sphere" },
+            "Orbitals/Helix/Crown/Ground/Sigil/Galaxy/Vortex/Atom + аниме: Ki Burst (всплеск Ки), Magic Circle (печать), Sakura Storm (вихрь сакуры), Domain Sphere.")
+        addDropdown(d, "AuraStyle", "Стиль ауры", { "PlayerAura", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
             "Цветовая схема свечения и частиц ауры.")
         addSlider(d, "AuraSize", "Размер ауры", { "PlayerAura", "Size" }, 1.8, 8, 1,
             "Радиус объёмной ауры вокруг персонажа.")
@@ -10476,11 +11109,11 @@ do
     CUR_GROUP = "Орбитальные спутники"
     local sat = Tabs.SelfFX:AddRightGroupbox("Орбитальные спутники")
     addToggle(sat, "SatOn", "Включить спутников", { "Satellites", "Enabled" },
-        "Запускает лёгкие минималистичные узоры вокруг персонажа: звёздочки, сакуру, лотос, клевер, полумесяц, снежинки, бабочек или планеты.")
+        "Запускает вокруг персонажа 3D-спутников: звёзды, сакуру, лотос, а также аниме-предметы (кунаи, сюрикены, духи огня, катаны, карты мага) со шлейфами.")
     withDep(sat, "SatOn", true, function(d)
-        addDropdown(d, "SatShape", "Узор спутников", { "Satellites", "Shape" }, { "Star", "Sakura", "Lotus", "Clover", "Crescent", "Snowflake", "Butterfly", "Planet" },
-            "Star — искра-звёздочка; Sakura — цветок сакуры; Lotus — лотос; Clover — четырёхлистник; Crescent — полумесяц; Snowflake — снежинка; Butterfly — бабочка; Planet — планета.")
-        addDropdown(d, "SatStyle", "Цветовой стиль", { "Satellites", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+        addDropdown(d, "SatShape", "Узор спутников", { "Satellites", "Shape" }, { "Star", "Sakura", "Lotus", "Clover", "Crescent", "Snowflake", "Butterfly", "Planet", "Kunai", "Shuriken", "Spirit Flame", "Katana", "Magic Card" },
+            "Star/Sakura/Lotus/Clover/Crescent/Snowflake/Butterfly/Planet + аниме: Kunai (кунай), Shuriken (сюрикен), Spirit Flame (огонёк духа), Katana, Magic Card.")
+        addDropdown(d, "SatStyle", "Цветовой стиль", { "Satellites", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
             "Цветовая палитра орбитальных спутников.")
         addSlider(d, "SatCount", "Количество", { "Satellites", "Count" }, 1, 6, 0,
             "Сколько объектов одновременно вращается на орбите.")
@@ -10492,15 +11125,19 @@ do
             "Как быстро спутники облетают вокруг вас.")
         addSlider(d, "SatSize", "Размер", { "Satellites", "Size" }, 0.2, 1.2, 2,
             "Физический размер каждого спутника.")
+        addToggle(d, "SatTrail", "Шлейф спутников", { "Satellites", "Trail" },
+            "Добавляет за каждым орбитальным спутником плавный светящийся шлейф в цвет палитры.")
         addColorPicker(d, "SatColor", "Свой цвет", { "Satellites", "Color" })
     end)
 
     CUR_GROUP = "Кольца прыжка"
     local jr = Tabs.SelfFX:AddRightGroupbox("Кольца прыжка")
     addToggle(jr, "JumpRingsOn", "Волны прыжка", { "JumpRings", "Enabled" },
-        "При каждом вашем прыжке и приземлении под ногами расходится светящаяся двойная ударная волна с искрами.")
+        "При каждом вашем прыжке и приземлении под ногами расходится светящаяся ударная волна, магическая печать, сюрикен или цветок сакуры.")
     withDep(jr, "JumpRingsOn", true, function(d)
-        addDropdown(d, "JumpRingsStyle", "Стиль волн", { "JumpRings", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
+        addDropdown(d, "JumpRingsShape", "Форма волны", { "JumpRings", "Shape" }, { "Ring", "Magic Seal", "Shuriken", "Sakura" },
+            "Ring — ударное кольцо; Magic Seal — гексаграмма-печать; Shuriken — волна сюрикена; Sakura — раскрытие лепестков сакуры.")
+        addDropdown(d, "JumpRingsStyle", "Стиль волн", { "JumpRings", "Style" }, { "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
             "Цветовой стиль расширяющихся волн.")
         addSlider(d, "JumpRingsRad", "Макс. радиус", { "JumpRings", "MaxRadius" }, 2, 12, 1,
             "До какого размера расширяется волна перед исчезновением.")
@@ -10955,12 +11592,13 @@ do
             "• Чамсы врагов: работают через Roblox Highlight со светлой обводкой (до 28 ближайших игроков); прозрачность заливки и контура настраиваются раздельно.",
         }, "\n"),
         ["Персонаж и FX (Sandevistan / Стекло)"] = table.concat({
-            "• Чамсы на себя (Liquid Glass): настраиваемое жидкое стекло с бликом, прозрачностью и 14 пресетами (Frost, Aurora, Cyber, Sakura, Obsidian и др.).",
-            "• Sandevistan (клоны): Phantom/Inferno/Void/Cyber/Sakura/Matrix/Sunset/Gold, материалы ForceField/Glass/Wireframe, 6 режимов исчезновения + нить связи.",
-            "• Ленты / Шлейф (Ribbons): 8 форм (Orbit, Helix, Void Slash, Spiral Halo, крылья и конечности) + 5 узоров + искры; работают даже вместе с Sandevistan!",
-            "• Орбитальные спутники (Satellites): 8 минималистичных узоров (Star, Sakura, Lotus, Clover, Crescent, Snowflake, Butterfly, Planet).",
-            "• Аура персонажа: Orbitals, Helix, Crown, Ground, Sigil, Galaxy, Vortex (восходящий вихрь) и Atom (орбитали электронов) + Glow Light.",
-            "• Шляпа / Нимб / Корона / Crystal / CyberRing и ударные волны прыжка с искрами; зум колесом мыши в 3-м лице.",
+            "• Чамсы на себя (Liquid Glass): настраиваемое жидкое стекло с бликом и 18 пресетами (включая Super Saiyan, Gojo Infinity, Domain, Ultra Instinct).",
+            "• Sandevistan (клоны): стили эха (включая аниме-палитры), материалы ForceField/Glass/Wireframe, 7 режимов исчезновения включая Shunpo + векторная нить.",
+            "• Ленты / Шлейф (Ribbons): 12 форм (Orbit, Helix, Void Slash, Spiral Halo, Kagune, Bankai, Nine-Tails, Angel Wings и др.) + 7 узоров + искры.",
+            "• Аниме крылья и хвосты (AnimeWings): 5 анимированных форм за спиной — Seraph (6 крыльев), Demon, Kagune, Nine Tails (7 хвостов) и Cyber Mecha.",
+            "• Орбитальные спутники (Satellites): 13 форм — Star, Sakura, Lotus, Clover, Crescent, Snowflake, Butterfly, Planet + аниме (Kunai, Shuriken, Spirit Flame, Katana, Magic Card) и шлейф.",
+            "• Аура персонажа: 12 форм, включая Ki Burst (всплеск Ки), Magic Circle, Sakura Storm и Domain Sphere + частицы и PointLight.",
+            "• Шляпы и волны прыжка: Kitsune Ears, Angel Halo, Demon Horns, Oni Crown; формы прыжка Magic Seal, Shuriken и Sakura + зум колесом в 3-м лице.",
         }, "\n"),
         ["Оверлей, TargetHUD и Хитмаркер"] = table.concat({
             "• Водяной знак: плашка с FPS, пингом и числом Drawing-объектов; дуговой 18-сегментный спидометр и аниме-линии скорости (Speed Lines).",
@@ -11060,7 +11698,7 @@ do
 end
 
 do
-    local DISABLE_SECTIONS = { "Radar", "Crosshair", "Objects", "SelfChams", "ThirdPerson", "ChinaHat", "JumpRings", "FootstepRings", "Proximity", "LookingAlert", "PlayerAura", "ParticleTrail", "Afterimage", "Satellites" }
+    local DISABLE_SECTIONS = { "Radar", "Crosshair", "Objects", "SelfChams", "ThirdPerson", "ChinaHat", "JumpRings", "FootstepRings", "Proximity", "LookingAlert", "PlayerAura", "ParticleTrail", "Afterimage", "Satellites", "AnimeWings" }
     local function disableAll()
         local root = cfg()
         local E, H, O, W, V = root.ESP, root.Hitmarker, root.Overlay, root.World, root.Vignette
@@ -11193,11 +11831,12 @@ do
                 PlayerAura = { Enabled = false },
                 ParticleTrail = { Enabled = false },
                 JumpRings = { Enabled = false },
+                AnimeWings = { Enabled = false },
                 World = { Preset = "None", SkyPreset = "Auto", Weather = "None", Shaders = false, NoFog = false, FOVEnabled = false, SpeedFOV = false, TimeEnabled = false, Grading = false, AmbientEnabled = false, BloomEnabled = false },
             })
         end,
     })
-    regSearch("Пресет: Чистый минимум / Киберпанк / Ледяное стекло / Тактический / Токио Неон / Кровавая луна / Сакура", "Готовые стили оформления и пресеты")
+    regSearch("Пресет: Чистый минимум / Киберпанк / Ледяное стекло / Тактический / Токио Неон / Кровавая луна / Сакура / Годзё / Кицунэ", "Готовые стили оформления и аниме-пресеты")
     local function worldFromPreset(presetName, extra)
         local w = { Preset = presetName }
         local wp, target = WORLD_PRESETS[presetName], cfg().World
@@ -11313,8 +11952,47 @@ do
                 PlayerAura = { Enabled = true, Shape = "Atom", Style = "Sakura", Size = 2.7, Transparency = 0.72, Particles = true, GlowLight = true },
                 Satellites = { Enabled = true, Count = 3, Shape = "Sakura", Style = "Sakura", Radius = 3.2, Height = 0.8, Speed = 1.4, Size = 0.45 },
                 JumpRings = { Enabled = true, Style = "Sakura", MaxRadius = 5.0, Lifetime = 0.68, Sparks = true },
+                AnimeWings = { Enabled = false },
                 Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 22, SpeedLinesOpacity = 0.6, SpeedLinesColor = rgb(255, 170, 215), Accent = rgb(255, 130, 195) },
                 World = worldFromPreset("Sakura Dusk", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.78, SpeedFOV = true, SpeedFOVMax = 14 }),
+            })
+        end,
+    })
+    pr:AddButton({
+        Text = "Годзё Бесконечность (Gojo Infinity)",
+        Tooltip = "Аниме-сборка Бесконечности: сфера Domain Sphere, нимб Angel Halo, крылья серафима, карты мага со шлейфами, Shunpo и печать Magic Seal.",
+        Func = function()
+            applyStylePreset("Gojo Infinity", {
+                ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, DamageNumbers = true },
+                SelfChams = { Enabled = true, Style = "Gojo Infinity", FillTransparency = 0.56, OutlineTransparency = 0.14, Reflectance = 0.44, IncludeTools = true, FillColor = rgb(85, 195, 255), OutlineColor = rgb(195, 110, 255) },
+                Afterimage = { Enabled = true, Style = "Gojo Infinity", FadeMode = "Shunpo", Material = "Neon", ConnectArc = true, SolidGlow = true, TriggerMode = "Moving", Interval = 0.04, Lifetime = 0.45, Transparency = 0.36 },
+                ParticleTrail = { Enabled = true, Mode = "Bankai", Pattern = "Slash Arc", Style = "Gojo Infinity", Lifetime = 0.52, Width = 0.16, Speed = 1.35, Sparks = true },
+                AnimeWings = { Enabled = true, Shape = "Seraph", Style = "Gojo Infinity", Size = 1.15, FlapSpeed = 1.35, Transparency = 0.18, HideFirstPerson = true },
+                ChinaHat = { Enabled = true, Shape = "Angel Halo", Style = "Gojo Infinity", Size = 1.45, Height = 0.55, Opacity = 0.68 },
+                PlayerAura = { Enabled = true, Shape = "Domain Sphere", Style = "Gojo Infinity", Size = 2.8, Transparency = 0.7, Particles = true, GlowLight = true },
+                Satellites = { Enabled = true, Count = 4, Shape = "Magic Card", Style = "Gojo Infinity", Radius = 3.2, Height = 0.8, Speed = 1.5, Size = 0.45, Trail = true },
+                JumpRings = { Enabled = true, Shape = "Magic Seal", Style = "Gojo Infinity", MaxRadius = 5.4, Lifetime = 0.72, Sparks = true },
+                Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 20, SpeedLinesOpacity = 0.65, SpeedLinesColor = rgb(95, 200, 255), Accent = rgb(95, 175, 255) },
+                World = worldFromPreset("Tokyo Neon", { SkyPreset = "Auto", Weather = "Starfall", WeatherIntensity = 0.7, SpeedFOV = true, SpeedFOVMax = 16 }),
+            })
+        end,
+    })
+    pr:AddButton({
+        Text = "Девятихвостый (Kitsune / Ki Burst)",
+        Tooltip = "Аниме-сборка: 7 хвостов кицунэ, ушки Kitsune Ears, аура Ki Burst, огненные духи Spirit Flame, сакура-ленты и Super Saiyan.",
+        Func = function()
+            applyStylePreset("Kitsune Ki Burst", {
+                ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, DamageNumbers = true },
+                SelfChams = { Enabled = true, Style = "Super Saiyan", FillTransparency = 0.56, OutlineTransparency = 0.14, Reflectance = 0.4, IncludeTools = true, FillColor = rgb(255, 215, 70), OutlineColor = rgb(255, 248, 185) },
+                Afterimage = { Enabled = true, Style = "Super Saiyan", FadeMode = "Shunpo", Material = "Neon", ConnectArc = false, SolidGlow = true, TriggerMode = "Dash/Air", Interval = 0.04, Lifetime = 0.45, Transparency = 0.34 },
+                ParticleTrail = { Enabled = true, Mode = "Nine-Tails", Pattern = "Chakra", Style = "Super Saiyan", Lifetime = 0.58, Width = 0.18, Speed = 1.25, Sparks = true },
+                AnimeWings = { Enabled = true, Shape = "Nine Tails", Style = "Super Saiyan", Size = 1.2, FlapSpeed = 1.5, Transparency = 0.16, HideFirstPerson = true },
+                ChinaHat = { Enabled = true, Shape = "Kitsune Ears", Style = "Super Saiyan", Size = 1.35, Height = 0.65, Opacity = 0.72 },
+                PlayerAura = { Enabled = true, Shape = "Ki Burst", Style = "Super Saiyan", Size = 2.9, Transparency = 0.68, Particles = true, GlowLight = true },
+                Satellites = { Enabled = true, Count = 4, Shape = "Spirit Flame", Style = "Super Saiyan", Radius = 3.2, Height = 0.7, Speed = 1.7, Size = 0.45, Trail = true },
+                JumpRings = { Enabled = true, Shape = "Sakura", Style = "Super Saiyan", MaxRadius = 5.4, Lifetime = 0.7, Sparks = true },
+                Overlay = { Watermark = true, Keybinds = true, TargetHUD = true, Speedometer = true, SpeedLines = true, SpeedLinesMinSpeed = 18, SpeedLinesOpacity = 0.7, SpeedLinesColor = rgb(255, 225, 85), Accent = rgb(255, 195, 55) },
+                World = worldFromPreset("Sakura Dusk", { SkyPreset = "Auto", Weather = "Sakura", WeatherIntensity = 0.75, SpeedFOV = true, SpeedFOVMax = 16 }),
             })
         end,
     })
@@ -11374,8 +12052,7 @@ do
     if p.ESP.BoxType == "Bracket" then p.ESP.BoxType = "3D Corner" end
     local satMap = {
         ["Cyber Drone"] = "Star", Shard = "Star", Seraph = "Sakura", Crystal = "Lotus",
-        Lantern = "Clover", Katana = "Crescent", Blade = "Crescent", Shuriken = "Snowflake",
-        Disc = "Snowflake", Diamond = "Star", Ring = "Planet", Orb = "Planet",
+        Lantern = "Clover", Blade = "Crescent", Disc = "Snowflake", Diamond = "Star", Ring = "Planet", Orb = "Planet",
     }
     if satMap[p.Satellites.Shape] then p.Satellites.Shape = satMap[p.Satellites.Shape] end
     local scMap = { Glass = "Liquid Glass", ["Energy Rim"] = "Liquid Glass", Scanline = "Liquid Glass", ForceField = "Liquid Glass", Pulse = "Liquid Glass" }
