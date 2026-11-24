@@ -1,14 +1,8 @@
 local getgenv_ = getgenv or function() return shared end
-local loadstring_ = loadstring or load
 local gethui_ = gethui
 
 if getgenv_()._GlupostUnload then pcall(getgenv_()._GlupostUnload) end
 if getgenv_()._GlupostHubActive then return end
-
-if type(loadstring_) ~= "function" then
-    warn("[glupost] нет loadstring/load — Obsidian не загрузить")
-    return
-end
 
 local hasDrawing = (function()
     local ok, f = pcall(function() return Drawing and Drawing.new end)
@@ -259,16 +253,16 @@ local Profile = {
         PriorityTarget = false, PriorityMarker = true, ShowThreatScore = false,
         BoxFit = "Fixed", SmartVisCheck = true, SmoothCF = true,
         AdaptiveLOD = true, SyncWithESP = true,
-        Outline = true, BoxFill = false, FillOpacity = 0.08,
+        Outline = true, BoxGlow = true, BoxFill = false, FillOpacity = 0.10,
         HealthBar = true, HealthTrail = false, HeadDot = false,
         LookLine = false, LookRaycast = true, LookLength = 5,
         Rainbow = false, DistanceFade = false,
         TeamColors = false, HeadDotFilled = true,
-        ShowName = true, ShowHealth = true, ShowDistance = true, ShowTool = true,
+        ShowName = true, NamePlate = true, ShowHealth = true, ShowDistance = true, ShowTool = true,
         DamageNumbers = false,
         TextSize = 13, FontName = "Plex",
         TextOutline = true, NameYOffset = 0, HealthFormat = "HP", HideDefaultTags = false,
-        Skeleton = false, SkeletonThickness = 1, SkeletonOutline = true,
+        Skeleton = false, SkeletonThickness = 1, SkeletonOutline = true, SkeletonJoints = true,
         ShowTracer = false, TracerThickness = 1, TracerOrigin = "Bottom",
         TracerOutline = true, TracerFade = true,
         OffscreenArrows = false, ArrowSize = 15,
@@ -317,8 +311,14 @@ local Profile = {
     World = {
         Preset = "None",
         SkyPreset = "Auto",
+        SkyClouds = true,
         Weather = "None",
         WeatherIntensity = 0.6,
+        Shaders = false,
+        ShaderMode = "RTX Gloss",
+        ShaderIntensity = 0.72,
+        ShaderSurfaces = true,
+        ShaderSunRays = true,
         TimeEnabled = false, Time = 14,
         FOVEnabled = false, FOV = 90,
         SpeedFOV = false, SpeedFOVMax = 15, SpeedFOVSens = 1.0,
@@ -405,6 +405,9 @@ local Profile = {
         BgPanelOpacity = 0.78,
         BgScale = "Crop",
         BgTint = Color3.fromRGB(255, 255, 255),
+        Plexus = true,
+        ShowPreview = true,
+        UiAccent = Color3.fromRGB(45, 118, 255),
     },
     ThreatWeights = { Visibility = 0.4, LookAtMe = 0.3, Distance = 0.2, Health = 0.1 },
 }
@@ -511,24 +514,26 @@ local function poolCreated()
 end
 
 local KEYCLS = {
-    fill = "Square", outline = "Line",
-    hpbg = "Square", hptrail = "Square", hpfill = "Square",
+    fill = "Square", fillgrad = "Square", fillbar = "Line", outline = "Line", linesglow = "Line",
+    hpbdr = "Square", hpbg = "Square", hptrail = "Square", hpfill = "Square", hpgloss = "Line",
     lines = "Line", corners = "Line", lines3dbg = "Line", lines3d = "Line",
-    skeletonbg = "Line", skeleton = "Line",
-    look = "Line", lookdot = "Circle",
-    tracer = "Line", tracerbg = "Line",
+    skeletonglow = "Line", skeletonbg = "Line", skeleton = "Line", skeljoints = "Circle",
+    lookglow = "Line", look = "Line", lookdot = "Circle",
+    tracerglow = "Line", tracer = "Line", tracerbg = "Line", tracerdot = "Circle",
     arrows = "Line", arrowbg = hasTriangle and "Triangle" or "Line", arrowtri = hasTriangle and "Triangle" or "Line", arrowglow = "Line",
     headdot = "Circle", headdotring = "Circle",
     priomarkbg = "Line", priomark = "Line",
     radarbg = "Circle", radar = "Circle", radarlook = "Line", radarprio = "Circle",
+    namebg = "Square", namebar = "Line", toolbg = "Square",
     texts = "Text",
 }
 local ZI = {
-    fill = 1, outline = 2, lines3dbg = 2,
-    hpbg = 3, tracerbg = 3, skeletonbg = 3, arrowbg = 3, priomarkbg = 3,
+    fill = 1, fillgrad = 1, outline = 2, lines3dbg = 2, linesglow = 2, fillbar = 2,
+    hpbdr = 3, hpbg = 3, tracerbg = 3, tracerglow = 3, skeletonbg = 3, skeletonglow = 3, lookglow = 3, arrowbg = 3, priomarkbg = 3,
     hptrail = 4, lines = 4, corners = 4, lines3d = 4, skeleton = 4, look = 4, tracer = 4, arrows = 4, arrowtri = 4, headdotring = 4, priomark = 4, radarbg = 4,
-    hpfill = 5, headdot = 5, lookdot = 5, arrowglow = 5, radar = 5, radarlook = 5,
-    texts = 6, radarprio = 6,
+    hpfill = 5, hpgloss = 5, headdot = 5, lookdot = 5, skeljoints = 5, tracerdot = 5, arrowglow = 5, radar = 5, radarlook = 5, namebg = 5, toolbg = 5,
+    namebar = 6,
+    texts = 7, radarprio = 7,
 }
 
 local function newObj(key)
@@ -2813,7 +2818,7 @@ local function syncChams(plr, d, rd, allowCham)
     if e.Enabled and e.Chams and allowCham ~= false then
         local isVis = (rd and rd.visible) or d.visible or false
         local fill = isVis and e.Colors.ChamsVis or e.Colors.ChamsOcc
-        local outline = fill:Lerp(BLACK, 0.45)
+        local outline = (rd and rd.priority) and e.Colors.Priority:Lerp(WHITE, 0.55) or fill:Lerp(WHITE, 0.48)
         local tr = e.ChamsTransparency
         local otr = e.ChamsOutlineTransparency or 0
         if not d.highlight or d.highlight.Parent ~= char then
@@ -3009,7 +3014,7 @@ local function hideKey(d, key)
     if t then for _, o in pairs(t) do o.Visible = false end end
 end
 
-local BOX_KEYS = { "lines", "corners", "lines3dbg", "lines3d", "outline", "fill" }
+local BOX_KEYS = { "lines", "corners", "lines3dbg", "lines3d", "outline", "linesglow", "fill", "fillgrad", "fillbar" }
 local ARROW_KEYS = { "arrows", "arrowbg", "arrowtri", "arrowglow" }
 local RADAR_KEYS = { "radarbg", "radar", "radarlook", "radarprio" }
 
@@ -3026,6 +3031,16 @@ end
 
 local EDGES_3D = { {1,2},{3,4},{1,3},{2,4},{5,6},{7,8},{5,7},{6,8},{1,5},{2,6},{3,7},{4,8} }
 local screen3D = {}
+local skelPts, skelJointPts = {}, {}
+local SKEL_R15_KEYS = {
+    "Head", "Torso", "HumanoidRootPart",
+    "LeftArm", "RightArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand",
+    "LeftLeg", "RightLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot",
+}
+local SKEL_R15_JOINTS = {
+    "Head", "Torso", "LeftArm", "RightArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand",
+    "LeftLeg", "RightLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot",
+}
 
 local function segment(bt, i, l, t, r, b, len, pad)
     pad = pad or 0
@@ -3084,6 +3099,7 @@ local function drawBox(d, parts, rd)
     end
 
     local col = boxColor(rd)
+    local glowCol = col:Lerp(WHITE, 0.25)
     local alpha = rd.alpha
     local bt = e.BoxType
     if bt == "Bracket" then bt = "3D Corner" end
@@ -3095,10 +3111,27 @@ local function drawBox(d, parts, rd)
     if e.BoxFill and bt ~= "3D" and bt ~= "3D Corner" and (not lod or h >= 6) then
         local F = ensure(d, "fill", 1)[1]
         F.Position, F.Size = v2(left, top), v2(w, h)
-        F.Filled, F.Color = true, col
-        F.Transparency, F.Visible = e.FillOpacity * alpha, true
+        F.Filled, F.Color = true, rgb(10, 12, 18):Lerp(col, 0.28)
+        F.Transparency, F.Visible = clamp(e.FillOpacity * 0.95, 0.04, 0.82) * alpha, true
+
+        if (not lod or h >= 18) and w >= 8 then
+            local FG = ensure(d, "fillgrad", 1)[1]
+            FG.Position, FG.Size = v2(left, top), v2(w, max(2, h * 0.44))
+            FG.Filled, FG.Color = true, col:Lerp(WHITE, 0.14)
+            FG.Transparency, FG.Visible = clamp(e.FillOpacity * 0.65, 0.03, 0.55) * alpha, true
+
+            if not lod or h >= 24 then
+                local FB = ensure(d, "fillbar", 1)[1]
+                FB.From, FB.To = v2(left + 1, top + 1), v2(right - 1, top + 1)
+                FB.Color, FB.Thickness, FB.Transparency, FB.Visible = glowCol, 1.5, alpha * 0.72, true
+            else
+                hideKey(d, "fillbar")
+            end
+        else
+            hideKey(d, "fillgrad") hideKey(d, "fillbar")
+        end
     else
-        hideKey(d, "fill")
+        hideKey(d, "fill") hideKey(d, "fillgrad") hideKey(d, "fillbar")
     end
 
     if bt == "2D" or bt == "Corner" then
@@ -3107,7 +3140,20 @@ local function drawBox(d, parts, rd)
         local main, other, n = "lines", "corners", 4
         if bt == "Corner" then main, other, n = "corners", "lines", 8 end
         hideKey(d, other)
-        local len = min(14, h * 0.24)
+        local len = min(15, h * 0.25)
+
+        if e.BoxGlow and (not lod or h >= 22) then
+            local GL = ensure(d, "linesglow", n)
+            for i = n + 1, #GL do GL[i].Visible = false end
+            for i = 1, n do
+                local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len, 0)
+                local o = GL[i]
+                o.From, o.To = v2(x1, y1), v2(x2, y2)
+                o.Color, o.Thickness, o.Transparency, o.Visible = glowCol, thick + 4, alpha * 0.22, true
+            end
+        else
+            hideKey(d, "linesglow")
+        end
 
         if e.Outline and (not lod or h >= 18) then
             local O = ensure(d, "outline", n)
@@ -3116,7 +3162,7 @@ local function drawBox(d, parts, rd)
                 local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len, 1)
                 local o = O[i]
                 o.From, o.To = v2(x1, y1), v2(x2, y2)
-                o.Color, o.Thickness, o.Transparency, o.Visible = BLACK, thick + 2, alpha, true
+                o.Color, o.Thickness, o.Transparency, o.Visible = BLACK, thick + 2, alpha * 0.85, true
             end
         else
             hideKey(d, "outline")
@@ -3134,7 +3180,7 @@ local function drawBox(d, parts, rd)
         hideKey(d, "lines") hideKey(d, "corners") hideKey(d, "outline")
         local hrp, head = parts.HumanoidRootPart, parts.Head
         if not (isPartValid(hrp) and isPartValid(head)) then
-            hideKey(d, "lines3d") hideKey(d, "lines3dbg") return
+            hideKey(d, "lines3d") hideKey(d, "lines3dbg") hideKey(d, "linesglow") return
         end
         local size, cf = hrp.Size, partCF(hrp)
         local minX, maxX, minY, maxY, minZ, maxZ
@@ -3172,14 +3218,21 @@ local function drawBox(d, parts, rd)
         end
 
         local cam = workspace.CurrentCamera
-        if not cam then hideKey(d, "lines3d") hideKey(d, "lines3dbg") return end
+        if not cam then hideKey(d, "lines3d") hideKey(d, "lines3dbg") hideKey(d, "linesglow") return end
         local useOut = e.Outline and (not lod or h >= 24)
+        local useGlow = e.BoxGlow and (not lod or h >= 32)
         local n3 = (bt == "3D Corner") and 24 or 12
         local BG = useOut and ensure(d, "lines3dbg", n3) or nil
         if not useOut then
             hideKey(d, "lines3dbg")
         elseif #BG > n3 then
             for i = n3 + 1, #BG do BG[i].Visible = false end
+        end
+        local GL = useGlow and ensure(d, "linesglow", n3) or nil
+        if not useGlow then
+            hideKey(d, "linesglow")
+        elseif #GL > n3 then
+            for i = n3 + 1, #GL do GL[i].Visible = false end
         end
         local L = ensure(d, "lines3d", n3)
         if #L > n3 then
@@ -3217,13 +3270,18 @@ local function drawBox(d, parts, rd)
                                 local sk = (k == 1) and s1 or ((k == 2) and s2 or s3)
                                 if sk.Z > 0.1 then
                                     local b = v2(sk.X, sk.Y)
+                                    if GL then
+                                        GL[li].From, GL[li].To = a, b
+                                        GL[li].Color, GL[li].Thickness, GL[li].Transparency, GL[li].Visible = glowCol, thick + 4, alpha * 0.18, true
+                                    end
                                     if BG then
                                         BG[li].From, BG[li].To = a, b
-                                        BG[li].Color, BG[li].Thickness, BG[li].Transparency, BG[li].Visible = BLACK, thick + 2, alpha, true
+                                        BG[li].Color, BG[li].Thickness, BG[li].Transparency, BG[li].Visible = BLACK, thick + 2, alpha * 0.85, true
                                     end
                                     L[li].From, L[li].To = a, b
                                     L[li].Color, L[li].Thickness, L[li].Transparency, L[li].Visible = col, thick, alpha, true
                                 else
+                                    if GL then GL[li].Visible = false end
                                     if BG then BG[li].Visible = false end
                                     L[li].Visible = false
                                 end
@@ -3231,6 +3289,7 @@ local function drawBox(d, parts, rd)
                         else
                             for _ = 1, 3 do
                                 li += 1
+                                if GL then GL[li].Visible = false end
                                 if BG then BG[li].Visible = false end
                                 L[li].Visible = false
                             end
@@ -3256,13 +3315,18 @@ local function drawBox(d, parts, rd)
                 local ed = EDGES_3D[i]
                 local a, b = screen3D[ed[1]], screen3D[ed[2]]
                 if a and b then
+                    if GL then
+                        GL[i].From, GL[i].To = a, b
+                        GL[i].Color, GL[i].Thickness, GL[i].Transparency, GL[i].Visible = glowCol, thick + 4, alpha * 0.18, true
+                    end
                     if BG then
                         BG[i].From, BG[i].To = a, b
-                        BG[i].Color, BG[i].Thickness, BG[i].Transparency, BG[i].Visible = BLACK, thick + 2, alpha, true
+                        BG[i].Color, BG[i].Thickness, BG[i].Transparency, BG[i].Visible = BLACK, thick + 2, alpha * 0.85, true
                     end
                     L[i].From, L[i].To = a, b
                     L[i].Color, L[i].Thickness, L[i].Transparency, L[i].Visible = col, thick, alpha, true
                 else
+                    if GL then GL[i].Visible = false end
                     if BG then BG[i].Visible = false end
                     L[i].Visible = false
                 end
@@ -3276,7 +3340,7 @@ local function drawHealthBar(d, parts, rd, dt)
     local hum = parts.humanoid
     local h = rd.bH or 0
     if not e.HealthBar or not hum or not rd.bL or (e.AdaptiveLOD and h < 14) then
-        hideKey(d, "hpbg") hideKey(d, "hptrail") hideKey(d, "hpfill") return
+        hideKey(d, "hpbdr") hideKey(d, "hpbg") hideKey(d, "hptrail") hideKey(d, "hpfill") hideKey(d, "hpgloss") return
     end
     local targetP = clamp(hum.Health / max(hum.MaxHealth, 1), 0, 1)
     if rd._hpSmooth == nil then rd._hpSmooth = targetP end
@@ -3295,28 +3359,49 @@ local function drawHealthBar(d, parts, rd, dt)
 
     local thin = e.AdaptiveLOD and h < 28
     local barW = thin and 2 or 3
-    local x = floor(rd.bL - barW - 4 + 0.5)
+    local x = floor(rd.bL - barW - 5 + 0.5)
     local top = floor(rd.bT + 0.5)
     local bottom = floor(rd.bB + 0.5)
     local barH = max(2, bottom - top)
 
+    if not thin then
+        local BDR = ensure(d, "hpbdr", 1)[1]
+        BDR.Position, BDR.Size = v2(x - 1, top - 1), v2(barW + 2, barH + 2)
+        BDR.Filled, BDR.Color, BDR.Transparency, BDR.Visible = true, BLACK, rd.alpha * 0.88, true
+    else
+        hideKey(d, "hpbdr")
+    end
+
     local BG = ensure(d, "hpbg", 1)[1]
-    BG.Position, BG.Size = v2(x - 1, top - 1), v2(barW + 2, barH + 2)
-    BG.Filled, BG.Color, BG.Transparency, BG.Visible = true, BLACK, rd.alpha * 0.88, true
+    BG.Position, BG.Size = v2(x, top), v2(barW, barH)
+    BG.Filled, BG.Color, BG.Transparency, BG.Visible = true, rgb(14, 16, 23), rd.alpha * 0.86, true
 
     if e.HealthTrail and rd._hpTrail > rd._hpSmooth + 0.005 then
         local trH = max(1, floor(barH * rd._hpTrail + 0.5))
         local TR = ensure(d, "hptrail", 1)[1]
         TR.Position, TR.Size = v2(x, bottom - trH), v2(barW, trH)
-        TR.Filled, TR.Color, TR.Transparency, TR.Visible = true, WHITE, rd.alpha * 0.85, true
+        TR.Filled, TR.Color, TR.Transparency, TR.Visible = true, rgb(255, 115, 130):Lerp(WHITE, 0.42), rd.alpha * 0.88, true
     else
         hideKey(d, "hptrail")
     end
 
+    local hpCol = healthColor(rd._hpSmooth)
+    if rd._hpSmooth <= 0.30 then
+        hpCol = hpCol:Lerp(WHITE, (sin(clock() * 7.5) + 1) * 0.14)
+    end
     local fillH = max(1, floor(barH * rd._hpSmooth + 0.5))
+    local fillTop = bottom - fillH
     local F = ensure(d, "hpfill", 1)[1]
-    F.Position, F.Size = v2(x, bottom - fillH), v2(barW, fillH)
-    F.Filled, F.Color, F.Transparency, F.Visible = true, healthColor(rd._hpSmooth), rd.alpha, true
+    F.Position, F.Size = v2(x, fillTop), v2(barW, fillH)
+    F.Filled, F.Color, F.Transparency, F.Visible = true, hpCol, rd.alpha, true
+
+    if not thin and fillH >= 8 then
+        local G = ensure(d, "hpgloss", 1)[1]
+        G.From, G.To = v2(x + 0.5, fillTop), v2(x + 0.5, bottom)
+        G.Color, G.Thickness, G.Transparency, G.Visible = hpCol:Lerp(WHITE, 0.58), 1, rd.alpha * 0.65, true
+    else
+        hideKey(d, "hpgloss")
+    end
 end
 
 local function drawHeadDot(d, parts, rd)
@@ -3334,8 +3419,13 @@ local function drawHeadDot(d, parts, rd)
         local r = ensure(d, "headdotring", 1)[1]
         local pulse = 1 + sin(clock() * 6.5) * 0.22
         r.Position = rd.headDotScreen
-        r.Radius, r.NumSides, r.Filled, r.Thickness = rd.headDotR * (1.85 * pulse), 20, false, 1.3
-        r.Color, r.Transparency, r.Visible = WHITE:Lerp(col, 0.4), rd.alpha * 0.85, true
+        r.Radius, r.NumSides, r.Filled, r.Thickness = rd.headDotR * (1.85 * pulse), 20, false, 1.4
+        r.Color, r.Transparency, r.Visible = WHITE:Lerp(col, 0.35), rd.alpha * 0.88, true
+    elseif not e.AdaptiveLOD or (rd.bH or 0) >= 24 then
+        local r = ensure(d, "headdotring", 1)[1]
+        r.Position = rd.headDotScreen
+        r.Radius, r.NumSides, r.Filled, r.Thickness = rd.headDotR + 1.8, 20, false, 1.1
+        r.Color, r.Transparency, r.Visible = e.BoxGlow and col:Lerp(WHITE, 0.45) or BLACK, rd.alpha * (e.BoxGlow and 0.45 or 0.72), true
     else
         hideKey(d, "headdotring")
     end
@@ -3345,7 +3435,7 @@ local function drawLook(d, parts, rd)
     local e = cfg().ESP
     local head = parts.Head
     if not e.LookLine or not rd.onScreen or not isPartValid(head) or (e.AdaptiveLOD and (rd.bH or 0) < 16) then
-        hideKey(d, "look") hideKey(d, "lookdot")
+        hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot")
         return
     end
     local cam = workspace.CurrentCamera
@@ -3365,19 +3455,29 @@ local function drawLook(d, parts, rd)
 
     local a = cam:WorldToViewportPoint(p1)
     local b = cam:WorldToViewportPoint(p2)
-    if a.Z <= 0.1 or b.Z <= 0.1 then hideKey(d, "look") hideKey(d, "lookdot") return end
+    if a.Z <= 0.1 or b.Z <= 0.1 then hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot") return end
 
     local toMe = cameraPos - p1
     local lookingAtMe = toMe.Magnitude > 0.5 and lookVec:Dot(toMe.Unit) >= 0.94
     local col = lookingAtMe and (e.Colors.LookAlert or HP_RED) or e.Colors.Look
+    local pA, pB = v2(a.X, a.Y), v2(b.X, b.Y)
+
+    if e.BoxGlow and (not e.AdaptiveLOD or (rd.bH or 0) >= 24) then
+        local LG = ensure(d, "lookglow", 1)[1]
+        LG.From, LG.To = pA, pB
+        LG.Color, LG.Thickness, LG.Transparency, LG.Visible = col:Lerp(WHITE, 0.28), lookingAtMe and 5 or 4, rd.alpha * 0.22, true
+    else
+        hideKey(d, "lookglow")
+    end
 
     local L = ensure(d, "look", 1)[1]
-    L.From, L.To = v2(a.X, a.Y), v2(b.X, b.Y)
-    L.Color, L.Thickness, L.Transparency, L.Visible = col, lookingAtMe and 2 or 1.5, rd.alpha * 0.92, true
+    L.From, L.To = pA, pB
+    L.Color, L.Thickness, L.Transparency, L.Visible = col, lookingAtMe and 2 or 1.5, rd.alpha * 0.94, true
 
     local dot = ensure(d, "lookdot", 1)[1]
-    dot.Position, dot.Radius, dot.NumSides, dot.Filled = v2(b.X, b.Y), lookingAtMe and 3.5 or 2.5, 10, true
-    dot.Color, dot.Transparency, dot.Visible = col, rd.alpha, true
+    local dotR = lookingAtMe and (3.6 + sin(clock() * 8) * 0.65) or 2.6
+    dot.Position, dot.Radius, dot.NumSides, dot.Filled = pB, dotR, 12, true
+    dot.Color, dot.Transparency, dot.Visible = WHITE:Lerp(col, 0.45), rd.alpha, true
 end
 
 local SKEL = {
@@ -3403,11 +3503,11 @@ local function drawSkeleton(d, parts, rd)
     local e = cfg().ESP
     local h = rd.bH or 0
     if not e.Skeleton or not rd.onScreen or (e.AdaptiveLOD and h < 22) then
-        hideKey(d, "skeleton") hideKey(d, "skeletonbg")
+        hideKey(d, "skeletonglow") hideKey(d, "skeleton") hideKey(d, "skeletonbg") hideKey(d, "skeljoints")
         return
     end
     local cam = workspace.CurrentCamera
-    if not cam then hideKey(d, "skeleton") hideKey(d, "skeletonbg") return end
+    if not cam then hideKey(d, "skeletonglow") hideKey(d, "skeleton") hideKey(d, "skeletonbg") hideKey(d, "skeljoints") return end
 
     local ch = parts.Character
     if not parts.LowerTorso and ch and ch.Parent and (not parts.Torso or not parts.LeftArm or not parts.RightArm or not parts.LeftLeg or not parts.RightLeg) then
@@ -3428,8 +3528,11 @@ local function drawSkeleton(d, parts, rd)
     local set = SKEL.R15
     local n = isR15 and #set or 10
     local col = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Skeleton)
+    local glowCol = col:Lerp(WHITE, 0.25)
     local skThick = (e.AdaptiveLOD and h < 45) and 1 or e.SkeletonThickness
     local useOut = e.SkeletonOutline and (not e.AdaptiveLOD or h >= 30)
+    local useGlow = e.BoxGlow and (not e.AdaptiveLOD or h >= 34)
+    local useJoints = e.SkeletonJoints and (not e.AdaptiveLOD or h >= 30)
     local alpha = rd.alpha
 
     local S = ensure(d, "skeleton", n)
@@ -3440,26 +3543,54 @@ local function drawSkeleton(d, parts, rd)
     else
         hideKey(d, "skeletonbg")
     end
+    local SG = useGlow and ensure(d, "skeletonglow", n) or nil
+    if SG then
+        for i = n + 1, #SG do SG[i].Visible = false end
+    else
+        hideKey(d, "skeletonglow")
+    end
 
     local function drawSeg(idx, a, b)
-        local line, bg = S[idx], SB and SB[idx] or nil
+        local line, bg, gl = S[idx], SB and SB[idx] or nil, SG and SG[idx] or nil
         if a and b then
+            if gl then
+                gl.From, gl.To = a, b
+                gl.Color, gl.Thickness, gl.Transparency, gl.Visible = glowCol, skThick + 3.5, alpha * 0.20, true
+            end
             if bg then
                 bg.From, bg.To = a, b
-                bg.Color, bg.Thickness, bg.Transparency, bg.Visible = BLACK, skThick + 2, alpha * 0.75, true
+                bg.Color, bg.Thickness, bg.Transparency, bg.Visible = BLACK, skThick + 2, alpha * 0.72, true
             end
             line.From, line.To = a, b
             line.Color, line.Thickness, line.Transparency, line.Visible = col, skThick, alpha, true
         else
+            if gl then gl.Visible = false end
             if bg then bg.Visible = false end
             line.Visible = false
         end
     end
 
+    local jn = 0
     if isR15 then
+        for i = 1, #SKEL_R15_KEYS do
+            local k = SKEL_R15_KEYS[i]
+            skelPts[k] = projSkel(cam, parts[k])
+        end
         for i = 1, n do
             local pair = set[i]
-            drawSeg(i, projSkel(cam, parts[pair[1]]), projSkel(cam, parts[pair[2]]))
+            drawSeg(i, skelPts[pair[1]], skelPts[pair[2]])
+        end
+        if useJoints then
+            for i = 1, #SKEL_R15_JOINTS do
+                local k = SKEL_R15_JOINTS[i]
+                if not (k == "Head" and e.HeadDot) then
+                    local pt = skelPts[k]
+                    if pt then
+                        jn += 1
+                        skelJointPts[jn] = pt
+                    end
+                end
+            end
         end
     else
         local torsoP = isPartValid(parts.Torso) and parts.Torso or parts.HumanoidRootPart
@@ -3480,6 +3611,30 @@ local function drawSkeleton(d, parts, rd)
         drawSeg(8, lHp, lFt)
         drawSeg(9, pelvis, rHp)
         drawSeg(10, rHp, rFt)
+        if useJoints then
+            local pts = { head, neck, pelvis, lSh, rSh, lHd, rHd, lHp, rHp, lFt, rFt }
+            local startI = e.HeadDot and 2 or 1
+            for i = startI, #pts do
+                if pts[i] then
+                    jn += 1
+                    skelJointPts[jn] = pts[i]
+                end
+            end
+        end
+    end
+
+    if useJoints and jn > 0 then
+        local J = ensure(d, "skeljoints", jn)
+        local jr = clamp(skThick * 1.15, 1.8, 3.2)
+        local jCol = WHITE:Lerp(col, 0.38)
+        for i = jn + 1, #J do J[i].Visible = false end
+        for i = 1, jn do
+            local c = J[i]
+            c.Position, c.Radius, c.NumSides, c.Filled = skelJointPts[i], jr, 10, true
+            c.Color, c.Transparency, c.Visible = jCol, alpha * 0.92, true
+        end
+    else
+        hideKey(d, "skeljoints")
     end
 end
 
@@ -3495,10 +3650,16 @@ local function showEspText(T, key, sz, text, color, y, font, alpha, outline, cx)
     t.Text, t.Color, t.Visible = text, color, true
 end
 
+local function utf8Count(s)
+    return select(2, s:gsub("[^\128-\191]", ""))
+end
+
 local function drawText(d, parts, rd, doText)
     local e = cfg().ESP
     local hum = parts.humanoid
-    if not rd.onScreen or not hum or hum.Health <= 0 or not rd.bL then hideKey(d, "texts") return end
+    if not rd.onScreen or not hum or hum.Health <= 0 or not rd.bL then
+        hideKey(d, "texts") hideKey(d, "namebg") hideKey(d, "namebar") hideKey(d, "toolbg") return
+    end
 
     d.texts = d.texts or {}
     local T = d.texts
@@ -3528,7 +3689,11 @@ local function drawText(d, parts, rd, doText)
                 name = string.format("%s (%d%%)", name,
                     max(0, floor(threatScore(parts._player, parts, playersData[parts._player]) * 100)))
             end
-            rd._nameStr = name
+            if rd._nameStr ~= name then
+                rd._nameStr = name
+                rd._nameChars = utf8Count(name)
+                rd._nameMeasW = nil
+            end
         else
             rd._nameStr = nil
         end
@@ -3545,7 +3710,12 @@ local function drawText(d, parts, rd, doText)
 
         if e.ShowTool then
             local tool = parts.Character and parts.Character:FindFirstChildOfClass("Tool")
-            rd._toolStr = tool and ("[" .. tool.Name .. "]") or nil
+            local tStr = tool and ("[" .. tool.Name .. "]") or nil
+            if rd._toolStr ~= tStr then
+                rd._toolStr = tStr
+                rd._toolChars = tStr and utf8Count(tStr) or nil
+                rd._toolMeasW = nil
+            end
         else
             rd._toolStr = nil
         end
@@ -3555,13 +3725,41 @@ local function drawText(d, parts, rd, doText)
     local showDist = rd._distStr and (not lod or h >= 12 or not rd._nameStr)
     local showTool = rd._toolStr and (not lod or h >= 24)
     local outline = e.TextOutline
+    local usePlate = e.NamePlate and (not lod or h >= 20)
 
-    local yt = rd.bT - size - 5 - e.NameYOffset
+    local yt = rd.bT - size - (usePlate and 8 or 5) - e.NameYOffset
     if rd._nameStr then
-        showEspText(T, "name", size, rd._nameStr, col, yt, font, alpha, outline, cx)
-    elseif T.name then T.name.Visible = false end
+        showEspText(T, "name", size, rd._nameStr, usePlate and WHITE:Lerp(col, 0.25) or col, yt, font, alpha, outline, cx)
+        if usePlate then
+            if rd._npSz ~= size or rd._npFont ~= font then
+                rd._npSz, rd._npFont = size, font
+                rd._nameMeasW, rd._toolMeasW = nil, nil
+            end
+            if not rd._nameMeasW and T.name then
+                local okB, bx = pcall(function() return T.name.TextBounds.X end)
+                if okB and type(bx) == "number" and bx > 4 then
+                    rd._nameMeasW = floor(bx + 12 + 0.5)
+                end
+            end
+            local nw = rd._nameMeasW or max(34, floor((rd._nameChars or 4) * size * 0.56 + 12 + 0.5))
+            local px = floor(cx - nw / 2 + 0.5)
+            local py = floor(yt - 2 + 0.5)
+            local NBG = ensure(d, "namebg", 1)[1]
+            NBG.Position, NBG.Size = v2(px, py), v2(nw, size + 5)
+            NBG.Filled, NBG.Color, NBG.Transparency, NBG.Visible = true, rgb(12, 14, 21), alpha * 0.76, true
 
-    local yb = rd.bB + 3
+            local NBAR = ensure(d, "namebar", 1)[1]
+            NBAR.From, NBAR.To = v2(px + 1, py + size + 5), v2(px + nw - 1, py + size + 5)
+            NBAR.Color, NBAR.Thickness, NBAR.Transparency, NBAR.Visible = col:Lerp(WHITE, 0.25), 1.5, alpha * 0.94, true
+        else
+            hideKey(d, "namebg") hideKey(d, "namebar")
+        end
+    else
+        if T.name then T.name.Visible = false end
+        hideKey(d, "namebg") hideKey(d, "namebar")
+    end
+
+    local yb = rd.bB + 4
     if showHP then
         showEspText(T, "hp", subSize, rd._hpStr, rd._hpCol, yb, font, alpha, outline, cx)
         yb += subSize + 2
@@ -3573,14 +3771,33 @@ local function drawText(d, parts, rd, doText)
     elseif T.dist then T.dist.Visible = false end
 
     if showTool then
+        local useToolPlate = usePlate and (not lod or h >= 28)
+        if useToolPlate then yb += 2 end
         showEspText(T, "tool", subSize, rd._toolStr, TOOL_COLOR, yb, font, alpha, outline, cx)
-    elseif T.tool then T.tool.Visible = false end
+        if useToolPlate then
+            if not rd._toolMeasW and T.tool then
+                local okB, bx = pcall(function() return T.tool.TextBounds.X end)
+                if okB and type(bx) == "number" and bx > 4 then
+                    rd._toolMeasW = floor(bx + 10 + 0.5)
+                end
+            end
+            local tw = rd._toolMeasW or max(30, floor((rd._toolChars or 4) * subSize * 0.54 + 10 + 0.5))
+            local TBG = ensure(d, "toolbg", 1)[1]
+            TBG.Position, TBG.Size = v2(floor(cx - tw / 2 + 0.5), floor(yb - 1 + 0.5)), v2(tw, subSize + 3)
+            TBG.Filled, TBG.Color, TBG.Transparency, TBG.Visible = true, rgb(12, 15, 22), alpha * 0.68, true
+        else
+            hideKey(d, "toolbg")
+        end
+    else
+        if T.tool then T.tool.Visible = false end
+        hideKey(d, "toolbg")
+    end
 end
 
 local function drawTracer(d, rd)
     local e = cfg().ESP
     if not e.ShowTracer or not rd.onScreen or not rd.hrpScreen then
-        hideKey(d, "tracer") hideKey(d, "tracerbg") return
+        hideKey(d, "tracerglow") hideKey(d, "tracer") hideKey(d, "tracerbg") hideKey(d, "tracerdot") return
     end
     local vp = workspace.CurrentCamera.ViewportSize
     local from
@@ -3591,19 +3808,35 @@ local function drawTracer(d, rd)
     local to = v2(rd.hrpScreen.X, rd.bB or (rd.legScreen and rd.legScreen.Y) or rd.hrpScreen.Y)
     local normDist = e.UnlimitedDistance and 50000 or max(e.MaxDistance, 1)
     local a = e.TracerFade and clamp(1 - rd.distance / max(normDist * 0.6, 1), 0.25, 0.9) or rd.alpha
+    local col = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Tracer)
+
+    if e.BoxGlow then
+        local G = ensure(d, "tracerglow", 1)[1]
+        G.From, G.To = from, to
+        G.Color, G.Thickness, G.Transparency, G.Visible = col:Lerp(WHITE, 0.25), e.TracerThickness + 4, a * 0.18, true
+    else
+        hideKey(d, "tracerglow")
+    end
 
     if e.TracerOutline then
         local B = ensure(d, "tracerbg", 1)[1]
         B.From, B.To = from, to
-        B.Color, B.Thickness, B.Transparency, B.Visible = BLACK, e.TracerThickness + 2, a * 0.8, true
+        B.Color, B.Thickness, B.Transparency, B.Visible = BLACK, e.TracerThickness + 2, a * 0.78, true
     else
         hideKey(d, "tracerbg")
     end
 
     local T = ensure(d, "tracer", 1)[1]
     T.From, T.To = from, to
-    T.Color = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Tracer)
-    T.Thickness, T.Transparency, T.Visible = e.TracerThickness, a, true
+    T.Color, T.Thickness, T.Transparency, T.Visible = col, e.TracerThickness, a, true
+
+    if not e.AdaptiveLOD or (rd.bH or 0) >= 18 then
+        local TD = ensure(d, "tracerdot", 1)[1]
+        TD.Position, TD.Radius, TD.NumSides, TD.Filled = to, clamp(e.TracerThickness + 1.5, 2.5, 4.2), 10, true
+        TD.Color, TD.Transparency, TD.Visible = WHITE:Lerp(col, 0.35), a, true
+    else
+        hideKey(d, "tracerdot")
+    end
 end
 
 local function drawArrow(d, rd)
@@ -3671,32 +3904,38 @@ local function drawPriorityMarker(d, parts, rd)
     local cam = workspace.CurrentCamera
     if not cam then hideKey(d, "priomark") hideKey(d, "priomarkbg") return end
     local t = clock()
-    local ang, rad = t * 2.1, 2.35 + sin(t * 5.0) * 0.22
+    local ang, rad = t * 2.0, 2.3 + sin(t * 5.0) * 0.22
     local base = partPos(hrp) - v3(0, max(2.3, hrp.Size.Y * 1.3), 0)
-    for k = 1, 4 do
-        local a = ang + (k - 1) * (math.pi * 0.5)
+    for k = 1, 8 do
+        local a = ang + (k - 1) * (math.pi * 0.25)
         local ca, sa = cos(a), sin(a)
         local s1 = cam:WorldToViewportPoint(base + v3(ca * rad, 0, sa * rad))
-        local s2 = cam:WorldToViewportPoint(base + v3(ca * (rad + 0.85), 0, sa * (rad + 0.85)))
         prioPtsIn[k] = (s1.Z > 0.1) and v2(s1.X, s1.Y) or nil
-        prioPtsOut[k] = (s2.Z > 0.1) and v2(s2.X, s2.Y) or nil
+        if k % 2 == 1 then
+            local s2 = cam:WorldToViewportPoint(base + v3(ca * (rad + 0.9), 0, sa * (rad + 0.9)))
+            prioPtsOut[(k + 1) / 2] = (s2.Z > 0.1) and v2(s2.X, s2.Y) or nil
+        end
     end
     local col = e.Colors.Priority
-    local BG = ensure(d, "priomarkbg", 8)
-    local LN = ensure(d, "priomark", 8)
-    for k = 1, 4 do
-        local j = (k % 4) + 1
-        local p1, p2, po = prioPtsIn[k], prioPtsIn[j], prioPtsOut[k]
+    local spikeCol = WHITE:Lerp(col, 0.35)
+    local BG = ensure(d, "priomarkbg", 12)
+    local LN = ensure(d, "priomark", 12)
+    for k = 1, 8 do
+        local j = (k % 8) + 1
+        local p1, p2 = prioPtsIn[k], prioPtsIn[j]
         if p1 and p2 then
-            BG[k].From, BG[k].To, BG[k].Color, BG[k].Thickness, BG[k].Transparency, BG[k].Visible = p1, p2, BLACK, 3.5, rd.alpha * 0.7, true
-            LN[k].From, LN[k].To, LN[k].Color, LN[k].Thickness, LN[k].Transparency, LN[k].Visible = p1, p2, col, 1.5, rd.alpha, true
+            BG[k].From, BG[k].To, BG[k].Color, BG[k].Thickness, BG[k].Transparency, BG[k].Visible = p1, p2, BLACK, 3.5, rd.alpha * 0.68, true
+            LN[k].From, LN[k].To, LN[k].Color, LN[k].Thickness, LN[k].Transparency, LN[k].Visible = p1, p2, col, 1.6, rd.alpha, true
         else
             BG[k].Visible, LN[k].Visible = false, false
         end
-        local tk = 4 + k
+    end
+    for k = 1, 4 do
+        local tk = 8 + k
+        local p1, po = prioPtsIn[k * 2 - 1], prioPtsOut[k]
         if p1 and po then
-            BG[tk].From, BG[tk].To, BG[tk].Color, BG[tk].Thickness, BG[tk].Transparency, BG[tk].Visible = p1, po, BLACK, 3.5, rd.alpha * 0.7, true
-            LN[tk].From, LN[tk].To, LN[tk].Color, LN[tk].Thickness, LN[tk].Transparency, LN[tk].Visible = p1, po, WHITE, 1.5, rd.alpha, true
+            BG[tk].From, BG[tk].To, BG[tk].Color, BG[tk].Thickness, BG[tk].Transparency, BG[tk].Visible = p1, po, BLACK, 3.5, rd.alpha * 0.68, true
+            LN[tk].From, LN[tk].To, LN[tk].Color, LN[tk].Thickness, LN[tk].Transparency, LN[tk].Visible = p1, po, spikeCol, 1.6, rd.alpha, true
         else
             BG[tk].Visible, LN[tk].Visible = false, false
         end
@@ -5742,9 +5981,12 @@ end
 
 local WorldMod = (function()
 local worldOrig = { atm = {} }
-local gradeFx, bloomFx = nil, nil
-local customSky, weatherPart, weatherEmitter, weatherEmitter2, weatherModeCur = nil, nil, nil, nil, nil
+local gradeFx, bloomFx, shaderBloomFx, sunRaysFx = nil, nil, nil, nil
+local customSky, customAtm, customClouds = nil, nil, nil
+local weatherPart, weatherEmitter, weatherEmitter2, weatherModeCur = nil, nil, nil, nil
 local speedFovSmooth, appliedSpeedKick, lastWindTick = 0, 0, 0
+local shaderParts, shaderDescConn, shaderScanned = {}, nil, false
+local lastShaderMode, lastShaderInten, lastShaderSurf = nil, -1, nil
 
 local function clearWeather()
     if weatherPart then safeDestroy(weatherPart) end
@@ -5937,22 +6179,137 @@ local function ensureWeather(mode, intensity, cam)
     weatherPart, weatherEmitter, weatherEmitter2 = p, em, em2
 end
 
-local SKY_PROPS = { "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp", "StarCount", "CelestialBodiesShown", "MoonAngularSize", "SunAngularSize" }
-local lastSkyRef, lastSkyMode = nil, nil
+local SKY_PROPS = { "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp", "StarCount", "CelestialBodiesShown", "MoonAngularSize", "SunAngularSize", "SunTextureId", "MoonTextureId" }
+local ATM_PROPS = { "Density", "Offset", "Color", "Decay", "Glare", "Haze" }
+local CLOUD_PROPS = { "Cover", "Density", "Color", "Enabled" }
+local SKY_DEFS = {
+    ["Clean Night"] = {
+        night = true, stars = 5000, moon = 14, sun = 16, clock = 23.5,
+        atmColor = rgb(62, 90, 155), atmDecay = rgb(10, 16, 38), haze = 3.2, glare = 0.6, density = 0.24, offset = 0.85,
+        cloudCol = rgb(75, 102, 165), cloudCover = 0.42, cloudDens = 0.55,
+        shiftTop = rgb(45, 65, 115), shiftBot = rgb(18, 26, 48),
+    },
+    ["Cyberpunk"] = {
+        night = true, stars = 4400, moon = 14, sun = 18, clock = 21.4,
+        atmColor = rgb(55, 205, 255), atmDecay = rgb(115, 28, 175), haze = 6.6, glare = 1.6, density = 0.28, offset = 0.72,
+        cloudCol = rgb(195, 85, 255), cloudCover = 0.54, cloudDens = 0.72,
+        shiftTop = rgb(165, 60, 230), shiftBot = rgb(42, 130, 195),
+    },
+    ["Cold Frost"] = {
+        night = false, stars = 2200, moon = 12, sun = 18, clock = 10.5,
+        atmColor = rgb(195, 232, 255), atmDecay = rgb(90, 152, 225), haze = 5.0, glare = 1.8, density = 0.26, offset = 0.70,
+        cloudCol = rgb(225, 245, 255), cloudCover = 0.58, cloudDens = 0.65,
+        shiftTop = rgb(170, 215, 255), shiftBot = rgb(125, 172, 215),
+    },
+    ["Warm Sunset"] = {
+        night = false, stars = 2000, moon = 14, sun = 26, clock = 18.2,
+        atmColor = rgb(255, 155, 85), atmDecay = rgb(148, 56, 78), haze = 7.4, glare = 3.8, density = 0.28, offset = 0.64,
+        cloudCol = rgb(255, 178, 120), cloudCover = 0.62, cloudDens = 0.74,
+        shiftTop = rgb(255, 150, 90), shiftBot = rgb(145, 72, 82),
+    },
+    ["Blood Moon"] = {
+        night = true, stars = 4800, moon = 24, sun = 18, clock = 23.0,
+        atmColor = rgb(215, 36, 58), atmDecay = rgb(64, 8, 16), haze = 6.8, glare = 2.4, density = 0.28, offset = 0.70,
+        cloudCol = rgb(175, 34, 54), cloudCover = 0.56, cloudDens = 0.76,
+        shiftTop = rgb(195, 42, 62), shiftBot = rgb(88, 18, 28),
+    },
+    ["Emerald Matrix"] = {
+        night = true, stars = 4200, moon = 14, sun = 16, clock = 23.6,
+        atmColor = rgb(45, 235, 125), atmDecay = rgb(8, 52, 28), haze = 5.8, glare = 1.3, density = 0.26, offset = 0.74,
+        cloudCol = rgb(62, 215, 128), cloudCover = 0.50, cloudDens = 0.68,
+        shiftTop = rgb(30, 170, 95), shiftBot = rgb(18, 72, 42),
+    },
+    ["Solar Gold"] = {
+        night = false, stars = 1800, moon = 14, sun = 28, clock = 17.3,
+        atmColor = rgb(255, 215, 110), atmDecay = rgb(158, 98, 28), haze = 6.4, glare = 4.2, density = 0.26, offset = 0.65,
+        cloudCol = rgb(255, 226, 148), cloudCover = 0.54, cloudDens = 0.66,
+        shiftTop = rgb(255, 205, 95), shiftBot = rgb(172, 124, 55),
+    },
+    ["Tokyo Neon"] = {
+        night = true, stars = 4200, moon = 15, sun = 18, clock = 22.0,
+        atmColor = rgb(85, 185, 255), atmDecay = rgb(145, 38, 185), haze = 7.0, glare = 1.8, density = 0.28, offset = 0.72,
+        cloudCol = rgb(235, 110, 255), cloudCover = 0.52, cloudDens = 0.72,
+        shiftTop = rgb(0, 195, 255), shiftBot = rgb(125, 42, 165),
+    },
+    ["Sakura Dusk"] = {
+        night = false, stars = 2400, moon = 16, sun = 24, clock = 17.8,
+        atmColor = rgb(255, 175, 215), atmDecay = rgb(128, 65, 142), haze = 6.8, glare = 2.8, density = 0.27, offset = 0.66,
+        cloudCol = rgb(255, 196, 228), cloudCover = 0.60, cloudDens = 0.70,
+        shiftTop = rgb(255, 145, 205), shiftBot = rgb(155, 88, 148),
+    },
+    ["Crimson Void"] = {
+        night = true, stars = 5000, moon = 24, sun = 16, clock = 0.2,
+        atmColor = rgb(195, 24, 52), atmDecay = rgb(36, 4, 12), haze = 7.6, glare = 1.6, density = 0.28, offset = 0.74,
+        cloudCol = rgb(165, 22, 46), cloudCover = 0.58, cloudDens = 0.80,
+        shiftTop = rgb(190, 25, 55), shiftBot = rgb(62, 12, 22),
+    },
+    ["Golden Dawn"] = {
+        night = false, stars = 1800, moon = 14, sun = 24, clock = 6.4,
+        atmColor = rgb(255, 205, 138), atmDecay = rgb(110, 128, 198), haze = 5.6, glare = 3.4, density = 0.26, offset = 0.65,
+        cloudCol = rgb(255, 222, 175), cloudCover = 0.54, cloudDens = 0.64,
+        shiftTop = rgb(255, 195, 110), shiftBot = rgb(142, 132, 178),
+    },
+    ["Midnight Mist"] = {
+        night = true, stars = 4800, moon = 15, sun = 16, clock = 2.0,
+        atmColor = rgb(105, 152, 235), atmDecay = rgb(18, 32, 72), haze = 5.8, glare = 1.2, density = 0.28, offset = 0.72,
+        cloudCol = rgb(110, 148, 225), cloudCover = 0.56, cloudDens = 0.70,
+        shiftTop = rgb(75, 110, 210), shiftBot = rgb(32, 48, 95),
+    },
+}
+
+local SHADER_DEFS = {
+    ["RTX Gloss"]     = { spec = 1.0, diff = 0.85, soft = 0.14, reflBase = 0.14, reflScale = 0.36, forceSmooth = false, rayInt = 0.14, raySpr = 0.55, waterRefl = 1.0, waterTr = 0.32, waterWave = 0.22 },
+    ["Wet / Rain"]    = { spec = 1.0, diff = 0.90, soft = 0.26, reflBase = 0.22, reflScale = 0.44, forceSmooth = true,  rayInt = 0.10, raySpr = 0.48, waterRefl = 1.0, waterTr = 0.24, waterWave = 0.30 },
+    ["Chrome Mirror"] = { spec = 1.0, diff = 1.00, soft = 0.08, reflBase = 0.34, reflScale = 0.54, forceSmooth = true,  rayInt = 0.18, raySpr = 0.62, waterRefl = 1.0, waterTr = 0.18, waterWave = 0.18 },
+    ["Cinematic"]     = { spec = 0.9, diff = 0.82, soft = 0.34, reflBase = 0.08, reflScale = 0.22, forceSmooth = false, rayInt = 0.20, raySpr = 0.70, waterRefl = 0.95, waterTr = 0.38, waterWave = 0.16 },
+}
+
+local lastSkyRef, lastSkyAtmRef, lastCloudsRef, lastSkyMode, lastSkyClouds, lastSkyNoFog = nil, nil, nil, nil, nil, nil
 local lastAtmScan, wasFovEnabled = 0, false
 
 local function restoreSky()
-    if worldOrig.skyRef and worldOrig.skyProps then
+    if worldOrig.skyRef and worldOrig.skyProps and worldOrig.skyRef.Parent then
         pcall(function()
             for k, v in pairs(worldOrig.skyProps) do worldOrig.skyRef[k] = v end
         end)
     end
+    if worldOrig.skyAtmRef and worldOrig.skyAtmProps and worldOrig.skyAtmRef.Parent then
+        pcall(function()
+            for k, v in pairs(worldOrig.skyAtmProps) do worldOrig.skyAtmRef[k] = v end
+        end)
+    end
+    if worldOrig.cloudsRef and worldOrig.cloudsProps and worldOrig.cloudsRef.Parent then
+        pcall(function()
+            for k, v in pairs(worldOrig.cloudsProps) do worldOrig.cloudsRef[k] = v end
+        end)
+    end
+    if worldOrig.skyTime ~= nil then
+        pcall(function()
+            if not cfg().World.TimeEnabled then Lighting.ClockTime = worldOrig.skyTime end
+        end)
+        worldOrig.skyTime = nil
+    end
+    if worldOrig.skyShiftTop ~= nil then
+        pcall(function() Lighting.ColorShift_Top = worldOrig.skyShiftTop end)
+        worldOrig.skyShiftTop = nil
+    end
+    if worldOrig.skyShiftBot ~= nil then
+        pcall(function() Lighting.ColorShift_Bottom = worldOrig.skyShiftBot end)
+        worldOrig.skyShiftBot = nil
+    end
     worldOrig.skyRef, worldOrig.skyProps = nil, nil
-    lastSkyRef, lastSkyMode = nil, nil
+    worldOrig.skyAtmRef, worldOrig.skyAtmProps = nil, nil
+    worldOrig.cloudsRef, worldOrig.cloudsProps = nil, nil
+    lastSkyRef, lastSkyAtmRef, lastCloudsRef, lastSkyMode, lastSkyClouds, lastSkyNoFog = nil, nil, nil, nil, nil, nil
     if customSky then safeDestroy(customSky) customSky = nil end
+    if customAtm then safeDestroy(customAtm) customAtm = nil end
+    if customClouds then safeDestroy(customClouds) customClouds = nil end
 end
 
-local function applySkyPreset(presetName)
+local function applySkyPreset(presetName, wantClouds, noFog, hasWorldPreset, timeEnabled)
+    local def = SKY_DEFS[presetName]
+    if not def then return end
+
     local sky = Lighting:FindFirstChildOfClass("Sky")
     if not sky then
         if not customSky or not customSky.Parent then
@@ -5961,7 +6318,10 @@ local function applySkyPreset(presetName)
             customSky.Parent = Lighting
         end
         sky = customSky
-    elseif not worldOrig.skyProps then
+    elseif sky ~= customSky and worldOrig.skyRef ~= sky then
+        if worldOrig.skyRef and worldOrig.skyProps and worldOrig.skyRef.Parent then
+            pcall(function() for k, v in pairs(worldOrig.skyProps) do worldOrig.skyRef[k] = v end end)
+        end
         worldOrig.skyRef = sky
         worldOrig.skyProps = {}
         for _, k in ipairs(SKY_PROPS) do
@@ -5969,37 +6329,277 @@ local function applySkyPreset(presetName)
         end
     end
 
-    if lastSkyRef == sky and lastSkyMode == presetName then return end
-    lastSkyRef, lastSkyMode = sky, presetName
+    local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+    if not atm then
+        if not customAtm or not customAtm.Parent then
+            customAtm = Instance.new("Atmosphere")
+            customAtm.Name = HttpSvc:GenerateGUID(false)
+            customAtm.Parent = Lighting
+        end
+        atm = customAtm
+    elseif atm ~= customAtm and worldOrig.skyAtmRef ~= atm then
+        if worldOrig.skyAtmRef and worldOrig.skyAtmProps and worldOrig.skyAtmRef.Parent then
+            pcall(function() for k, v in pairs(worldOrig.skyAtmProps) do worldOrig.skyAtmRef[k] = v end end)
+        end
+        worldOrig.skyAtmRef = atm
+        worldOrig.skyAtmProps = {}
+        for _, k in ipairs(ATM_PROPS) do
+            pcall(function() worldOrig.skyAtmProps[k] = atm[k] end)
+        end
+        if worldOrig.atm[atm] then worldOrig.atm[atm] = nil end
+    end
 
-    if presetName == "Clean Night" or presetName == "Cyberpunk" or presetName == "Blood Moon" or presetName == "Emerald Matrix" or presetName == "Tokyo Neon" or presetName == "Crimson Void" or presetName == "Midnight Mist" then
+    local terrain = workspace.Terrain
+    local clouds = terrain and terrain:FindFirstChildOfClass("Clouds") or nil
+    if wantClouds and terrain then
+        if not clouds then
+            if not customClouds or not customClouds.Parent then
+                customClouds = Instance.new("Clouds")
+                customClouds.Name = HttpSvc:GenerateGUID(false)
+                customClouds.Parent = terrain
+            end
+            clouds = customClouds
+        elseif clouds ~= customClouds and worldOrig.cloudsRef ~= clouds then
+            if worldOrig.cloudsRef and worldOrig.cloudsProps and worldOrig.cloudsRef.Parent then
+                pcall(function() for k, v in pairs(worldOrig.cloudsProps) do worldOrig.cloudsRef[k] = v end end)
+            end
+            worldOrig.cloudsRef = clouds
+            worldOrig.cloudsProps = {}
+            for _, k in ipairs(CLOUD_PROPS) do
+                pcall(function() worldOrig.cloudsProps[k] = clouds[k] end)
+            end
+        end
+    elseif not wantClouds then
+        if worldOrig.cloudsRef and worldOrig.cloudsProps and worldOrig.cloudsRef.Parent then
+            pcall(function() for k, v in pairs(worldOrig.cloudsProps) do worldOrig.cloudsRef[k] = v end end)
+            worldOrig.cloudsRef, worldOrig.cloudsProps = nil, nil
+        end
+        if customClouds then safeDestroy(customClouds) customClouds = nil end
+        clouds = nil
+    end
+
+    if not timeEnabled and not hasWorldPreset then
+        if worldOrig.skyTime == nil then worldOrig.skyTime = Lighting.ClockTime end
+        if abs(Lighting.ClockTime - def.clock) > 0.05 then Lighting.ClockTime = def.clock end
+    elseif worldOrig.skyTime ~= nil and not timeEnabled then
+        Lighting.ClockTime = worldOrig.skyTime
+        worldOrig.skyTime = nil
+    end
+
+    if not hasWorldPreset then
+        if worldOrig.skyShiftTop == nil then worldOrig.skyShiftTop = worldOrig.shiftTop or Lighting.ColorShift_Top end
+        if worldOrig.skyShiftBot == nil then worldOrig.skyShiftBot = Lighting.ColorShift_Bottom end
+        if Lighting.ColorShift_Top ~= def.shiftTop then Lighting.ColorShift_Top = def.shiftTop end
+        if Lighting.ColorShift_Bottom ~= def.shiftBot then Lighting.ColorShift_Bottom = def.shiftBot end
+    end
+
+    local dirty = (lastSkyRef ~= sky) or (lastSkyAtmRef ~= atm) or (lastCloudsRef ~= clouds)
+        or (lastSkyMode ~= presetName) or (lastSkyClouds ~= wantClouds) or (lastSkyNoFog ~= noFog)
+    if not dirty then return end
+    lastSkyRef, lastSkyAtmRef, lastCloudsRef = sky, atm, clouds
+    lastSkyMode, lastSkyClouds, lastSkyNoFog = presetName, wantClouds, noFog
+
+    pcall(function()
+        sky.SkyboxBk, sky.SkyboxDn, sky.SkyboxFt = "", "", ""
+        sky.SkyboxLf, sky.SkyboxRt, sky.SkyboxUp = "", "", ""
+        sky.SunTextureId = "rbxasset://sky/sun.jpg"
+        sky.MoonTextureId = "rbxasset://sky/moon.jpg"
+        sky.StarCount = def.stars
+        sky.CelestialBodiesShown = true
+        sky.MoonAngularSize = def.moon
+        sky.SunAngularSize = def.sun
+    end)
+
+    pcall(function()
+        atm.Color = def.atmColor
+        atm.Decay = def.atmDecay
+        atm.Haze = def.haze
+        atm.Glare = def.glare
+        atm.Density = noFog and 0.16 or def.density
+        atm.Offset = noFog and 1 or def.offset
+    end)
+
+    if clouds and wantClouds then
         pcall(function()
-            sky.SkyboxBk, sky.SkyboxDn, sky.SkyboxFt = "", "", ""
-            sky.SkyboxLf, sky.SkyboxRt, sky.SkyboxUp = "", "", ""
-            sky.StarCount = (presetName == "Cyberpunk" or presetName == "Emerald Matrix" or presetName == "Tokyo Neon") and 4200 or 5000
-            sky.CelestialBodiesShown = true
-            sky.MoonAngularSize = (presetName == "Blood Moon" or presetName == "Crimson Void") and 22 or 12
+            clouds.Enabled = true
+            clouds.Color = def.cloudCol
+            clouds.Cover = def.cloudCover
+            clouds.Density = def.cloudDens
         end)
-    elseif presetName == "Cold Frost" or presetName == "Warm Sunset" or presetName == "Solar Gold" or presetName == "Sakura Dusk" or presetName == "Golden Dawn" then
-        if sky == customSky then
-            safeDestroy(customSky)
-            customSky = Instance.new("Sky")
-            customSky.Name = HttpSvc:GenerateGUID(false)
-            customSky.Parent = Lighting
-            sky = customSky
-            lastSkyRef = sky
-        elseif worldOrig.skyRef == sky and worldOrig.skyProps then
+    end
+end
+
+local function isShaderPartEligible(p, cam)
+    if not p or not p.Parent or not p:IsA("BasePart") or p:IsA("Terrain") then return false end
+    if p.Transparency >= 0.9 then return false end
+    if cam and p:IsDescendantOf(cam) then return false end
+    local cur = p.Parent
+    while cur and cur ~= workspace do
+        if cur:IsA("Model") then
+            if Players:GetPlayerFromCharacter(cur) or cur:FindFirstChildOfClass("Humanoid") then
+                return false
+            end
+        end
+        cur = cur.Parent
+    end
+    return true
+end
+
+local function applyShaderToPart(p, targetRefl, forceSmooth)
+    local orig = shaderParts[p]
+    if not orig then
+        orig = { refl = p.Reflectance, mat = p.Material }
+        shaderParts[p] = orig
+    end
+    pcall(function()
+        if forceSmooth and orig.mat ~= Enum.Material.Neon and orig.mat ~= Enum.Material.ForceField and orig.mat ~= Enum.Material.Glass then
+            if p.Material ~= Enum.Material.SmoothPlastic then p.Material = Enum.Material.SmoothPlastic end
+        elseif p.Material ~= orig.mat then
+            p.Material = orig.mat
+        end
+        local r = math.max(orig.refl, targetRefl)
+        if abs(p.Reflectance - r) > 0.01 then p.Reflectance = r end
+    end)
+end
+
+local function restoreShaderParts()
+    if shaderDescConn then safeDestroy(shaderDescConn) shaderDescConn = nil end
+    for p, orig in pairs(shaderParts) do
+        if p and p.Parent then
             pcall(function()
-                for _, k in ipairs({ "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp", "MoonAngularSize" }) do
-                    if worldOrig.skyProps[k] ~= nil then sky[k] = worldOrig.skyProps[k] end
-                end
+                p.Reflectance = orig.refl
+                p.Material = orig.mat
             end)
         end
-        pcall(function()
-            sky.StarCount = 1800
-            sky.CelestialBodiesShown = true
-            sky.SunAngularSize = (presetName == "Solar Gold") and 26 or ((presetName == "Warm Sunset" or presetName == "Sakura Dusk" or presetName == "Golden Dawn") and 24 or 16)
-        end)
+    end
+    table.clear(shaderParts)
+    shaderScanned = false
+    lastShaderMode, lastShaderInten, lastShaderSurf = nil, -1, nil
+end
+
+local function restoreShaders()
+    restoreShaderParts()
+    pcall(function()
+        if worldOrig.shaderSpec ~= nil then Lighting.EnvironmentSpecularScale = worldOrig.shaderSpec end
+        if worldOrig.shaderDiff ~= nil then Lighting.EnvironmentDiffuseScale = worldOrig.shaderDiff end
+        if worldOrig.shaderSoft ~= nil then Lighting.ShadowSoftness = worldOrig.shaderSoft end
+        if worldOrig.shaderGlob ~= nil then Lighting.GlobalShadows = worldOrig.shaderGlob end
+        local terrain = workspace.Terrain
+        if terrain then
+            if worldOrig.waterRefl ~= nil then terrain.WaterReflectance = worldOrig.waterRefl end
+            if worldOrig.waterTr ~= nil then terrain.WaterTransparency = worldOrig.waterTr end
+            if worldOrig.waterWave ~= nil then terrain.WaterWaveSize = worldOrig.waterWave end
+        end
+    end)
+    worldOrig.shaderSpec, worldOrig.shaderDiff, worldOrig.shaderSoft, worldOrig.shaderGlob = nil, nil, nil, nil
+    worldOrig.waterRefl, worldOrig.waterTr, worldOrig.waterWave = nil, nil, nil
+    if sunRaysFx then sunRaysFx.Enabled = false end
+    if shaderBloomFx then shaderBloomFx.Enabled = false end
+end
+
+local function updateShaders(W, cam)
+    if not W.Shaders then
+        if worldOrig.shaderSpec ~= nil or shaderScanned or (sunRaysFx and sunRaysFx.Enabled) or (shaderBloomFx and shaderBloomFx.Enabled) then
+            restoreShaders()
+        end
+        return
+    end
+
+    local def = SHADER_DEFS[W.ShaderMode] or SHADER_DEFS["RTX Gloss"]
+    local inten = clamp(W.ShaderIntensity or 0.72, 0.1, 1.0)
+
+    if worldOrig.shaderSpec == nil then
+        worldOrig.shaderSpec = Lighting.EnvironmentSpecularScale
+        worldOrig.shaderDiff = Lighting.EnvironmentDiffuseScale
+        worldOrig.shaderSoft = Lighting.ShadowSoftness
+        worldOrig.shaderGlob = Lighting.GlobalShadows
+    end
+    local targetSpec = clamp(def.spec * (0.45 + 0.55 * inten), 0, 1)
+    local targetDiff = clamp(def.diff * (0.55 + 0.45 * inten), 0, 1)
+    if abs(Lighting.EnvironmentSpecularScale - targetSpec) > 0.01 then Lighting.EnvironmentSpecularScale = targetSpec end
+    if abs(Lighting.EnvironmentDiffuseScale - targetDiff) > 0.01 then Lighting.EnvironmentDiffuseScale = targetDiff end
+    if abs(Lighting.ShadowSoftness - def.soft) > 0.01 then Lighting.ShadowSoftness = def.soft end
+    if not Lighting.GlobalShadows then Lighting.GlobalShadows = true end
+
+    local terrain = workspace.Terrain
+    if terrain then
+        if worldOrig.waterRefl == nil then
+            worldOrig.waterRefl = terrain.WaterReflectance
+            worldOrig.waterTr = terrain.WaterTransparency
+            worldOrig.waterWave = terrain.WaterWaveSize
+        end
+        local wr = clamp(def.waterRefl * inten, 0, 1)
+        if abs(terrain.WaterReflectance - wr) > 0.01 then terrain.WaterReflectance = wr end
+        if abs(terrain.WaterTransparency - def.waterTr) > 0.01 then terrain.WaterTransparency = def.waterTr end
+        if abs(terrain.WaterWaveSize - def.waterWave) > 0.01 then terrain.WaterWaveSize = def.waterWave end
+    end
+
+    if W.ShaderSunRays then
+        if not sunRaysFx or not sunRaysFx.Parent then
+            sunRaysFx = Instance.new("SunRaysEffect")
+            sunRaysFx.Name = HttpSvc:GenerateGUID(false)
+            sunRaysFx.Parent = Lighting
+        end
+        if not sunRaysFx.Enabled then sunRaysFx.Enabled = true end
+        local srInt = clamp(def.rayInt * (0.4 + 0.8 * inten), 0.02, 0.45)
+        if abs(sunRaysFx.Intensity - srInt) > 0.01 then sunRaysFx.Intensity = srInt end
+        if abs(sunRaysFx.Spread - def.raySpr) > 0.01 then sunRaysFx.Spread = def.raySpr end
+    elseif sunRaysFx and sunRaysFx.Enabled then
+        sunRaysFx.Enabled = false
+    end
+
+    if not W.BloomEnabled then
+        if not shaderBloomFx or not shaderBloomFx.Parent then
+            shaderBloomFx = Instance.new("BloomEffect")
+            shaderBloomFx.Name = HttpSvc:GenerateGUID(false)
+            shaderBloomFx.Parent = Lighting
+        end
+        if not shaderBloomFx.Enabled then shaderBloomFx.Enabled = true end
+        local bInt = clamp(0.18 + inten * 0.30, 0.1, 0.65)
+        if abs(shaderBloomFx.Intensity - bInt) > 0.01 then shaderBloomFx.Intensity = bInt end
+        if shaderBloomFx.Size ~= 18 then shaderBloomFx.Size = 18 end
+        if shaderBloomFx.Threshold ~= 0.96 then shaderBloomFx.Threshold = 0.96 end
+    elseif shaderBloomFx and shaderBloomFx.Enabled then
+        shaderBloomFx.Enabled = false
+    end
+
+    if W.ShaderSurfaces then
+        local targetRefl = clamp(def.reflBase + def.reflScale * inten, 0.04, 0.92)
+        if not shaderScanned then
+            shaderScanned = true
+            local count = 0
+            for _, inst in ipairs(workspace:GetDescendants()) do
+                if isShaderPartEligible(inst, cam) then
+                    applyShaderToPart(inst, targetRefl, def.forceSmooth)
+                    count += 1
+                    if count >= 4500 then break end
+                end
+            end
+            shaderDescConn = workspace.DescendantAdded:Connect(function(inst)
+                if not inst:IsA("BasePart") or inst:IsA("Terrain") then return end
+                task.defer(function()
+                    if isUnloaded or not cfg().World.Shaders or not cfg().World.ShaderSurfaces then return end
+                    local curCam = workspace.CurrentCamera
+                    if isShaderPartEligible(inst, curCam) then
+                        local d = SHADER_DEFS[cfg().World.ShaderMode] or SHADER_DEFS["RTX Gloss"]
+                        local it = clamp(cfg().World.ShaderIntensity or 0.72, 0.1, 1.0)
+                        applyShaderToPart(inst, clamp(d.reflBase + d.reflScale * it, 0.04, 0.92), d.forceSmooth)
+                    end
+                end)
+            end)
+            lastShaderMode, lastShaderInten, lastShaderSurf = W.ShaderMode, inten, true
+        elseif lastShaderMode ~= W.ShaderMode or abs((lastShaderInten or -1) - inten) > 0.02 or lastShaderSurf ~= true then
+            lastShaderMode, lastShaderInten, lastShaderSurf = W.ShaderMode, inten, true
+            for p in pairs(shaderParts) do
+                if p and p.Parent then
+                    applyShaderToPart(p, targetRefl, def.forceSmooth)
+                else
+                    shaderParts[p] = nil
+                end
+            end
+        end
+    elseif shaderScanned then
+        restoreShaderParts()
     end
 end
 
@@ -6012,7 +6612,7 @@ local function update(dt)
         if worldOrig.brightness == nil then
             worldOrig.brightness = Lighting.Brightness
             worldOrig.exposure = Lighting.ExposureCompensation
-            worldOrig.shiftTop = Lighting.ColorShift_Top
+            worldOrig.shiftTop = worldOrig.skyShiftTop or Lighting.ColorShift_Top
         end
         if Lighting.Brightness ~= preset.Brightness then Lighting.Brightness = preset.Brightness end
         if Lighting.ExposureCompensation ~= preset.Exposure then Lighting.ExposureCompensation = preset.Exposure end
@@ -6025,9 +6625,9 @@ local function update(dt)
     end
 
     local skyMode = W.SkyPreset == "Auto" and W.Preset or W.SkyPreset
-    if skyMode and skyMode ~= "None" then
-        applySkyPreset(skyMode)
-    elseif worldOrig.skyProps or customSky then
+    if skyMode and skyMode ~= "None" and SKY_DEFS[skyMode] then
+        applySkyPreset(skyMode, W.SkyClouds ~= false, W.NoFog == true, preset ~= nil, W.TimeEnabled == true)
+    elseif worldOrig.skyProps or worldOrig.skyAtmProps or worldOrig.cloudsProps or worldOrig.skyTime ~= nil or worldOrig.skyShiftTop ~= nil or customSky or customAtm or customClouds then
         restoreSky()
     end
 
@@ -6125,13 +6725,13 @@ local function update(dt)
         if now - lastAtmScan >= 0.5 then
             lastAtmScan = now
             for _, child in ipairs(Lighting:GetChildren()) do
-                if child:IsA("Atmosphere") and worldOrig.atm[child] == nil then
+                if child:IsA("Atmosphere") and child ~= customAtm and child ~= worldOrig.skyAtmRef and worldOrig.atm[child] == nil then
                     worldOrig.atm[child] = { d = child.Density, h = child.Haze, g = child.Glare }
                 end
             end
         end
         for atm in pairs(worldOrig.atm) do
-            if atm and atm.Parent then
+            if atm and atm.Parent and atm ~= customAtm and atm ~= worldOrig.skyAtmRef then
                 if atm.Density ~= 0 then atm.Density = 0 end
                 if atm.Haze ~= 0 then atm.Haze = 0 end
                 if atm.Glare ~= 0 then atm.Glare = 0 end
@@ -6189,6 +6789,8 @@ local function update(dt)
     elseif bloomFx and bloomFx.Enabled then
         bloomFx.Enabled = false
     end
+
+    updateShaders(W, cam)
 end
 
 local function restore()
@@ -6219,6 +6821,7 @@ local function restore()
             end
         end
     end)
+    restoreShaders()
     restoreSky()
     clearWeather()
     worldOrig = { atm = {} }
@@ -6226,6 +6829,8 @@ local function restore()
     speedFovSmooth, appliedSpeedKick = 0, 0
     if gradeFx then safeDestroy(gradeFx) gradeFx = nil end
     if bloomFx then safeDestroy(bloomFx) bloomFx = nil end
+    if sunRaysFx then safeDestroy(sunRaysFx) sunRaysFx = nil end
+    if shaderBloomFx then safeDestroy(shaderBloomFx) shaderBloomFx = nil end
 end
 
 return { update = update, restore = restore }
@@ -6357,34 +6962,2638 @@ do
     end
 end
 
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local function loadModule(path)
-    local ok, src = pcall(game.HttpGet, game, repo .. path)
-    if not ok or not src then return nil end
-    local fn = loadstring_(src)
-    if not fn then return nil end
-    local ok2, mod = pcall(fn)
-    return ok2 and mod or nil
-end
+local SaveManager
+Library, SaveManager = (function()
+    local TweenSvc = game:GetService("TweenService")
+    local TH = {
+        WinBg = rgb(244, 246, 250),
+        SideBg = rgb(234, 238, 246),
+        TopBg = rgb(249, 250, 254),
+        CardBg = rgb(252, 253, 255),
+        CardHead = rgb(245, 247, 252),
+        CtrlBg = rgb(236, 240, 248),
+        CtrlHover = rgb(225, 231, 243),
+        Border = rgb(210, 217, 230),
+        BorderStrong = rgb(180, 190, 210),
+        Text = rgb(24, 28, 38),
+        SubText = rgb(95, 106, 126),
+        Muted = rgb(142, 152, 172),
+        Accent = rgb(45, 118, 255),
+        AccentSoft = rgb(224, 236, 255),
+        Plexus = rgb(155, 170, 200),
+    }
 
-Library = loadModule("Library.lua")
-if not Library then
-    warn("[glupost] не удалось загрузить Obsidian")
-    getgenv_().GlupostObjects = nil
-    getgenv_()._GlupostHubActive = false
-    return
-end
-local ThemeManager = loadModule("addons/ThemeManager.lua")
-local SaveManager  = loadModule("addons/SaveManager.lua")
+    local lib = {
+        Options = {},
+        Toggles = {},
+        ScreenGui = nil,
+        ToggleKeybind = nil,
+        _unloadCbs = {},
+        _accentRefs = {},
+        _conns = {},
+        _searchItems = {},
+        _unloaded = false,
+    }
 
-local Window = Library:CreateWindow({
-    Title = "glupost hub", Footer = VERSION, Center = true, AutoShow = true, NotifySide = "Right",
-    Size = (function()
+    local function conn(sig, fn)
+        local c = sig:Connect(fn)
+        tinsert(lib._conns, c)
+        return c
+    end
+
+    local function tw(inst, dur, props)
+        pcall(function()
+            TweenSvc:Create(inst, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+        end)
+    end
+
+    local function twS(inst, dur, style, props)
+        pcall(function()
+            TweenSvc:Create(inst, TweenInfo.new(dur, style or Enum.EasingStyle.Back, Enum.EasingDirection.Out), props):Play()
+        end)
+    end
+
+    local function mk(cls, props, parent)
+        local o = Instance.new(cls)
+        if props then
+            for k, v in pairs(props) do o[k] = v end
+        end
+        if parent then o.Parent = parent end
+        return o
+    end
+
+    local function corner(p, r) return mk("UICorner", { CornerRadius = UDim.new(0, r or 8) }, p) end
+    local function stroke(p, col, th, tr)
+        return mk("UIStroke", { Color = col or TH.Border, Thickness = th or 1, Transparency = tr or 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, p)
+    end
+    local function pad(p, l, r, t, b)
+        return mk("UIPadding", { PaddingLeft = UDim.new(0, l or 8), PaddingRight = UDim.new(0, r or l or 8), PaddingTop = UDim.new(0, t or 6), PaddingBottom = UDim.new(0, b or t or 6) }, p)
+    end
+
+    local function getGuiParent()
+        if gethui_ then
+            local ok, res = pcall(gethui_)
+            if ok and typeof(res) == "Instance" then return res end
+        end
+        local okC, cg = pcall(function() return game:GetService("CoreGui") end)
+        if okC and cg then return cg end
+        return LP and LP:FindFirstChildOfClass("PlayerGui")
+    end
+
+    local sg = mk("ScreenGui", {
+        Name = HttpSvc:GenerateGUID(false),
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        DisplayOrder = 999,
+    }, getGuiParent())
+    lib.ScreenGui = sg
+
+    local overlay = mk("Frame", {
+        Name = "OverlayLayer",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        ZIndex = 60,
+    }, sg)
+
+    local notifHolder = mk("Frame", {
+        Name = "NotifHolder",
+        AnchorPoint = v2(1, 1),
+        Position = UDim2.new(1, -18, 1, -18),
+        Size = UDim2.fromOffset(290, 360),
+        BackgroundTransparency = 1,
+        ZIndex = 80,
+    }, overlay)
+    mk("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        Padding = UDim.new(0, 8),
+    }, notifHolder)
+
+    local tipFrame = mk("Frame", {
+        Visible = false,
+        AutomaticSize = Enum.AutomaticSize.XY,
+        BackgroundColor3 = TH.CardBg,
+        BackgroundTransparency = 0.04,
+        ZIndex = 95,
+    }, overlay)
+    corner(tipFrame, 7)
+    stroke(tipFrame, TH.BorderStrong, 1, 0)
+    pad(tipFrame, 9, 9, 6, 6)
+    local tipLbl = mk("TextLabel", {
+        AutomaticSize = Enum.AutomaticSize.XY,
+        Size = UDim2.fromOffset(0, 0),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = TH.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true,
+        Text = "",
+        ZIndex = 96,
+    }, tipFrame)
+    mk("UISizeConstraint", { MaxSize = v2(260, 180) }, tipLbl)
+
+    local tipScale = mk("UIScale", { Scale = 1 }, tipFrame)
+    local activeTipToken = 0
+    local function hideTip()
+        activeTipToken += 1
+        tipFrame.Visible = false
+    end
+
+    local function bindTooltip(guiObj, getTip)
+        conn(guiObj.MouseEnter, function()
+            local txt = type(getTip) == "function" and getTip() or getTip
+            if not txt or txt == "" then return end
+            activeTipToken += 1
+            local tok = activeTipToken
+            task.delay(0.28, function()
+                if lib._unloaded or activeTipToken ~= tok or not guiObj.Parent then return end
+                local mp = UIS:GetMouseLocation()
+                local cam = workspace.CurrentCamera
+                local vp = cam and cam.ViewportSize or v2(1280, 720)
+                tipLbl.Text = txt
+                tipScale.Scale = 0.90
+                tipFrame.Visible = true
+                task.defer(function()
+                    if activeTipToken ~= tok then return end
+                    local sz = tipFrame.AbsoluteSize
+                    local px = clamp(mp.X + 14, 8, max(8, vp.X - sz.X - 8))
+                    local py = clamp(mp.Y + 14, 8, max(8, vp.Y - sz.Y - 8))
+                    tipFrame.Position = UDim2.fromOffset(px, py)
+                    twS(tipScale, 0.16, Enum.EasingStyle.Back, { Scale = 1 })
+                end)
+            end)
+        end)
+        conn(guiObj.MouseLeave, hideTip)
+    end
+
+    local activePopup, activePopupTrigger, closePopupFn, openedPopupAt = nil, nil, nil, 0
+    local function closeActivePopup()
+        if activePopup then
+            if closePopupFn then pcall(closePopupFn) end
+            pcall(function() activePopup:Destroy() end)
+            activePopup, activePopupTrigger, closePopupFn = nil, nil, nil
+        end
+    end
+
+    local function pointInGui(inst, mp)
+        if not inst or not inst.Parent then return false end
+        local p, s = inst.AbsolutePosition, inst.AbsoluteSize
+        return mp.X >= p.X and mp.X <= p.X + s.X and mp.Y >= p.Y and mp.Y <= p.Y + s.Y
+    end
+
+    conn(UIS.InputBegan, function(inp)
+        if lib._unloaded or not activePopup then return end
+        if inp.UserInputType ~= Enum.UserInputType.MouseButton1
+            and inp.UserInputType ~= Enum.UserInputType.MouseButton2
+            and inp.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        if clock() - openedPopupAt < 0.05 then return end
+        local mp = UIS:GetMouseLocation()
+        if pointInGui(activePopup, mp) or pointInGui(activePopupTrigger, mp) then return end
+        closeActivePopup()
+    end)
+
+    function lib:Notify(opts)
+        if lib._unloaded then return end
+        opts = opts or {}
+        local card = mk("Frame", {
+            Size = UDim2.fromOffset(276, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = TH.CardBg,
+            BackgroundTransparency = 0.25,
+            ClipsDescendants = true,
+            ZIndex = 82,
+        }, notifHolder)
+        corner(card, 9)
+        local cStroke = stroke(card, TH.BorderStrong, 1, 0.4)
+        local cScale = mk("UIScale", { Scale = 0.88 }, card)
+        local bar = mk("Frame", {
+            Size = UDim2.new(0, 3, 1, 0),
+            BackgroundColor3 = TH.Accent,
+            BorderSizePixel = 0,
+            ZIndex = 83,
+        }, card)
+        local prog = mk("Frame", {
+            AnchorPoint = v2(0, 1),
+            Position = UDim2.fromScale(0, 1),
+            Size = UDim2.new(1, 0, 0, 2),
+            BackgroundColor3 = TH.Accent,
+            BackgroundTransparency = 0.3,
+            BorderSizePixel = 0,
+            ZIndex = 84,
+        }, card)
+        local inner = mk("Frame", {
+            Position = UDim2.fromOffset(40, 8),
+            Size = UDim2.new(1, -20, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            ZIndex = 83,
+        }, card)
+        mk("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, inner)
+        mk("TextLabel", {
+            Size = UDim2.new(1, 0, 0, 16),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamBold,
+            TextSize = 13,
+            TextColor3 = TH.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Text = tostring(opts.Title or "glupost hub"),
+            LayoutOrder = 1,
+            ZIndex = 84,
+        }, inner)
+        mk("TextLabel", {
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            Font = Enum.Font.Gotham,
+            TextSize = 12,
+            TextColor3 = TH.SubText,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = true,
+            Text = tostring(opts.Description or ""),
+            LayoutOrder = 2,
+            ZIndex = 84,
+        }, inner)
+        mk("Frame", { Size = UDim2.fromOffset(1, 8), BackgroundTransparency = 1, LayoutOrder = 3 }, inner)
+        local dur = clamp(tonumber(opts.Time) or 3, 1, 10)
+        bar.BackgroundColor3 = TH.Accent
+        prog.BackgroundColor3 = TH.Accent
+        tw(card, 0.22, { BackgroundTransparency = 0.04 })
+        tw(cStroke, 0.22, { Transparency = 0 })
+        twS(cScale, 0.24, Enum.EasingStyle.Back, { Scale = 1 })
+        twS(inner, 0.24, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(12, 8) })
+        pcall(function()
+            TweenSvc:Create(prog, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) }):Play()
+        end)
+        task.delay(dur, function()
+            if not card or not card.Parent then return end
+            tw(card, 0.22, { BackgroundTransparency = 1 })
+            tw(cStroke, 0.22, { Transparency = 1 })
+            tw(bar, 0.22, { BackgroundTransparency = 1 })
+            twS(cScale, 0.20, Enum.EasingStyle.Quad, { Scale = 0.90 })
+            task.delay(0.24, function()
+                if card and card.Parent then card:Destroy() end
+            end)
+        end)
+    end
+
+    function lib:OnUnload(fn)
+        tinsert(lib._unloadCbs, fn)
+    end
+
+    function lib:Unload()
+        if lib._unloaded then return end
+        lib._unloaded = true
+        if lib._cancelKeyListen then pcall(lib._cancelKeyListen) end
+        closeActivePopup()
+        hideTip()
+        for _, fn in ipairs(lib._unloadCbs) do pcall(fn) end
+        for _, c in ipairs(lib._conns) do pcall(function() if c.Connected then c:Disconnect() end end) end
+        table.clear(lib._conns)
+        table.clear(lib._accentRefs)
+        table.clear(lib._searchItems)
+        if sg and sg.Parent then pcall(function() sg:Destroy() end) end
+    end
+
+    local function regAccent(inst, prop, kind)
+        tinsert(lib._accentRefs, { inst = inst, prop = prop, kind = kind or "solid" })
+    end
+
+    function lib:SetAccent(col)
+        if typeof(col) ~= "Color3" then return end
+        TH.Accent = col
+        TH.AccentSoft = col:Lerp(WHITE, 0.84)
+        for i = #lib._accentRefs, 1, -1 do
+            local r = lib._accentRefs[i]
+            if r.fn then
+                pcall(r.fn)
+            elseif r.inst and r.inst.Parent then
+                if r.kind ~= "ignore" then
+                    pcall(function()
+                        r.inst[r.prop] = (r.kind == "soft") and TH.AccentSoft or TH.Accent
+                    end)
+                end
+            else
+                table.remove(lib._accentRefs, i)
+            end
+        end
+    end
+
+    local function drawLineFrame(ln, x1, y1, x2, y2, col, th, tr)
+        local dx, dy = x2 - x1, y2 - y1
+        local len = sqrt(dx * dx + dy * dy)
+        if len < 0.5 then ln.Visible = false return end
+        ln.Position = UDim2.fromOffset((x1 + x2) * 0.5, (y1 + y2) * 0.5)
+        ln.Size = UDim2.fromOffset(len, th or 1)
+        ln.Rotation = math.deg(math.atan2(dy, dx))
+        if col then ln.BackgroundColor3 = col end
+        if tr ~= nil then ln.BackgroundTransparency = tr end
+        ln.Visible = true
+    end
+
+    local function buildIcon(parent, kind, color)
+        local box = mk("Frame", { Size = UDim2.fromOffset(14, 14), BackgroundTransparency = 1, ZIndex = parent.ZIndex + 1 }, parent)
+        local fills, strokes = {}, {}
+        local function part(x, y, w, h, rad, rot)
+            local f = mk("Frame", {
+                Position = UDim2.fromOffset(x, y),
+                Size = UDim2.fromOffset(w, h),
+                BackgroundColor3 = color,
+                BorderSizePixel = 0,
+                Rotation = rot or 0,
+                ZIndex = parent.ZIndex + 1,
+            }, box)
+            if rad then corner(f, rad) end
+            tinsert(fills, f)
+            return f
+        end
+        local function ring(x, y, w, h, rad, th)
+            local r = mk("Frame", { Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, h), BackgroundTransparency = 1, ZIndex = box.ZIndex + 1 }, box)
+            corner(r, rad)
+            tinsert(strokes, stroke(r, color, th))
+            return r
+        end
+        if kind == "eye" then
+            ring(1, 3, 12, 8, 5, 1.4)
+            part(5, 5, 4, 4, 4)
+        elseif kind == "sparkles" then
+            part(6, 1, 2, 12, 1); part(1, 6, 12, 2, 1)
+            part(3, 3, 8, 8, 2, 45).BackgroundTransparency = 0.35
+        elseif kind == "layers" then
+            part(2, 2, 10, 2, 1); part(2, 6, 10, 2, 1); part(2, 10, 10, 2, 1)
+        elseif kind == "radar" then
+            ring(1, 1, 12, 12, 99, 1.3)
+            part(6, 6, 2, 2, 99); part(7, 2, 1, 5, 0, 35)
+        elseif kind == "globe" then
+            ring(1, 1, 12, 12, 99, 1.3)
+            part(1, 6, 12, 1.2); part(6, 1, 1.2, 12)
+        elseif kind == "box" then
+            ring(2, 2, 10, 10, 2, 1.4)
+            part(4, 6, 6, 1.5)
+        elseif kind == "info" then
+            ring(1, 1, 12, 12, 99, 1.3)
+            part(6, 3, 2, 2, 2); part(6, 6, 2, 5, 1)
+        else
+            part(1, 3, 12, 1.8, 1); part(8, 1.5, 3, 4.5, 1)
+            part(1, 9, 12, 1.8, 1); part(3, 7.5, 3, 4.5, 1)
+        end
+        return {
+            box = box,
+            setColor = function(col)
+                for _, f in ipairs(fills) do f.BackgroundColor3 = col end
+                for _, s in ipairs(strokes) do s.Color = col end
+            end,
+        }
+    end
+
+    function lib:CreateWindow(winOpts)
+        winOpts = winOpts or {}
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or v2(1280, 720)
-        return UDim2.fromOffset(clamp(floor(vp.X * 0.88), 580, 820), clamp(floor(vp.Y * 0.88), 400, 600))
-    end)(),
-    MinSize = Vector2.new(640, 420),
+        local winW = clamp(floor(vp.X * 0.58), 590, 760)
+        local winH = clamp(floor(vp.Y * 0.72), 430, 535)
+        local prevW = 218
+        local showPrev = cfg().UI.ShowPreview ~= false
+        local totalW = winW + (showPrev and (prevW + 10) or 0)
+        local startX = clamp(floor((vp.X - totalW) * 0.5), 10, max(10, vp.X - winW - 10))
+        local startY = clamp(floor((vp.Y - winH) * 0.5), 10, max(10, vp.Y - winH - 10))
+
+        local main = mk("Frame", {
+            Name = "MainWindow",
+            Position = UDim2.fromOffset(startX, startY),
+            Size = UDim2.fromOffset(winW, winH),
+            BackgroundColor3 = TH.WinBg,
+            BackgroundTransparency = 0.05,
+            ClipsDescendants = true,
+            ZIndex = 2,
+        }, sg)
+        corner(main, 11)
+        stroke(main, TH.BorderStrong, 1, 0)
+        local mainScale = mk("UIScale", { Scale = 0.94 }, main)
+        twS(mainScale, 0.24, Enum.EasingStyle.Back, { Scale = 1 })
+
+        local previewWin = mk("Frame", {
+            Name = "PreviewWindow",
+            Position = UDim2.fromOffset(startX + winW + 10, startY),
+            Size = UDim2.fromOffset(prevW, winH),
+            BackgroundColor3 = TH.WinBg,
+            BackgroundTransparency = 0.05,
+            Visible = showPrev,
+            ClipsDescendants = true,
+            ZIndex = 2,
+        }, sg)
+        corner(previewWin, 11)
+        stroke(previewWin, TH.BorderStrong, 1, 0)
+        local previewScale = mk("UIScale", { Scale = showPrev and 0.94 or 1 }, previewWin)
+        if showPrev then twS(previewScale, 0.26, Enum.EasingStyle.Back, { Scale = 1 }) end
+
+        local function syncPreviewPos()
+            local mx, my = main.Position.X.Offset, main.Position.Y.Offset
+            local mw, mh = main.Size.X.Offset, main.Size.Y.Offset
+            previewWin.Position = UDim2.fromOffset(mx + mw + 10, my)
+            previewWin.Size = UDim2.fromOffset(prevW, mh)
+        end
+
+        local sideW = 176
+        local sidebar = mk("Frame", {
+            Name = "Sidebar",
+            Size = UDim2.new(0, sideW, 1, 0),
+            BackgroundColor3 = TH.SideBg,
+            BackgroundTransparency = 0.06,
+            ZIndex = 4,
+        }, main)
+        mk("Frame", {
+            Position = UDim2.new(1, -1, 0, 0),
+            Size = UDim2.new(0, 1, 1, 0),
+            BackgroundColor3 = TH.Border,
+            BorderSizePixel = 0,
+            ZIndex = 5,
+        }, sidebar)
+
+        -- Top Brand Card in Sidebar
+        local brandCard = mk("Frame", {
+            Position = UDim2.fromOffset(10, 10),
+            Size = UDim2.new(1, -20, 0, 74),
+            BackgroundColor3 = TH.CardBg,
+            BackgroundTransparency = 0.05,
+            ZIndex = 5,
+        }, sidebar)
+        corner(brandCard, 9)
+        stroke(brandCard, TH.Border, 1, 0)
+
+        local avatarImg = mk("ImageLabel", {
+            Position = UDim2.fromOffset(10, 15),
+            Size = UDim2.fromOffset(44, 44),
+            BackgroundColor3 = TH.CtrlBg,
+            BorderSizePixel = 0,
+            Image = "",
+            ZIndex = 6,
+        }, brandCard)
+        corner(avatarImg, 99)
+        stroke(avatarImg, TH.BorderStrong, 1.2, 0)
+
+        task.spawn(function()
+            if LP and LP.UserId then
+                local ok, imgUrl = pcall(Players.GetUserThumbnailAsync, Players, LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+                if ok and type(imgUrl) == "string" and avatarImg and avatarImg.Parent then
+                    avatarImg.Image = imgUrl
+                end
+            end
+        end)
+
+        mk("TextLabel", {
+            Position = UDim2.fromOffset(62, 16),
+            Size = UDim2.new(1, -68, 0, 18),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            TextColor3 = TH.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Text = tostring(winOpts.Title or "glupost hub"),
+            ZIndex = 6,
+        }, brandCard)
+        local verPill = mk("Frame", {
+            Position = UDim2.fromOffset(62, 37),
+            Size = UDim2.fromOffset(66, 18),
+            BackgroundColor3 = TH.AccentSoft,
+            BorderSizePixel = 0,
+            ClipsDescendants = true,
+            ZIndex = 6,
+        }, brandCard)
+        corner(verPill, 5)
+        regAccent(verPill, "BackgroundColor3", "soft")
+        local verSheen = mk("Frame", {
+            Name = "NoPanelBg",
+            Position = UDim2.fromScale(-0.6, 0),
+            Size = UDim2.fromScale(0.6, 1),
+            BackgroundColor3 = WHITE,
+            BackgroundTransparency = 0.35,
+            BorderSizePixel = 0,
+            ZIndex = 6,
+        }, verPill)
+        mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.15), NumberSequenceKeypoint.new(1, 1) }) }, verSheen)
+        pcall(function()
+            TweenSvc:Create(verSheen, TweenInfo.new(2.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false, 1.4), { Position = UDim2.fromScale(1.2, 0) }):Play()
+        end)
+        local verTxt = mk("TextLabel", {
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamBold,
+            TextSize = 10,
+            TextColor3 = TH.Accent,
+            Text = tostring(winOpts.Footer or VERSION),
+            ZIndex = 7,
+        }, verPill)
+        regAccent(verTxt, "TextColor3", "solid")
+
+        local tabScroll = mk("ScrollingFrame", {
+            Position = UDim2.fromOffset(8, 92),
+            Size = UDim2.new(1, -16, 1, -148),
+            BackgroundTransparency = 1,
+            ScrollBarThickness = 2,
+            ScrollBarImageColor3 = TH.BorderStrong,
+            CanvasSize = UDim2.fromOffset(0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            BorderSizePixel = 0,
+            ZIndex = 5,
+        }, sidebar)
+        mk("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, tabScroll)
+
+        -- Bottom Profile Card
+        local profBar = mk("Frame", {
+            Position = UDim2.new(0, 10, 1, -48),
+            Size = UDim2.new(1, -20, 0, 38),
+            BackgroundColor3 = TH.CardBg,
+            BackgroundTransparency = 0.05,
+            ZIndex = 5,
+        }, sidebar)
+        corner(profBar, 8)
+        stroke(profBar, TH.Border, 1, 0)
+        local dotLive = mk("Frame", {
+            AnchorPoint = v2(0.5, 0.5),
+            Position = UDim2.fromOffset(14, 19),
+            Size = UDim2.fromOffset(8, 8),
+            BackgroundColor3 = rgb(40, 195, 115),
+            BorderSizePixel = 0,
+            ZIndex = 6,
+        }, profBar)
+        corner(dotLive, 99)
+        pcall(function()
+            TweenSvc:Create(dotLive, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Size = UDim2.fromOffset(10, 10), BackgroundTransparency = 0.35 }):Play()
+        end)
+        mk("TextLabel", {
+            Position = UDim2.fromOffset(24, 5),
+            Size = UDim2.new(1, -30, 0, 15),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamBold,
+            TextSize = 11,
+            TextColor3 = TH.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            Text = LP and LP.DisplayName or "Player",
+            ZIndex = 6,
+        }, profBar)
+        mk("TextLabel", {
+            Position = UDim2.fromOffset(24, 20),
+            Size = UDim2.new(1, -30, 0, 13),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.Gotham,
+            TextSize = 10,
+            TextColor3 = TH.SubText,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            Text = "@" .. (LP and LP.Name or "user"),
+            ZIndex = 6,
+        }, profBar)
+
+        -- Content Wrap (Right of Sidebar)
+        local contentWrap = mk("Frame", {
+            Name = "ContentWrap",
+            Position = UDim2.fromOffset(sideW, 0),
+            Size = UDim2.new(1, -sideW, 1, 0),
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
+            ZIndex = 3,
+        }, main)
+
+        -- Animated Plexus Constellation Layer (BackgroundTransparency = 1 so UiBg leaves it untouched)
+        local plexusLayer = mk("Frame", {
+            Name = "PlexusLayer",
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
+            ZIndex = 1,
+        }, contentWrap)
+
+        local topbar = mk("Frame", {
+            Name = "Topbar",
+            Size = UDim2.new(1, 0, 0, 44),
+            BackgroundColor3 = TH.TopBg,
+            BackgroundTransparency = 0.08,
+            ZIndex = 5,
+        }, contentWrap)
+        mk("Frame", {
+            Position = UDim2.new(0, 0, 1, -1),
+            Size = UDim2.new(1, 0, 0, 1),
+            BackgroundColor3 = TH.Border,
+            BorderSizePixel = 0,
+            ZIndex = 6,
+        }, topbar)
+
+        local topTitle = mk("TextLabel", {
+            Position = UDim2.fromOffset(14, 0),
+            Size = UDim2.new(1, -276, 1, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            TextColor3 = TH.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            Text = "ВХ (ESP)",
+            ZIndex = 6,
+        }, topbar)
+
+        local searchWrap = mk("Frame", {
+            AnchorPoint = v2(1, 0.5),
+            Position = UDim2.new(1, -110, 0.5, 0),
+            Size = UDim2.fromOffset(148, 26),
+            BackgroundColor3 = TH.CtrlBg,
+            BackgroundTransparency = 0.05,
+            ZIndex = 6,
+        }, topbar)
+        corner(searchWrap, 7)
+        local searchStroke = stroke(searchWrap, TH.Border, 1, 0)
+        local searchBox = mk("TextBox", {
+            Position = UDim2.fromOffset(9, 0),
+            Size = UDim2.new(1, -18, 1, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.Gotham,
+            TextSize = 11,
+            TextColor3 = TH.Text,
+            PlaceholderColor3 = TH.Muted,
+            PlaceholderText = "Поиск настроек...",
+            Text = "",
+            ClearTextOnFocus = false,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 7,
+        }, searchWrap)
+
+        local prevBtn = mk("TextButton", {
+            AnchorPoint = v2(1, 0.5),
+            Position = UDim2.new(1, -40, 0.5, 0),
+            Size = UDim2.fromOffset(64, 26),
+            BackgroundColor3 = showPrev and TH.AccentSoft or TH.CtrlBg,
+            TextColor3 = showPrev and TH.Accent or TH.SubText,
+            Font = Enum.Font.GothamBold,
+            TextSize = 11,
+            Text = "Превью",
+            AutoButtonColor = false,
+            ZIndex = 6,
+        }, topbar)
+        corner(prevBtn, 7)
+        stroke(prevBtn, TH.Border, 1, 0)
+        tinsert(lib._accentRefs, {
+            fn = function()
+                if prevBtn and prevBtn.Parent then
+                    local on = cfg().UI.ShowPreview ~= false
+                    prevBtn.BackgroundColor3 = on and TH.AccentSoft or TH.CtrlBg
+                    prevBtn.TextColor3 = on and TH.Accent or TH.SubText
+                end
+            end,
+        })
+
+        local closeBtn = mk("TextButton", {
+            AnchorPoint = v2(1, 0.5),
+            Position = UDim2.new(1, -10, 0.5, 0),
+            Size = UDim2.fromOffset(24, 26),
+            BackgroundColor3 = TH.CtrlBg,
+            TextColor3 = TH.SubText,
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            Text = "×",
+            AutoButtonColor = false,
+            ZIndex = 6,
+        }, topbar)
+        corner(closeBtn, 7)
+        stroke(closeBtn, TH.Border, 1, 0)
+
+        local pagesHolder = mk("Frame", {
+            Name = "Pages",
+            Position = UDim2.fromOffset(0, 44),
+            Size = UDim2.new(1, 0, 1, -44),
+            BackgroundTransparency = 1,
+            ZIndex = 4,
+        }, contentWrap)
+
+        -- Resize grip
+        local resizeGrip = mk("TextButton", {
+            AnchorPoint = v2(1, 1),
+            Position = UDim2.new(1, -2, 1, -2),
+            Size = UDim2.fromOffset(14, 14),
+            BackgroundTransparency = 1,
+            Text = "◢",
+            TextSize = 10,
+            Font = Enum.Font.Gotham,
+            TextColor3 = TH.Muted,
+            AutoButtonColor = false,
+            ZIndex = 8,
+        }, main)
+
+        -- Dragging & Resizing
+        do
+            local dragging, resizing, dStart, pStart, sStart = false, false, nil, nil, nil
+            local function beginDrag(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    closeActivePopup()
+                    dragging = true
+                    dStart = input.Position
+                    pStart = main.Position
+                end
+            end
+            conn(topbar.InputBegan, function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    local mp = UIS:GetMouseLocation()
+                    if pointInGui(searchWrap, mp) or pointInGui(prevBtn, mp) or pointInGui(closeBtn, mp) then return end
+                    beginDrag(inp)
+                end
+            end)
+            conn(brandCard.InputBegan, beginDrag)
+            conn(resizeGrip.InputBegan, function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    resizing = true
+                    dStart = inp.Position
+                    sStart = main.AbsoluteSize
+                end
+            end)
+            conn(UIS.InputChanged, function(inp)
+                if inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+                if dragging then
+                    local d = inp.Position - dStart
+                    local curCam = workspace.CurrentCamera
+                    local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
+                    local nx = clamp(pStart.X.Offset + d.X, 4, max(4, cvp.X - main.AbsoluteSize.X - 4))
+                    local ny = clamp(pStart.Y.Offset + d.Y, 4, max(4, cvp.Y - main.AbsoluteSize.Y - 4))
+                    main.Position = UDim2.fromOffset(nx, ny)
+                    syncPreviewPos()
+                elseif resizing then
+                    local d = inp.Position - dStart
+                    local curCam = workspace.CurrentCamera
+                    local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
+                    local nw = clamp(sStart.X + d.X, 560, cvp.X - 40)
+                    local nh = clamp(sStart.Y + d.Y, 400, cvp.Y - 40)
+                    main.Size = UDim2.fromOffset(nw, nh)
+                    syncPreviewPos()
+                end
+            end)
+            conn(UIS.InputEnded, function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging, resizing = false, false
+                end
+            end)
+        end
+
+        local win = {
+            MainFrame = main,
+            PreviewFrame = previewWin,
+            _tabs = {},
+            _activeTab = nil,
+            _visible = true,
+        }
+
+        local visToken = 0
+        function win:SetPreviewVisible(v)
+            cfg().UI.ShowPreview = v and true or false
+            local want = win._visible and cfg().UI.ShowPreview
+            if want then
+                syncPreviewPos()
+                previewScale.Scale = 0.93
+                previewWin.Visible = true
+                twS(previewScale, 0.22, Enum.EasingStyle.Back, { Scale = 1 })
+            else
+                previewWin.Visible = false
+            end
+            tw(prevBtn, 0.16, {
+                BackgroundColor3 = cfg().UI.ShowPreview and TH.AccentSoft or TH.CtrlBg,
+                TextColor3 = cfg().UI.ShowPreview and TH.Accent or TH.SubText,
+            })
+            if lib.Toggles and lib.Toggles.UiPreviewOn and lib.Toggles.UiPreviewOn.Value ~= cfg().UI.ShowPreview then
+                pcall(function() lib.Toggles.UiPreviewOn:SetValue(cfg().UI.ShowPreview) end)
+            end
+        end
+
+        function win:SetVisible(v)
+            win._visible = v and true or false
+            visToken += 1
+            local tok = visToken
+            if win._visible then
+                mainScale.Scale = 0.94
+                main.Visible = true
+                twS(mainScale, 0.22, Enum.EasingStyle.Back, { Scale = 1 })
+                if cfg().UI.ShowPreview ~= false then
+                    syncPreviewPos()
+                    previewScale.Scale = 0.93
+                    previewWin.Visible = true
+                    twS(previewScale, 0.25, Enum.EasingStyle.Back, { Scale = 1 })
+                else
+                    previewWin.Visible = false
+                end
+            else
+                closeActivePopup()
+                hideTip()
+                twS(mainScale, 0.14, Enum.EasingStyle.Quad, { Scale = 0.95 })
+                twS(previewScale, 0.14, Enum.EasingStyle.Quad, { Scale = 0.95 })
+                task.delay(0.14, function()
+                    if visToken == tok and not win._visible then
+                        main.Visible = false
+                        previewWin.Visible = false
+                    end
+                end)
+            end
+        end
+
+        conn(prevBtn.MouseEnter, function()
+            if cfg().UI.ShowPreview == false then tw(prevBtn, 0.12, { BackgroundColor3 = TH.CtrlHover }) end
+        end)
+        conn(prevBtn.MouseLeave, function()
+            tw(prevBtn, 0.12, { BackgroundColor3 = (cfg().UI.ShowPreview ~= false) and TH.AccentSoft or TH.CtrlBg })
+        end)
+        conn(closeBtn.MouseEnter, function()
+            tw(closeBtn, 0.12, { BackgroundColor3 = rgb(252, 228, 232), TextColor3 = rgb(210, 62, 82) })
+        end)
+        conn(closeBtn.MouseLeave, function()
+            tw(closeBtn, 0.12, { BackgroundColor3 = TH.CtrlBg, TextColor3 = TH.SubText })
+        end)
+        conn(prevBtn.MouseButton1Click, function()
+            win:SetPreviewVisible(not (cfg().UI.ShowPreview ~= false))
+        end)
+        conn(closeBtn.MouseButton1Click, function()
+            win:SetVisible(false)
+        end)
+
+        -- Menu Toggle Keybind
+        conn(UIS.InputBegan, function(inp, gp)
+            if lib._unloaded or gp then return end
+            if UIS:GetFocusedTextBox() then return end
+            if lib._listeningKey then return end
+            local kb = lib.ToggleKeybind
+            local keyName = kb and kb.Value or "RightShift"
+            if keyName == "None" or keyName == "" then return end
+            if inp.KeyCode ~= Enum.KeyCode.Unknown and inp.KeyCode.Name == keyName then
+                win:SetVisible(not win._visible)
+            end
+        end)
+
+        local function selectTab(tabObj)
+            if win._activeTab == tabObj then return end
+            closeActivePopup()
+            hideTip()
+            for _, t in ipairs(win._tabs) do
+                local on = (t == tabObj)
+                t.page.Visible = on
+                if on then
+                    t.bar.Size = UDim2.fromOffset(0, 4)
+                    t.bar.Visible = true
+                    twS(t.bar, 0.22, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(3, 16) })
+                    if t.leftCol then
+                        t.leftCol.Position = UDim2.fromOffset(0, 12)
+                        twS(t.leftCol, 0.20, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(0, 0) })
+                    end
+                    if t.rightCol then
+                        t.rightCol.Position = UDim2.new(0.5, 6, 0, 20)
+                        twS(t.rightCol, 0.25, Enum.EasingStyle.Quart, { Position = UDim2.new(0.5, 6, 0, 0) })
+                    end
+                else
+                    t.bar.Visible = false
+                end
+                tw(t.btn, 0.16, {
+                    BackgroundColor3 = on and TH.CardBg or TH.SideBg,
+                    BackgroundTransparency = on and 0.04 or 1,
+                })
+                t.lbl.TextColor3 = on and TH.Text or TH.SubText
+                t.lbl.Font = on and Enum.Font.GothamBold or Enum.Font.GothamMedium
+                tw(t.lbl, 0.16, { Position = UDim2.fromOffset(on and 35 or 32, 0) })
+                if t.icon then
+                    t.icon.setColor(on and TH.Accent or TH.SubText)
+                    tw(t.icon.box, 0.16, { Position = UDim2.fromOffset(on and 14 or 12, 8) })
+                end
+            end
+            win._activeTab = tabObj
+            topTitle.Text = tabObj.name
+        end
+        tinsert(lib._accentRefs, {
+            fn = function()
+                if win._activeTab and win._activeTab.icon then
+                    win._activeTab.icon.setColor(TH.Accent)
+                end
+            end,
+        })
+
+        -- Topbar Live Search Popup
+        do
+            local searchPopup = nil
+            local function closeSearchPopup()
+                if searchPopup then pcall(function() searchPopup:Destroy() end) searchPopup = nil end
+            end
+            local function rebuildSearchPopup()
+                closeSearchPopup()
+                local q = string.lower((searchBox.Text or ""):match("^%s*(.-)%s*$") or "")
+                if #q < 2 then return end
+                local hits = {}
+                for _, item in ipairs(lib._searchItems) do
+                    if string.find(item.lower, q, 1, true) then
+                        hits[#hits + 1] = item
+                        if #hits >= 8 then break end
+                    end
+                end
+                if #hits == 0 then return end
+                local sp = searchWrap.AbsolutePosition
+                local ss = searchWrap.AbsoluteSize
+                local curCam = workspace.CurrentCamera
+                local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
+                local sx = clamp(sp.X - 80, 8, max(8, cvp.X - 268))
+                searchPopup = mk("Frame", {
+                    Position = UDim2.fromOffset(sx, sp.Y + ss.Y + 6),
+                    Size = UDim2.fromOffset(260, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundColor3 = TH.CardBg,
+                    BackgroundTransparency = 0.02,
+                    ZIndex = 75,
+                }, overlay)
+                corner(searchPopup, 9)
+                stroke(searchPopup, TH.BorderStrong, 1, 0)
+                pad(searchPopup, 6, 6, 6, 6)
+                mk("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, searchPopup)
+                local spScale = mk("UIScale", { Scale = 0.94 }, searchPopup)
+                twS(spScale, 0.16, Enum.EasingStyle.Back, { Scale = 1 })
+                for _, hItem in ipairs(hits) do
+                    local row = mk("TextButton", {
+                        Size = UDim2.new(1, 0, 0, 34),
+                        BackgroundColor3 = TH.CardBg,
+                        BackgroundTransparency = 1,
+                        Text = "",
+                        AutoButtonColor = false,
+                        ZIndex = 76,
+                    }, searchPopup)
+                    corner(row, 6)
+                    mk("TextLabel", {
+                        Position = UDim2.fromOffset(8, 3),
+                        Size = UDim2.new(1, -16, 0, 15),
+                        BackgroundTransparency = 1,
+                        Font = Enum.Font.GothamBold,
+                        TextSize = 11,
+                        TextColor3 = TH.Text,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                        Text = hItem.text,
+                        ZIndex = 77,
+                    }, row)
+                    mk("TextLabel", {
+                        Position = UDim2.fromOffset(8, 18),
+                        Size = UDim2.new(1, -16, 0, 13),
+                        BackgroundTransparency = 1,
+                        Font = Enum.Font.Gotham,
+                        TextSize = 10,
+                        TextColor3 = TH.SubText,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                        Text = hItem.tab .. " → " .. hItem.group,
+                        ZIndex = 77,
+                    }, row)
+                    conn(row.MouseEnter, function() tw(row, 0.1, { BackgroundTransparency = 0, BackgroundColor3 = TH.CtrlBg }) end)
+                    conn(row.MouseLeave, function() tw(row, 0.1, { BackgroundTransparency = 1 }) end)
+                    conn(row.MouseButton1Down, function()
+                        selectTab(hItem.tabObj)
+                        if hItem.cardStroke then
+                            local cardInst = hItem.cardStroke.Parent
+                            local pg = hItem.tabObj and hItem.tabObj.page
+                            if cardInst and pg then
+                                task.defer(function()
+                                    if cardInst.Parent and pg.Parent then
+                                        local ty = pg.CanvasPosition.Y + (cardInst.AbsolutePosition.Y - pg.AbsolutePosition.Y) - 12
+                                        pg.CanvasPosition = v2(0, max(0, ty))
+                                    end
+                                end)
+                            end
+                            hItem.cardStroke.Color = TH.Accent
+                            task.delay(1.0, function()
+                                if hItem.cardStroke and hItem.cardStroke.Parent then
+                                    tw(hItem.cardStroke, 0.35, { Color = TH.Border })
+                                end
+                            end)
+                        end
+                        closeSearchPopup()
+                    end)
+                end
+            end
+            conn(searchBox.Focused, function()
+                tw(searchStroke, 0.16, { Color = TH.Accent })
+                twS(searchWrap, 0.18, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(176, 26) })
+                rebuildSearchPopup()
+            end)
+            conn(searchBox.FocusLost, function()
+                tw(searchStroke, 0.16, { Color = TH.Border })
+                tw(searchWrap, 0.18, { Size = UDim2.fromOffset(148, 26) })
+                task.delay(0.18, function()
+                    if not searchBox:IsFocused() then closeSearchPopup() end
+                end)
+            end)
+            conn(searchBox:GetPropertyChangedSignal("Text"), rebuildSearchPopup)
+        end
+
+        -- Plexus Constellation Background Animation (runs only while MainWindow is visible & Plexus is enabled)
+        do
+            local nodes, plines = {}, {}
+            local N_COUNT, L_MAX = 14, 38
+            for idx = 1, N_COUNT do
+                local ang = (idx / N_COUNT) * math.pi * 2
+                local f = mk("Frame", {
+                    Size = UDim2.fromOffset(3, 3),
+                    AnchorPoint = v2(0.5, 0.5),
+                    BackgroundColor3 = TH.Plexus,
+                    BackgroundTransparency = 0.45,
+                    BorderSizePixel = 0,
+                    ZIndex = 1,
+                }, plexusLayer)
+                corner(f, 99)
+                nodes[idx] = {
+                    x = (idx * 53) % 520,
+                    y = (idx * 79) % 420,
+                    vx = cos(ang) * (16 + (idx % 3) * 6),
+                    vy = sin(ang) * (16 + ((idx + 1) % 3) * 6),
+                    dot = f,
+                }
+            end
+            for idx = 1, L_MAX do
+                plines[idx] = mk("Frame", {
+                    AnchorPoint = v2(0.5, 0.5),
+                    BackgroundColor3 = TH.Plexus,
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 1,
+                }, plexusLayer)
+            end
+            conn(RunService.RenderStepped, function(dt)
+                local on = win._visible and (cfg().UI.Plexus ~= false) and not (cfg().UI.BgEnabled and cfg().UI.BgId ~= "")
+                if plexusLayer.Visible ~= on then plexusLayer.Visible = on end
+                if not on then return end
+                local sz, ap = plexusLayer.AbsoluteSize, plexusLayer.AbsolutePosition
+                local w, h = max(120, sz.X), max(120, sz.Y)
+                local step = min(dt or 0.016, 0.05)
+                local tNow = clock()
+                local mp = UIS:GetMouseLocation()
+                local mx, my = mp.X - ap.X, mp.Y - ap.Y
+                local mInside = mx >= 0 and mx <= w and my >= 0 and my <= h
+                for i = 1, N_COUNT do
+                    local nd = nodes[i]
+                    nd.x += nd.vx * step
+                    nd.y += nd.vy * step
+                    if nd.x < 8 then nd.x = 8; nd.vx = abs(nd.vx) elseif nd.x > w - 8 then nd.x = w - 8; nd.vx = -abs(nd.vx) end
+                    if nd.y < 8 then nd.y = 8; nd.vy = abs(nd.vy) elseif nd.y > h - 8 then nd.y = h - 8; nd.vy = -abs(nd.vy) end
+                    nd.dot.Position = UDim2.fromOffset(nd.x, nd.y)
+                    local pulse = 3 + sin(tNow * 2.4 + i) * 0.9
+                    local nearCursor = false
+                    if mInside then
+                        local cdx, cdy = nd.x - mx, nd.y - my
+                        if cdx * cdx + cdy * cdy < 12100 then nearCursor = true end -- 110^2
+                    end
+                    nd.dot.Size = UDim2.fromOffset(nearCursor and pulse + 1.4 or pulse, nearCursor and pulse + 1.4 or pulse)
+                    nd.dot.BackgroundColor3 = nearCursor and TH.Accent or TH.Plexus
+                    nd.dot.BackgroundTransparency = nearCursor and 0.22 or 0.45
+                end
+                local li = 0
+                for i = 1, N_COUNT - 1 do
+                    local a = nodes[i]
+                    for j = i + 1, N_COUNT do
+                        local b = nodes[j]
+                        local dx, dy = b.x - a.x, b.y - a.y
+                        local d2 = dx * dx + dy * dy
+                        if d2 < 21025 then -- 145^2
+                            li += 1
+                            if li <= L_MAX then
+                                local d = sqrt(d2)
+                                drawLineFrame(plines[li], a.x, a.y, b.x, b.y, TH.Plexus, 1, 0.55 + (d / 145) * 0.40)
+                            end
+                        end
+                    end
+                end
+                if mInside then
+                    for i = 1, N_COUNT do
+                        local a = nodes[i]
+                        local dx, dy = mx - a.x, my - a.y
+                        local d2 = dx * dx + dy * dy
+                        if d2 < 12100 and li < L_MAX then
+                            li += 1
+                            drawLineFrame(plines[li], a.x, a.y, mx, my, TH.Accent, 1, 0.52 + (sqrt(d2) / 110) * 0.44)
+                        end
+                    end
+                end
+                for i = li + 1, L_MAX do plines[i].Visible = false end
+            end)
+        end
+
+        -- Live ESP Preview Panel (right docked window)
+        do
+            local pHead = mk("Frame", {
+                Size = UDim2.new(1, 0, 0, 44),
+                BackgroundColor3 = TH.TopBg,
+                BackgroundTransparency = 0.06,
+                ZIndex = 4,
+            }, previewWin)
+            mk("Frame", {
+                Position = UDim2.new(0, 0, 1, -1),
+                Size = UDim2.new(1, 0, 0, 1),
+                BackgroundColor3 = TH.Border,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+            }, pHead)
+            mk("TextLabel", {
+                Position = UDim2.fromOffset(12, 0),
+                Size = UDim2.new(1, -82, 1, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                TextColor3 = TH.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Text = "Превью ВХ",
+                ZIndex = 5,
+            }, pHead)
+            local pToggle = mk("TextButton", {
+                AnchorPoint = v2(1, 0.5),
+                Position = UDim2.new(1, -10, 0.5, 0),
+                Size = UDim2.fromOffset(54, 22),
+                BackgroundColor3 = TH.CtrlBg,
+                Font = Enum.Font.GothamBold,
+                TextSize = 10,
+                TextColor3 = TH.SubText,
+                Text = "ВЫКЛ",
+                AutoButtonColor = false,
+                ZIndex = 5,
+            }, pHead)
+            corner(pToggle, 6)
+            stroke(pToggle, TH.Border, 1, 0)
+            conn(pToggle.MouseButton1Click, function()
+                cfg().ESP.Enabled = not cfg().ESP.Enabled
+                if lib.Toggles and lib.Toggles.EspOn then
+                    pcall(function() lib.Toggles.EspOn:SetValue(cfg().ESP.Enabled) end)
+                end
+            end)
+
+            local stage = mk("Frame", {
+                Position = UDim2.fromOffset(12, 56),
+                Size = UDim2.new(1, -24, 1, -100),
+                BackgroundColor3 = rgb(228, 234, 244),
+                BackgroundTransparency = 0.12,
+                ClipsDescendants = true,
+                ZIndex = 4,
+            }, previewWin)
+            corner(stage, 9)
+            stroke(stage, TH.Border, 1, 0)
+
+            local pvFooter = mk("TextLabel", {
+                Position = UDim2.new(0, 12, 1, -36),
+                Size = UDim2.new(1, -24, 0, 28),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.Gotham,
+                TextSize = 10,
+                TextColor3 = TH.SubText,
+                TextWrapped = true,
+                Text = "Живой предпросмотр",
+                ZIndex = 5,
+            }, previewWin)
+
+            -- Stylized humanoid dummy
+            local dummy = mk("Frame", {
+                AnchorPoint = v2(0.5, 0.5),
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromOffset(92, 178),
+                BackgroundTransparency = 1,
+                ZIndex = 6,
+            }, stage)
+            local dummyParts = {}
+            local function makeDummyPart(px, py, pw, ph, rad)
+                local p = mk("Frame", {
+                    Position = UDim2.fromOffset(px, py),
+                    Size = UDim2.fromOffset(pw, ph),
+                    BackgroundColor3 = rgb(248, 250, 254),
+                    BackgroundTransparency = 0.08,
+                    ZIndex = 6,
+                }, dummy)
+                corner(p, rad or 5)
+                stroke(p, rgb(174, 184, 204), 1.2, 0)
+                tinsert(dummyParts, p)
+                return p
+            end
+            makeDummyPart(31, 6, 30, 30, 99)   -- Head
+            makeDummyPart(24, 40, 44, 60, 6)   -- Torso
+            makeDummyPart(6, 40, 14, 56, 5)    -- LeftArm
+            makeDummyPart(72, 40, 14, 56, 5)   -- RightArm
+            makeDummyPart(24, 104, 19, 64, 5)  -- LeftLeg
+            makeDummyPart(49, 104, 19, 64, 5)  -- RightLeg
+
+            -- Preview ChinaHat Halo
+            local pvHalo = mk("Frame", {
+                AnchorPoint = v2(0.5, 0.5),
+                Position = UDim2.fromOffset(46, -2),
+                Size = UDim2.fromOffset(40, 10),
+                BackgroundTransparency = 1,
+                Visible = false,
+                ZIndex = 9,
+            }, dummy)
+            corner(pvHalo, 99)
+            local pvHaloSt = stroke(pvHalo, rgb(95, 200, 255), 2, 0)
+
+            -- Preview Box Fill + Glow + Lines
+            local pvFill = mk("Frame", { Size = UDim2.fromScale(1, 1), BorderSizePixel = 0, Visible = false, ZIndex = 5 }, dummy)
+            corner(pvFill, 4)
+            local pvFillGrad = mk("Frame", { Size = UDim2.new(1, 0, 0.45, 0), BorderSizePixel = 0, Visible = false, ZIndex = 5 }, dummy)
+            mk("UIGradient", { Rotation = 90, Transparency = NumberSequence.new(0.15, 1) }, pvFillGrad)
+            local pvFillBar = mk("Frame", { Position = UDim2.fromOffset(1, 1), Size = UDim2.new(1, -2, 0, 2), BorderSizePixel = 0, Visible = false, ZIndex = 7 }, dummy)
+            local pvGlowBox = mk("Frame", { Position = UDim2.fromOffset(-2, -2), Size = UDim2.new(1, 4, 1, 4), BackgroundTransparency = 1, Visible = false, ZIndex = 6 }, dummy)
+            corner(pvGlowBox, 4)
+            local pvGlowSt = stroke(pvGlowBox, TH.Accent, 4, 0.72)
+
+            local pvSegs = {}
+            for i = 1, 12 do
+                pvSegs[i] = mk("Frame", { AnchorPoint = v2(0.5, 0.5), BorderSizePixel = 0, Visible = false, ZIndex = 8 }, dummy)
+            end
+
+            -- Preview HP Bar
+            local pvHpBg = mk("Frame", { Position = UDim2.fromOffset(-10, 0), Size = UDim2.fromOffset(4, 178), BackgroundColor3 = rgb(20, 24, 34), Visible = false, ZIndex = 8 }, dummy)
+            corner(pvHpBg, 2)
+            local pvHpTrail = mk("Frame", { AnchorPoint = v2(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.fromScale(1, 0.85), BackgroundColor3 = rgb(255, 130, 140), BorderSizePixel = 0, ZIndex = 9 }, pvHpBg)
+            local pvHpFill = mk("Frame", { AnchorPoint = v2(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.fromScale(1, 0.78), BackgroundColor3 = HP_GREEN, BorderSizePixel = 0, ZIndex = 10 }, pvHpBg)
+
+            -- Preview HeadDot
+            local pvHeadDot = mk("Frame", { AnchorPoint = v2(0.5, 0.5), Position = UDim2.fromOffset(46, 21), Size = UDim2.fromOffset(8, 8), Visible = false, ZIndex = 11 }, dummy)
+            corner(pvHeadDot, 99)
+            local pvHeadSt = stroke(pvHeadDot, BLACK, 1.2, 0.2)
+
+            -- Preview Skeleton (9 bones + 9 joints)
+            local pvBones, pvJoints = {}, {}
+            local SK_PTS = {
+                { 46, 21 }, { 46, 44 }, { 46, 98 },
+                { 13, 46 }, { 13, 90 }, { 79, 46 }, { 79, 90 },
+                { 33, 108 }, { 33, 162 }, { 59, 108 }, { 59, 162 },
+            }
+            local SK_ED = { {1,2},{2,3},{2,4},{4,5},{2,6},{6,7},{3,8},{8,9},{3,10},{10,11} }
+            for i = 1, #SK_ED do
+                pvBones[i] = mk("Frame", { AnchorPoint = v2(0.5, 0.5), BorderSizePixel = 0, Visible = false, ZIndex = 9 }, dummy)
+            end
+            for i = 1, #SK_PTS do
+                local j = mk("Frame", {
+                    AnchorPoint = v2(0.5, 0.5),
+                    Position = UDim2.fromOffset(SK_PTS[i][1], SK_PTS[i][2]),
+                    Size = UDim2.fromOffset(5, 5),
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 10,
+                }, dummy)
+                corner(j, 99)
+                pvJoints[i] = j
+            end
+
+            -- Preview NamePlate + Labels
+            local pvNameBg = mk("Frame", {
+                AnchorPoint = v2(0.5, 1),
+                Position = UDim2.fromOffset(46, -8),
+                Size = UDim2.fromOffset(82, 18),
+                BackgroundColor3 = rgb(16, 18, 26),
+                BackgroundTransparency = 0.22,
+                Visible = false,
+                ZIndex = 10,
+            }, dummy)
+            corner(pvNameBg, 4)
+            local pvNameBar = mk("Frame", { Position = UDim2.new(0, 1, 1, -2), Size = UDim2.new(1, -2, 0, 2), BorderSizePixel = 0, ZIndex = 11 }, pvNameBg)
+            local pvNameLbl = mk("TextLabel", {
+                AnchorPoint = v2(0.5, 1),
+                Position = UDim2.fromOffset(46, -10),
+                Size = UDim2.fromOffset(110, 15),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.GothamBold,
+                TextSize = 11,
+                TextColor3 = WHITE,
+                Text = "Enemy",
+                Visible = false,
+                ZIndex = 12,
+            }, dummy)
+            local pvSubLbl = mk("TextLabel", {
+                AnchorPoint = v2(0.5, 0),
+                Position = UDim2.fromOffset(46, 183),
+                Size = UDim2.fromOffset(130, 34),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.Gotham,
+                TextSize = 10,
+                TextColor3 = TH.Text,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                Text = "",
+                Visible = false,
+                ZIndex = 12,
+            }, dummy)
+
+            conn(RunService.RenderStepped, function()
+                if not (win._visible and previewWin.Visible) then return end
+                local e = cfg().ESP
+                local espOn = e.Enabled
+                pToggle.Text = espOn and "ВКЛ" or "ВЫКЛ"
+                pToggle.BackgroundColor3 = espOn and TH.Accent or TH.CtrlBg
+                pToggle.TextColor3 = espOn and WHITE or TH.SubText
+                pvFooter.Text = espOn and ("Рамка: " .. tostring(e.BoxType) .. (e.Chams and "  •  Чамсы" or "")) or "Нажмите ВКЛ для запуска ВХ"
+
+                local col = e.Rainbow and rainbow or e.Colors.Enemy
+                -- Chams preview tint on dummy parts
+                for _, dp in ipairs(dummyParts) do
+                    if espOn and e.Chams then
+                        dp.BackgroundColor3 = e.Colors.ChamsVis
+                        dp.BackgroundTransparency = clamp(e.ChamsTransparency or 0.45, 0.1, 0.85)
+                    else
+                        dp.BackgroundColor3 = rgb(248, 250, 254)
+                        dp.BackgroundTransparency = 0.08
+                    end
+                end
+                -- ChinaHat preview (floating animation)
+                local ch = cfg().ChinaHat
+                pvHalo.Visible = ch.Enabled
+                if ch.Enabled then
+                    pvHalo.Position = UDim2.fromOffset(46, -2 + sin(clock() * 2.6) * 2)
+                    pvHaloSt.Color = ch.Color or rgb(95, 200, 255)
+                end
+
+                if not espOn then
+                    pvFill.Visible, pvFillGrad.Visible, pvFillBar.Visible, pvGlowBox.Visible = false, false, false, false
+                    pvHpBg.Visible, pvHeadDot.Visible, pvNameBg.Visible, pvNameLbl.Visible, pvSubLbl.Visible = false, false, false, false, false
+                    for i = 1, #pvSegs do pvSegs[i].Visible = false end
+                    for i = 1, #pvBones do pvBones[i].Visible = false end
+                    for i = 1, #pvJoints do pvJoints[i].Visible = false end
+                    return
+                end
+
+                local bt = e.BoxType
+                pvFill.Visible = e.BoxFill and bt ~= "3D" and bt ~= "3D Corner"
+                pvFillGrad.Visible = pvFill.Visible
+                pvFillBar.Visible = pvFill.Visible
+                if pvFill.Visible then
+                    pvFill.BackgroundColor3 = rgb(10, 12, 18):Lerp(col, 0.28)
+                    pvFill.BackgroundTransparency = 1 - clamp(e.FillOpacity * 0.95, 0.05, 0.78)
+                    pvFillGrad.BackgroundColor3 = col:Lerp(WHITE, 0.14)
+                    pvFillGrad.BackgroundTransparency = 1 - clamp(e.FillOpacity * 0.55, 0.04, 0.5)
+                    pvFillBar.BackgroundColor3 = col:Lerp(WHITE, 0.35)
+                end
+
+                pvGlowBox.Visible = e.BoxGlow
+                if e.BoxGlow then
+                    pvGlowSt.Color = col:Lerp(WHITE, 0.25)
+                    pvGlowSt.Transparency = 0.62 + sin(clock() * 3.2) * 0.14
+                end
+
+                local w, h = 92, 178
+                local th = clamp(e.BoxThickness, 1, 3)
+                local usedSegs = 0
+                local function seg(x1, y1, x2, y2)
+                    usedSegs += 1
+                    if usedSegs <= #pvSegs then
+                        drawLineFrame(pvSegs[usedSegs], x1, y1, x2, y2, col, th, 0)
+                    end
+                end
+                if bt == "Corner" then
+                    local arm = 22
+                    seg(0, 0, arm, 0); seg(0, 0, 0, arm)
+                    seg(w, 0, w - arm, 0); seg(w, 0, w, arm)
+                    seg(0, h, arm, h); seg(0, h, 0, h - arm)
+                    seg(w, h, w - arm, h); seg(w, h, w, h - arm)
+                elseif bt == "3D" then
+                    local ox, oy = 13, -10
+                    seg(0, 0, w, 0); seg(w, 0, w, h); seg(w, h, 0, h); seg(0, h, 0, 0)
+                    seg(ox, oy, w + ox, oy); seg(w + ox, oy, w + ox, h + oy); seg(w + ox, h + oy, ox, h + oy); seg(ox, h + oy, ox, oy)
+                    seg(0, 0, ox, oy); seg(w, 0, w + ox, oy); seg(w, h, w + ox, h + oy); seg(0, h, ox, h + oy)
+                elseif bt == "3D Corner" then
+                    local ox, oy, arm = 12, -9, 16
+                    seg(0, 0, arm, 0); seg(0, 0, 0, arm); seg(0, 0, ox, oy)
+                    seg(w, 0, w - arm, 0); seg(w, 0, w, arm); seg(w, 0, w + ox, oy)
+                    seg(0, h, arm, h); seg(0, h, 0, h - arm); seg(0, h, ox, h + oy)
+                    seg(w, h, w - arm, h); seg(w, h, w, h - arm); seg(w, h, w + ox, h + oy)
+                else
+                    seg(0, 0, w, 0); seg(w, 0, w, h); seg(w, h, 0, h); seg(0, h, 0, 0)
+                end
+                for i = usedSegs + 1, #pvSegs do pvSegs[i].Visible = false end
+
+                pvHpBg.Visible = e.HealthBar
+                if e.HealthBar then
+                    local hpP = 0.78 + sin(clock() * 1.6) * 0.12
+                    pvHpFill.Size = UDim2.fromScale(1, hpP)
+                    pvHpFill.BackgroundColor3 = healthColor(hpP)
+                    pvHpTrail.Visible = e.HealthTrail
+                    pvHpTrail.Size = UDim2.fromScale(1, min(1, hpP + 0.12))
+                end
+
+                pvHeadDot.Visible = e.HeadDot
+                if e.HeadDot then
+                    pvHeadDot.BackgroundColor3 = e.HeadDotFilled and col or WHITE
+                    pvHeadDot.BackgroundTransparency = e.HeadDotFilled and 0 or 1
+                    pvHeadSt.Color = e.HeadDotFilled and BLACK or col
+                end
+
+                for i = 1, #SK_ED do
+                    if e.Skeleton then
+                        local a, b = SK_PTS[SK_ED[i][1]], SK_PTS[SK_ED[i][2]]
+                        drawLineFrame(pvBones[i], a[1], a[2], b[1], b[2], e.Colors.Skeleton, clamp(e.SkeletonThickness, 1, 2.5), 0.1)
+                    else
+                        pvBones[i].Visible = false
+                    end
+                end
+                for i = 1, #pvJoints do
+                    pvJoints[i].Visible = e.Skeleton and e.SkeletonJoints and not (i == 1 and e.HeadDot)
+                    if pvJoints[i].Visible then
+                        pvJoints[i].BackgroundColor3 = WHITE:Lerp(e.Colors.Skeleton, 0.38)
+                    end
+                end
+
+                pvNameLbl.Visible = e.ShowName
+                pvNameBg.Visible = e.ShowName and e.NamePlate
+                if e.ShowName then
+                    pvNameLbl.Text = (e.PriorityTarget and "★ " or "") .. "glupost"
+                    pvNameLbl.TextColor3 = e.NamePlate and WHITE:Lerp(col, 0.25) or col
+                    pvNameLbl.TextStrokeTransparency = e.TextOutline and 0.35 or 1
+                    pvNameBar.BackgroundColor3 = col:Lerp(WHITE, 0.25)
+                end
+
+                local subParts = {}
+                if e.ShowHealth then tinsert(subParts, "HP 82") end
+                if e.ShowDistance then tinsert(subParts, "42 st") end
+                if e.ShowTool then tinsert(subParts, "[Katana]") end
+                pvSubLbl.Visible = #subParts > 0
+                if pvSubLbl.Visible then
+                    pvSubLbl.Text = table.concat(subParts, "  •  ")
+                end
+            end)
+        end
+
+        local function makeGroupControls(parentContainer, tabObj, groupTitle, cardStroke)
+            local box = {}
+
+            local function regS(txt, tip)
+                if txt and txt ~= "" then
+                    tinsert(lib._searchItems, {
+                        tab = tabObj.name,
+                        tabObj = tabObj,
+                        group = groupTitle,
+                        cardStroke = cardStroke,
+                        text = txt,
+                        lower = string.lower(txt .. " " .. (tip or "") .. " " .. tabObj.name .. " " .. groupTitle),
+                    })
+                end
+            end
+
+            function box:AddToggle(idx, o)
+                o = o or {}
+                local val = o.Default and true or false
+                local row = mk("TextButton", {
+                    Size = UDim2.new(1, 0, 0, 26),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundColor3 = TH.CtrlBg,
+                    BackgroundTransparency = 1,
+                    Text = "",
+                    AutoButtonColor = false,
+                    ZIndex = 6,
+                }, parentContainer)
+                corner(row, 6)
+                pad(row, 2, 2, 3, 3)
+                mk("UISizeConstraint", { MinSize = v2(0, 26) }, row)
+                local lbl = mk("TextLabel", {
+                    Position = UDim2.fromOffset(0, 0),
+                    Size = UDim2.new(1, -42, 0, 20),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.GothamMedium,
+                    TextSize = 12,
+                    TextColor3 = TH.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextWrapped = true,
+                    Text = tostring(o.Text or idx),
+                    ZIndex = 7,
+                }, row)
+                local sw = mk("Frame", {
+                    AnchorPoint = v2(1, 0.5),
+                    Position = UDim2.new(1, 0, 0.5, 0),
+                    Size = UDim2.fromOffset(34, 18),
+                    BackgroundColor3 = val and TH.Accent or TH.Border,
+                    BorderSizePixel = 0,
+                    ZIndex = 7,
+                }, row)
+                corner(sw, 99)
+                local knob = mk("Frame", {
+                    AnchorPoint = v2(0, 0.5),
+                    Position = UDim2.new(0, val and 18 or 2, 0.5, 0),
+                    Size = UDim2.fromOffset(14, 14),
+                    BackgroundColor3 = WHITE,
+                    BorderSizePixel = 0,
+                    ZIndex = 8,
+                }, sw)
+                corner(knob, 99)
+                stroke(knob, TH.BorderStrong, 0.8, 0.4)
+
+                local obj = { Value = val, _cbs = {} }
+                local function refresh(animImpulse)
+                    tw(sw, 0.16, { BackgroundColor3 = obj.Value and TH.Accent or TH.Border })
+                    twS(knob, 0.20, Enum.EasingStyle.Back, { Position = UDim2.new(0, obj.Value and 18 or 2, 0.5, 0) })
+                    if animImpulse then
+                        knob.Size = UDim2.fromOffset(18, 12)
+                        twS(knob, 0.22, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(14, 14) })
+                    end
+                    lbl.TextColor3 = obj.Value and TH.Text or TH.SubText
+                end
+                tinsert(lib._accentRefs, {
+                    inst = sw, prop = "BackgroundColor3", kind = "custom",
+                })
+                local acIdx = #lib._accentRefs
+                lib._accentRefs[acIdx] = setmetatable({}, {
+                    __index = function(_, k)
+                        if k == "inst" then return sw end
+                        if k == "prop" then return "BackgroundColor3" end
+                        if k == "kind" then return obj.Value and "solid" or "ignore" end
+                    end
+                })
+
+                function obj:OnChanged(fn) tinsert(obj._cbs, fn) end
+                function obj:SetValue(nv)
+                    nv = nv and true or false
+                    if obj.Value == nv then return end
+                    obj.Value = nv
+                    refresh(true)
+                    if o.Callback then o.Callback(nv) end
+                    for _, fn in ipairs(obj._cbs) do pcall(fn, nv) end
+                end
+                conn(row.MouseEnter, function() tw(row, 0.12, { BackgroundTransparency = 0.40 }) end)
+                conn(row.MouseLeave, function() tw(row, 0.12, { BackgroundTransparency = 1 }) end)
+                conn(row.MouseButton1Click, function()
+                    obj:SetValue(not obj.Value)
+                end)
+                bindTooltip(row, o.Tooltip)
+                refresh(false)
+                lib.Toggles[idx] = obj
+                regS(o.Text, o.Tooltip)
+                return obj
+            end
+
+            function box:AddSlider(idx, o)
+                o = o or {}
+                local mn, mx = tonumber(o.Min) or 0, tonumber(o.Max) or 100
+                local rnd = tonumber(o.Rounding) or 0
+                local mult = 10 ^ rnd
+                local function fmtVal(v)
+                    local r = floor(v * mult + 0.5) / mult
+                    if rnd <= 0 then return tostring(floor(r + 0.5)) end
+                    return string.format("%." .. rnd .. "f", r)
+                end
+                local val = clamp(tonumber(o.Default) or mn, mn, mx)
+
+                local wrap = mk("Frame", {
+                    Size = UDim2.new(1, 0, 0, 40),
+                    BackgroundTransparency = 1,
+                    ZIndex = 6,
+                }, parentContainer)
+                local lbl = mk("TextLabel", {
+                    Position = UDim2.fromOffset(2, 0),
+                    Size = UDim2.new(1, -60, 0, 16),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.GothamMedium,
+                    TextSize = 12,
+                    TextColor3 = TH.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    Text = tostring(o.Text or idx),
+                    ZIndex = 7,
+                }, wrap)
+                local valBox = mk("TextBox", {
+                    AnchorPoint = v2(1, 0),
+                    Position = UDim2.new(1, -2, 0, 0),
+                    Size = UDim2.fromOffset(52, 17),
+                    BackgroundColor3 = TH.CtrlBg,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 11,
+                    TextColor3 = TH.Text,
+                    Text = fmtVal(val),
+                    ClearTextOnFocus = false,
+                    ZIndex = 7,
+                }, wrap)
+                corner(valBox, 5)
+                stroke(valBox, TH.Border, 1, 0)
+
+                local hit = mk("TextButton", {
+                    Position = UDim2.fromOffset(2, 20),
+                    Size = UDim2.new(1, -4, 0, 16),
+                    BackgroundTransparency = 1,
+                    Text = "",
+                    AutoButtonColor = false,
+                    ZIndex = 7,
+                }, wrap)
+                local track = mk("Frame", {
+                    AnchorPoint = v2(0, 0.5),
+                    Position = UDim2.fromScale(0, 0.5),
+                    Size = UDim2.new(1, 0, 0, 5),
+                    BackgroundColor3 = TH.CtrlBg,
+                    BorderSizePixel = 0,
+                    ZIndex = 7,
+                }, hit)
+                corner(track, 99)
+                stroke(track, TH.Border, 0.8, 0.3)
+                local fill = mk("Frame", {
+                    Name = "NoPanelBg",
+                    Size = UDim2.fromScale(0.5, 1),
+                    BackgroundColor3 = TH.Accent,
+                    BorderSizePixel = 0,
+                    ZIndex = 8,
+                }, track)
+                corner(fill, 99)
+                regAccent(fill, "BackgroundColor3", "solid")
+                local knob = mk("Frame", {
+                    AnchorPoint = v2(0.5, 0.5),
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    Size = UDim2.fromOffset(12, 12),
+                    BackgroundColor3 = WHITE,
+                    BorderSizePixel = 0,
+                    ZIndex = 9,
+                }, track)
+                corner(knob, 99)
+                stroke(knob, TH.Accent, 1.5, 0)
+                regAccent(knob:FindFirstChildWhichIsA("UIStroke"), "Color", "solid")
+
+                local obj = { Value = val, Min = mn, Max = mx, _cbs = {} }
+                local function refresh()
+                    local p = (mx > mn) and clamp((obj.Value - mn) / (mx - mn), 0, 1) or 0
+                    tw(fill, 0.08, { Size = UDim2.fromScale(p, 1) })
+                    tw(knob, 0.08, { Position = UDim2.fromScale(p, 0.5) })
+                    valBox.Text = fmtVal(obj.Value)
+                end
+                function obj:OnChanged(fn) tinsert(obj._cbs, fn) end
+                function obj:SetValue(nv)
+                    local num = tonumber(nv)
+                    if not num then refresh() return end
+                    num = clamp(floor(num * mult + 0.5) / mult, mn, mx)
+                    if obj.Value == num then refresh() return end
+                    obj.Value = num
+                    refresh()
+                    if o.Callback then o.Callback(num) end
+                    for _, fn in ipairs(obj._cbs) do pcall(fn, num) end
+                end
+
+                local dragging = false
+                local function updateFromX(px)
+                    local ax, aw = track.AbsolutePosition.X, max(1, track.AbsoluteSize.X)
+                    local p = clamp((px - ax) / aw, 0, 1)
+                    obj:SetValue(mn + (mx - mn) * p)
+                end
+                conn(hit.MouseEnter, function() twS(knob, 0.14, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(15, 15) }) end)
+                conn(hit.MouseLeave, function() if not dragging then tw(knob, 0.14, { Size = UDim2.fromOffset(12, 12) }) end end)
+                conn(hit.InputBegan, function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                        dragging = true
+                        twS(knob, 0.14, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(15, 15) })
+                        updateFromX(inp.Position.X)
+                    end
+                end)
+                conn(UIS.InputChanged, function(inp)
+                    if dragging and hit.Parent and win._visible and inp.UserInputType == Enum.UserInputType.MouseMovement then
+                        updateFromX(inp.Position.X)
+                    end
+                end)
+                conn(UIS.InputEnded, function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+                        dragging = false
+                        tw(knob, 0.14, { Size = UDim2.fromOffset(12, 12) })
+                    end
+                end)
+                conn(valBox.FocusLost, function()
+                    obj:SetValue(tonumber(valBox.Text))
+                end)
+                bindTooltip(wrap, o.Tooltip)
+                refresh()
+                lib.Options[idx] = obj
+                regS(o.Text, o.Tooltip)
+                return obj
+            end
+
+            function box:AddDropdown(idx, o)
+                o = o or {}
+                local vals = o.Values or {}
+                local val = o.Default ~= nil and o.Default or vals[1] or ""
+                local wrap = mk("Frame", {
+                    Size = UDim2.new(1, 0, 0, 44),
+                    BackgroundTransparency = 1,
+                    ZIndex = 6,
+                }, parentContainer)
+                mk("TextLabel", {
+                    Position = UDim2.fromOffset(2, 0),
+                    Size = UDim2.new(1, -4, 0, 16),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.GothamMedium,
+                    TextSize = 12,
+                    TextColor3 = TH.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    Text = tostring(o.Text or idx),
+                    ZIndex = 7,
+                }, wrap)
+                local btn = mk("TextButton", {
+                    Position = UDim2.fromOffset(2, 18),
+                    Size = UDim2.new(1, -4, 0, 24),
+                    BackgroundColor3 = TH.CtrlBg,
+                    Text = "",
+                    AutoButtonColor = false,
+                    ZIndex = 7,
+                }, wrap)
+                corner(btn, 6)
+                local bStroke = stroke(btn, TH.Border, 1, 0)
+                local valLbl = mk("TextLabel", {
+                    Position = UDim2.fromOffset(8, 0),
+                    Size = UDim2.new(1, -28, 1, 0),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.Gotham,
+                    TextSize = 11,
+                    TextColor3 = TH.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    Text = tostring(val or ""),
+                    ZIndex = 8,
+                }, btn)
+                local arrowLbl = mk("TextLabel", {
+                    AnchorPoint = v2(1, 0.5),
+                    Position = UDim2.new(1, -8, 0.5, 0),
+                    Size = UDim2.fromOffset(12, 12),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 10,
+                    TextColor3 = TH.SubText,
+                    Text = "▾",
+                    ZIndex = 8,
+                }, btn)
+
+                local obj = { Value = val, Values = vals, _cbs = {} }
+                function obj:OnChanged(fn) tinsert(obj._cbs, fn) end
+                function obj:SetValues(newVals)
+                    obj.Values = newVals or {}
+                end
+                function obj:SetValue(nv)
+                    obj.Value = nv
+                    valLbl.Text = tostring(nv ~= nil and nv or "")
+                    if o.Callback then o.Callback(nv) end
+                    for _, fn in ipairs(obj._cbs) do pcall(fn, nv) end
+                end
+
+                conn(btn.MouseEnter, function() tw(bStroke, 0.12, { Color = TH.BorderStrong }) tw(btn, 0.12, { BackgroundColor3 = TH.CtrlHover }) end)
+                conn(btn.MouseLeave, function() tw(bStroke, 0.12, { Color = TH.Border }) tw(btn, 0.12, { BackgroundColor3 = TH.CtrlBg }) end)
+                conn(btn.MouseButton1Click, function()
+                    if activePopup and activePopup.Name == "Drop_" .. idx then
+                        closeActivePopup()
+                        return
+                    end
+                    closeActivePopup()
+                    local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
+                    local curCam = workspace.CurrentCamera
+                    local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
+                    local itemH = 24
+                    local listH = clamp(#obj.Values * (itemH + 2) + 8, 32, 196)
+                    local py = bp.Y + bs.Y + 4
+                    if py + listH > cvp.Y - 12 then py = max(8, bp.Y - listH - 4) end
+
+                    local pop = mk("ScrollingFrame", {
+                        Name = "Drop_" .. idx,
+                        Position = UDim2.fromOffset(bp.X, py),
+                        Size = UDim2.fromOffset(bs.X, 12),
+                        BackgroundColor3 = TH.CardBg,
+                        BackgroundTransparency = 0.02,
+                        ScrollBarThickness = 2,
+                        ScrollBarImageColor3 = TH.BorderStrong,
+                        CanvasSize = UDim2.fromOffset(0, 0),
+                        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                        ClipsDescendants = true,
+                        ZIndex = 72,
+                    }, overlay)
+                    corner(pop, 7)
+                    stroke(pop, TH.BorderStrong, 1, 0)
+                    pad(pop, 4, 4, 4, 4)
+                    mk("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, pop)
+                    twS(pop, 0.18, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(bs.X, listH) })
+                    twS(arrowLbl, 0.18, Enum.EasingStyle.Back, { Rotation = 180 })
+                    activePopup = pop
+                    activePopupTrigger = btn
+                    openedPopupAt = clock()
+                    closePopupFn = function()
+                        if arrowLbl and arrowLbl.Parent then twS(arrowLbl, 0.16, Enum.EasingStyle.Quad, { Rotation = 0 }) end
+                    end
+
+                    for _, vItem in ipairs(obj.Values) do
+                        local isCur = (vItem == obj.Value)
+                        local opt = mk("TextButton", {
+                            Size = UDim2.new(1, 0, 0, itemH),
+                            BackgroundColor3 = isCur and TH.AccentSoft or TH.CardBg,
+                            BackgroundTransparency = isCur and 0 or 1,
+                            Font = isCur and Enum.Font.GothamBold or Enum.Font.Gotham,
+                            TextSize = 11,
+                            TextColor3 = isCur and TH.Accent or TH.Text,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            Text = "  " .. tostring(vItem),
+                            AutoButtonColor = false,
+                            ZIndex = 73,
+                        }, pop)
+                        corner(opt, 5)
+                        conn(opt.MouseEnter, function()
+                            if vItem ~= obj.Value then tw(opt, 0.08, { BackgroundTransparency = 0, BackgroundColor3 = TH.CtrlBg }) end
+                        end)
+                        conn(opt.MouseLeave, function()
+                            if vItem ~= obj.Value then tw(opt, 0.08, { BackgroundTransparency = 1 }) end
+                        end)
+                        conn(opt.MouseButton1Click, function()
+                            obj:SetValue(vItem)
+                            closeActivePopup()
+                        end)
+                    end
+                end)
+                bindTooltip(wrap, o.Tooltip)
+                lib.Options[idx] = obj
+                regS(o.Text, o.Tooltip)
+                return obj
+            end
+
+            function box:AddInput(idx, o)
+                o = o or {}
+                local val = tostring(o.Default or "")
+                local wrap = mk("Frame", {
+                    Size = UDim2.new(1, 0, 0, 44),
+                    BackgroundTransparency = 1,
+                    ZIndex = 6,
+                }, parentContainer)
+                mk("TextLabel", {
+                    Position = UDim2.fromOffset(2, 0),
+                    Size = UDim2.new(1, -4, 0, 16),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.GothamMedium,
+                    TextSize = 12,
+                    TextColor3 = TH.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    Text = tostring(o.Text or idx),
+                    ZIndex = 7,
+                }, wrap)
+                local tbWrap = mk("Frame", {
+                    Position = UDim2.fromOffset(2, 18),
+                    Size = UDim2.new(1, -4, 0, 24),
+                    BackgroundColor3 = TH.CtrlBg,
+                    ZIndex = 7,
+                }, wrap)
+                corner(tbWrap, 6)
+                local tStroke = stroke(tbWrap, TH.Border, 1, 0)
+                local tb = mk("TextBox", {
+                    Position = UDim2.fromOffset(8, 0),
+                    Size = UDim2.new(1, -16, 1, 0),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.Gotham,
+                    TextSize = 11,
+                    TextColor3 = TH.Text,
+                    PlaceholderColor3 = TH.Muted,
+                    PlaceholderText = tostring(o.Placeholder or ""),
+                    Text = val,
+                    ClearTextOnFocus = false,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 8,
+                }, tbWrap)
+
+                local obj = { Value = val, _cbs = {} }
+                function obj:OnChanged(fn) tinsert(obj._cbs, fn) end
+                function obj:SetValue(nv)
+                    nv = tostring(nv or "")
+                    obj.Value = nv
+                    if tb.Text ~= nv then tb.Text = nv end
+                    if o.Callback then o.Callback(nv) end
+                    for _, fn in ipairs(obj._cbs) do pcall(fn, nv) end
+                end
+                conn(tb.Focused, function() tStroke.Color = TH.Accent end)
+                conn(tb.FocusLost, function()
+                    tStroke.Color = TH.Border
+                    if o.Finished ~= false then obj:SetValue(tb.Text) end
+                end)
+                if o.Finished == false then
+                    conn(tb:GetPropertyChangedSignal("Text"), function()
+                        obj:SetValue(tb.Text)
+                    end)
+                end
+                bindTooltip(wrap, o.Tooltip)
+                lib.Options[idx] = obj
+                regS(o.Text, o.Tooltip)
+                return obj
+            end
+
+            function box:AddButton(o)
+                o = o or {}
+                local btn = mk("TextButton", {
+                    Size = UDim2.new(1, 0, 0, 28),
+                    BackgroundColor3 = TH.CtrlBg,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 12,
+                    TextColor3 = TH.Text,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    Text = tostring(o.Text or "Button"),
+                    AutoButtonColor = false,
+                    ClipsDescendants = true,
+                    ZIndex = 7,
+                }, parentContainer)
+                corner(btn, 7)
+                local st = stroke(btn, TH.Border, 1, 0)
+                local bScale = mk("UIScale", { Scale = 1 }, btn)
+                local bShine = mk("Frame", {
+                    Name = "NoPanelBg",
+                    Position = UDim2.fromScale(-0.4, 0),
+                    Size = UDim2.fromScale(0.35, 1),
+                    BackgroundColor3 = WHITE,
+                    BackgroundTransparency = 0.35,
+                    BorderSizePixel = 0,
+                    Visible = false,
+                    ZIndex = 8,
+                }, btn)
+                mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.1), NumberSequenceKeypoint.new(1, 1) }) }, bShine)
+                conn(btn.MouseEnter, function()
+                    tw(btn, 0.12, { BackgroundColor3 = TH.CtrlHover })
+                    tw(st, 0.12, { Color = TH.BorderStrong })
+                end)
+                conn(btn.MouseLeave, function()
+                    tw(btn, 0.12, { BackgroundColor3 = TH.CtrlBg })
+                    tw(st, 0.12, { Color = TH.Border })
+                end)
+                conn(btn.MouseButton1Click, function()
+                    bScale.Scale = 0.96
+                    twS(bScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
+                    bShine.Position = UDim2.fromScale(-0.4, 0)
+                    bShine.Visible = true
+                    twS(bShine, 0.30, Enum.EasingStyle.Quad, { Position = UDim2.fromScale(1.15, 0) })
+                    task.delay(0.32, function() if bShine and bShine.Parent then bShine.Visible = false end end)
+                    if o.Func then o.Func() end
+                end)
+                bindTooltip(btn, o.Tooltip)
+                regS(o.Text, o.Tooltip)
+                return btn
+            end
+
+            function box:AddLabel(text, doesWrap)
+                local row = mk("Frame", {
+                    Size = UDim2.new(1, 0, 0, 20),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundTransparency = 1,
+                    ZIndex = 6,
+                }, parentContainer)
+                local lbl = mk("TextLabel", {
+                    Position = UDim2.fromOffset(2, 1),
+                    Size = UDim2.new(1, -4, 0, 18),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundTransparency = 1,
+                    Font = doesWrap and Enum.Font.Gotham or Enum.Font.GothamMedium,
+                    TextSize = doesWrap and 11 or 12,
+                    TextColor3 = doesWrap and TH.SubText or TH.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextWrapped = doesWrap and true or false,
+                    Text = tostring(text or ""),
+                    ZIndex = 7,
+                }, row)
+
+                local lObj = {}
+                function lObj:SetText(nt) lbl.Text = tostring(nt or "") end
+
+                function lObj:AddColorPicker(idx, co)
+                    co = co or {}
+                    lbl.Size = UDim2.new(1, -40, 0, 18)
+                    lbl.TextWrapped = true
+                    local curCol = co.Default or WHITE
+                    local swatch = mk("TextButton", {
+                        AnchorPoint = v2(1, 0.5),
+                        Position = UDim2.new(1, -2, 0.5, 0),
+                        Size = UDim2.fromOffset(30, 16),
+                        BackgroundColor3 = curCol,
+                        Text = "",
+                        AutoButtonColor = false,
+                        ZIndex = 7,
+                    }, row)
+                    corner(swatch, 5)
+                    stroke(swatch, TH.BorderStrong, 1, 0)
+                    local swScale = mk("UIScale", { Scale = 1 }, swatch)
+                    conn(swatch.MouseEnter, function() twS(swScale, 0.14, Enum.EasingStyle.Back, { Scale = 1.12 }) end)
+                    conn(swatch.MouseLeave, function() tw(swScale, 0.12, { Scale = 1 }) end)
+
+                    local cObj = { Value = curCol, _cbs = {} }
+                    function cObj:OnChanged(fn) tinsert(cObj._cbs, fn) end
+                    function cObj:SetValueRGB(col)
+                        if typeof(col) ~= "Color3" then return end
+                        cObj.Value = col
+                        swatch.BackgroundColor3 = col
+                        if co.Callback then co.Callback(col) end
+                        for _, fn in ipairs(cObj._cbs) do pcall(fn, col) end
+                    end
+                    cObj.SetValue = cObj.SetValueRGB
+
+                    conn(swatch.MouseButton1Click, function()
+                        if activePopup and activePopup.Name == "Col_" .. idx then
+                            closeActivePopup()
+                            return
+                        end
+                        closeActivePopup()
+                        local sp, ss = swatch.AbsolutePosition, swatch.AbsoluteSize
+                        local curCam = workspace.CurrentCamera
+                        local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
+                        local px = clamp(sp.X - 180, 8, max(8, cvp.X - 224))
+                        local py = clamp(sp.Y + ss.Y + 6, 8, max(8, cvp.Y - 210))
+
+                        local pop = mk("Frame", {
+                            Name = "Col_" .. idx,
+                            Position = UDim2.fromOffset(px, py),
+                            Size = UDim2.fromOffset(216, 198),
+                            BackgroundColor3 = TH.CardBg,
+                            BackgroundTransparency = 0.02,
+                            ZIndex = 75,
+                        }, overlay)
+                        corner(pop, 9)
+                        stroke(pop, TH.BorderStrong, 1, 0)
+                        local colScale = mk("UIScale", { Scale = 0.90 }, pop)
+                        twS(colScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
+                        activePopup = pop
+                        activePopupTrigger = swatch
+                        openedPopupAt = clock()
+                        closePopupFn = nil
+
+                        local ch, cs, cv = Color3.toHSV(cObj.Value)
+                        local svBox = mk("TextButton", {
+                            Position = UDim2.fromOffset(10, 10),
+                            Size = UDim2.fromOffset(162, 144),
+                            BackgroundColor3 = hsv(ch, 1, 1),
+                            Text = "",
+                            AutoButtonColor = false,
+                            ZIndex = 76,
+                        }, pop)
+                        corner(svBox, 6)
+                        local wGrad = mk("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 77 }, svBox)
+                        corner(wGrad, 6)
+                        mk("UIGradient", { Transparency = NumberSequence.new(0, 1) }, wGrad)
+                        local bGrad = mk("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = BLACK, BorderSizePixel = 0, ZIndex = 78 }, svBox)
+                        corner(bGrad, 6)
+                        mk("UIGradient", { Rotation = 90, Transparency = NumberSequence.new(1, 0) }, bGrad)
+                        local svDot = mk("Frame", {
+                            AnchorPoint = v2(0.5, 0.5),
+                            Position = UDim2.fromScale(cs, 1 - cv),
+                            Size = UDim2.fromOffset(10, 10),
+                            BackgroundColor3 = WHITE,
+                            ZIndex = 79,
+                        }, svBox)
+                        corner(svDot, 99)
+                        stroke(svDot, BLACK, 1.4, 0)
+
+                        local hueBar = mk("TextButton", {
+                            Position = UDim2.fromOffset(182, 10),
+                            Size = UDim2.fromOffset(22, 144),
+                            BackgroundColor3 = WHITE,
+                            Text = "",
+                            AutoButtonColor = false,
+                            ZIndex = 76,
+                        }, pop)
+                        corner(hueBar, 6)
+                        mk("UIGradient", {
+                            Rotation = 90,
+                            Color = ColorSequence.new({
+                                ColorSequenceKeypoint.new(0.00, rgb(255, 0, 0)),
+                                ColorSequenceKeypoint.new(0.17, rgb(255, 255, 0)),
+                                ColorSequenceKeypoint.new(0.33, rgb(0, 255, 0)),
+                                ColorSequenceKeypoint.new(0.50, rgb(0, 255, 255)),
+                                ColorSequenceKeypoint.new(0.67, rgb(0, 0, 255)),
+                                ColorSequenceKeypoint.new(0.83, rgb(255, 0, 255)),
+                                ColorSequenceKeypoint.new(1.00, rgb(255, 0, 0)),
+                            }),
+                        }, hueBar)
+                        local hueMark = mk("Frame", {
+                            AnchorPoint = v2(0.5, 0.5),
+                            Position = UDim2.fromScale(0.5, ch),
+                            Size = UDim2.new(1, 4, 0, 4),
+                            BackgroundColor3 = WHITE,
+                            ZIndex = 79,
+                        }, hueBar)
+                        corner(hueMark, 2)
+                        stroke(hueMark, BLACK, 1, 0)
+
+                        local prevSw = mk("Frame", {
+                            Position = UDim2.fromOffset(10, 162),
+                            Size = UDim2.fromOffset(32, 24),
+                            BackgroundColor3 = cObj.Value,
+                            ZIndex = 76,
+                        }, pop)
+                        corner(prevSw, 5)
+                        stroke(prevSw, TH.BorderStrong, 1, 0)
+
+                        local hexBox = mk("TextBox", {
+                            Position = UDim2.fromOffset(48, 162),
+                            Size = UDim2.fromOffset(156, 24),
+                            BackgroundColor3 = TH.CtrlBg,
+                            Font = Enum.Font.GothamBold,
+                            TextSize = 11,
+                            TextColor3 = TH.Text,
+                            Text = "#" .. cObj.Value:ToHex(),
+                            ClearTextOnFocus = false,
+                            ZIndex = 76,
+                        }, pop)
+                        corner(hexBox, 5)
+                        stroke(hexBox, TH.Border, 1, 0)
+
+                        local function applyHSV()
+                            local nc = hsv(ch, cs, cv)
+                            svBox.BackgroundColor3 = hsv(ch, 1, 1)
+                            svDot.Position = UDim2.fromScale(cs, 1 - cv)
+                            hueMark.Position = UDim2.fromScale(0.5, ch)
+                            prevSw.BackgroundColor3 = nc
+                            hexBox.Text = "#" .. nc:ToHex()
+                            cObj:SetValueRGB(nc)
+                        end
+                        local dragSV, dragHue = false, false
+                        local function updSV()
+                            local mp = UIS:GetMouseLocation()
+                            cs = clamp((mp.X - svBox.AbsolutePosition.X) / max(1, svBox.AbsoluteSize.X), 0, 1)
+                            cv = 1 - clamp((mp.Y - svBox.AbsolutePosition.Y) / max(1, svBox.AbsoluteSize.Y), 0, 1)
+                            applyHSV()
+                        end
+                        local function updHue()
+                            local mp = UIS:GetMouseLocation()
+                            ch = clamp((mp.Y - hueBar.AbsolutePosition.Y) / max(1, hueBar.AbsoluteSize.Y), 0, 0.999)
+                            applyHSV()
+                        end
+                        local c1 = svBox.InputBegan:Connect(function(inp)
+                            if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragSV = true updSV() end
+                        end)
+                        local c2 = hueBar.InputBegan:Connect(function(inp)
+                            if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragHue = true updHue() end
+                        end)
+                        local c3 = UIS.InputChanged:Connect(function(inp)
+                            if inp.UserInputType == Enum.UserInputType.MouseMovement then
+                                if dragSV then updSV()
+                                elseif dragHue then updHue() end
+                            end
+                        end)
+                        local c4 = UIS.InputEnded:Connect(function(inp)
+                            if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragSV, dragHue = false, false end
+                        end)
+                        local c5 = hexBox.FocusLost:Connect(function()
+                            local hx = (hexBox.Text or ""):gsub("#", "")
+                            if #hx == 6 then
+                                local ok, nc = pcall(Color3.fromHex, hx)
+                                if ok and typeof(nc) == "Color3" then
+                                    ch, cs, cv = Color3.toHSV(nc)
+                                    applyHSV()
+                                end
+                            end
+                        end)
+                        closePopupFn = function()
+                            for _, cc in ipairs({ c1, c2, c3, c4, c5 }) do pcall(function() cc:Disconnect() end) end
+                        end
+                    end)
+                    lib.Options[idx] = cObj
+                    regS(co.Title or text, "Цвет")
+                    return cObj
+                end
+
+                function lObj:AddKeyPicker(idx, ko)
+                    ko = ko or {}
+                    lbl.Size = UDim2.new(1, -74, 0, 18)
+                    lbl.TextWrapped = true
+                    local curKey = tostring(ko.Default or "None")
+                    local kbBtn = mk("TextButton", {
+                        AnchorPoint = v2(1, 0.5),
+                        Position = UDim2.new(1, -2, 0.5, 0),
+                        Size = UDim2.fromOffset(66, 18),
+                        BackgroundColor3 = TH.CtrlBg,
+                        Font = Enum.Font.GothamBold,
+                        TextSize = 10,
+                        TextColor3 = TH.Text,
+                        Text = curKey,
+                        AutoButtonColor = false,
+                        ZIndex = 7,
+                    }, row)
+                    corner(kbBtn, 5)
+                    local kStroke = stroke(kbBtn, TH.Border, 1, 0)
+
+                    local kObj = { Value = curKey, Mode = ko.Mode or "Toggle", _cbs = {} }
+                    function kObj:OnChanged(fn) tinsert(kObj._cbs, fn) end
+                    function kObj:SetValue(nv)
+                        if type(nv) == "table" then
+                            kObj.Value = tostring(nv[1] or nv.key or "None")
+                            if nv[2] or nv.mode then kObj.Mode = nv[2] or nv.mode end
+                        else
+                            kObj.Value = tostring(nv or "None")
+                        end
+                        kbBtn.Text = kObj.Value
+                        for _, fn in ipairs(kObj._cbs) do pcall(fn, kObj.Value) end
+                    end
+
+                    local listening = false
+                    conn(kbBtn.MouseEnter, function() if not listening then tw(kbBtn, 0.12, { BackgroundColor3 = TH.CtrlHover }) end end)
+                    conn(kbBtn.MouseLeave, function() if not listening then tw(kbBtn, 0.12, { BackgroundColor3 = TH.CtrlBg }) end end)
+                    conn(kbBtn.MouseButton1Click, function()
+                        if listening then return end
+                        if lib._cancelKeyListen then pcall(lib._cancelKeyListen) end
+                        listening = true
+                        lib._listeningKey = true
+                        kbBtn.Text = "..."
+                        tw(kStroke, 0.12, { Color = TH.Accent })
+                        tw(kbBtn, 0.12, { BackgroundColor3 = TH.AccentSoft })
+                        local waitConn
+                        local function finishListen(newK)
+                            if waitConn then pcall(function() waitConn:Disconnect() end) waitConn = nil end
+                            lib._cancelKeyListen = nil
+                            listening = false
+                            tw(kStroke, 0.14, { Color = TH.Border })
+                            tw(kbBtn, 0.14, { BackgroundColor3 = TH.CtrlBg })
+                            if newK ~= nil then
+                                kObj:SetValue(newK)
+                            else
+                                kbBtn.Text = kObj.Value
+                            end
+                            task.defer(function() lib._listeningKey = false end)
+                        end
+                        lib._cancelKeyListen = function() finishListen(nil) end
+                        waitConn = UIS.InputBegan:Connect(function(inp)
+                            local newK = nil
+                            if inp.UserInputType == Enum.UserInputType.Keyboard then
+                                newK = (inp.KeyCode == Enum.KeyCode.Escape) and "None" or inp.KeyCode.Name
+                            elseif inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                                if idx == "MenuKey" then finishListen(nil) return end
+                                newK = "MB1"
+                            elseif inp.UserInputType == Enum.UserInputType.MouseButton2 then
+                                if idx == "MenuKey" then finishListen(nil) return end
+                                newK = "MB2"
+                            elseif inp.UserInputType == Enum.UserInputType.MouseButton3 then
+                                if idx == "MenuKey" then finishListen(nil) return end
+                                newK = "MB3"
+                            end
+                            if newK then finishListen(newK) end
+                        end)
+                    end)
+                    lib.Options[idx] = kObj
+                    return kObj
+                end
+
+                return lObj
+            end
+
+            function box:AddDependencyBox()
+                local depFrame = mk("Frame", {
+                    Size = UDim2.new(1, 0, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundTransparency = 1,
+                    Visible = true,
+                    ZIndex = 6,
+                }, parentContainer)
+                local depScale = mk("UIScale", { Scale = 1 }, depFrame)
+                mk("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, depFrame)
+                local depBox = makeGroupControls(depFrame, tabObj, groupTitle, cardStroke)
+                function depBox:SetupDependencies(deps)
+                    local wasVis = depFrame.Visible
+                    local function eval()
+                        local okAll = true
+                        for _, d in ipairs(deps or {}) do
+                            if d[1] and d[1].Value ~= d[2] then okAll = false break end
+                        end
+                        depFrame.Visible = okAll
+                        if okAll and not wasVis then
+                            depScale.Scale = 0.96
+                            twS(depScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
+                        end
+                        wasVis = okAll
+                    end
+                    for _, d in ipairs(deps or {}) do
+                        if d[1] and d[1].OnChanged then d[1]:OnChanged(eval) end
+                    end
+                    eval()
+                end
+                return depBox
+            end
+
+            return box
+        end
+
+        function win:AddTab(name, iconKind)
+            local order = #win._tabs + 1
+            if order == 1 or order == 5 or order == 7 then
+                local secTxt = (order == 1 and "ВИЗУАЛЫ") or (order == 5 and "МИР И ПОИСК") or "СИСТЕМА"
+                mk("TextLabel", {
+                    Size = UDim2.new(1, 0, 0, 16),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 9,
+                    TextColor3 = TH.Muted,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Text = "  " .. secTxt,
+                    LayoutOrder = order * 10 - 5,
+                    ZIndex = 6,
+                }, tabScroll)
+            end
+
+            local btn = mk("TextButton", {
+                Size = UDim2.new(1, 0, 0, 30),
+                BackgroundColor3 = TH.SideBg,
+                BackgroundTransparency = 1,
+                Text = "",
+                AutoButtonColor = false,
+                LayoutOrder = order * 10,
+                ZIndex = 6,
+            }, tabScroll)
+            corner(btn, 7)
+
+            local bar = mk("Frame", {
+                AnchorPoint = v2(0, 0.5),
+                Position = UDim2.new(0, 3, 0.5, 0),
+                Size = UDim2.fromOffset(3, 16),
+                BackgroundColor3 = TH.Accent,
+                BorderSizePixel = 0,
+                Visible = false,
+                ZIndex = 8,
+            }, btn)
+            corner(bar, 99)
+            regAccent(bar, "BackgroundColor3", "solid")
+
+            local ic = buildIcon(btn, iconKind, TH.SubText)
+            ic.box.Position = UDim2.fromOffset(12, 8)
+
+            local lbl = mk("TextLabel", {
+                Position = UDim2.fromOffset(32, 0),
+                Size = UDim2.new(1, -36, 1, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.GothamMedium,
+                TextSize = 12,
+                TextColor3 = TH.SubText,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                Text = tostring(name),
+                ZIndex = 7,
+            }, btn)
+
+            local page = mk("ScrollingFrame", {
+                Size = UDim2.fromScale(1, 1),
+                BackgroundTransparency = 1,
+                ScrollBarThickness = 3,
+                ScrollBarImageColor3 = TH.BorderStrong,
+                CanvasSize = UDim2.fromOffset(0, 0),
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                BorderSizePixel = 0,
+                Visible = false,
+                ZIndex = 4,
+            }, pagesHolder)
+            pad(page, 12, 12, 12, 12)
+
+            local leftCol = mk("Frame", {
+                Size = UDim2.new(0.5, -6, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                ZIndex = 5,
+            }, page)
+            pad(leftCol, 0, 0, 0, 12)
+            mk("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, leftCol)
+
+            local rightCol = mk("Frame", {
+                Position = UDim2.new(0.5, 6, 0, 0),
+                Size = UDim2.new(0.5, -6, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                ZIndex = 5,
+            }, page)
+            pad(rightCol, 0, 0, 0, 12)
+            mk("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, rightCol)
+
+            local tabObj = { name = name, btn = btn, bar = bar, lbl = lbl, icon = ic, page = page, leftCol = leftCol, rightCol = rightCol }
+            tinsert(win._tabs, tabObj)
+
+            conn(btn.MouseEnter, function()
+                if win._activeTab ~= tabObj then
+                    tw(btn, 0.14, { BackgroundColor3 = TH.CardBg, BackgroundTransparency = 0.50 })
+                    tw(lbl, 0.14, { Position = UDim2.fromOffset(35, 0) })
+                    tw(ic.box, 0.14, { Position = UDim2.fromOffset(14, 8) })
+                end
+            end)
+            conn(btn.MouseLeave, function()
+                if win._activeTab ~= tabObj then
+                    tw(btn, 0.14, { BackgroundTransparency = 1 })
+                    tw(lbl, 0.14, { Position = UDim2.fromOffset(32, 0) })
+                    tw(ic.box, 0.14, { Position = UDim2.fromOffset(12, 8) })
+                end
+            end)
+            conn(btn.MouseButton1Click, function() selectTab(tabObj) end)
+
+            local function addGroupbox(colFrame, title)
+                local card = mk("Frame", {
+                    Size = UDim2.new(1, 0, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundColor3 = TH.CardBg,
+                    BackgroundTransparency = 0.04,
+                    ZIndex = 5,
+                }, colFrame)
+                corner(card, 9)
+                local cst = stroke(card, TH.Border, 1, 0)
+                local hdr = mk("Frame", {
+                    Size = UDim2.new(1, 0, 0, 30),
+                    BackgroundTransparency = 1,
+                    ClipsDescendants = true,
+                    ZIndex = 6,
+                }, card)
+                local hdrFill = mk("Frame", {
+                    Name = "PanelBg",
+                    Size = UDim2.new(1, 0, 1, 10),
+                    BackgroundColor3 = TH.CardHead,
+                    BackgroundTransparency = 0.06,
+                    BorderSizePixel = 0,
+                    ZIndex = 6,
+                }, hdr)
+                corner(hdrFill, 9)
+                mk("Frame", {
+                    Position = UDim2.new(0, 0, 1, -1),
+                    Size = UDim2.new(1, 0, 0, 1),
+                    BackgroundColor3 = TH.Border,
+                    BorderSizePixel = 0,
+                    ZIndex = 7,
+                }, hdr)
+                mk("TextLabel", {
+                    Position = UDim2.fromOffset(10, 0),
+                    Size = UDim2.new(1, -20, 1, 0),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 12,
+                    TextColor3 = TH.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Text = tostring(title),
+                    ZIndex = 7,
+                }, hdr)
+                local body = mk("Frame", {
+                    Position = UDim2.fromOffset(0, 30),
+                    Size = UDim2.new(1, 0, 0, 0),
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    BackgroundTransparency = 1,
+                    ZIndex = 6,
+                }, card)
+                pad(body, 10, 10, 8, 10)
+                mk("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+                return makeGroupControls(body, tabObj, title, cst)
+            end
+
+            function tabObj:AddLeftGroupbox(title) return addGroupbox(leftCol, title) end
+            function tabObj:AddRightGroupbox(title) return addGroupbox(rightCol, title) end
+
+            if #win._tabs == 1 then selectTab(tabObj) end
+            return tabObj
+        end
+
+        lib._window = win
+        return win
+    end
+
+    -- Built-in Config / SaveManager (JSON + Autoload)
+    local sm = { folder = "glupost_hub/configs", ignore = {}, lib = lib }
+    function sm:SetLibrary(l) sm.lib = l end
+    function sm:SetFolder(f) sm.folder = f end
+    function sm:IgnoreThemeSettings() end
+    function sm:SetIgnoreIndexes(list)
+        sm.ignore = {}
+        for _, k in ipairs(list or {}) do sm.ignore[k] = true end
+    end
+
+    local function settingsDir() return sm.folder .. "/settings" end
+    local function ensureDirs()
+        if not (isfolder and makefolder) then return false end
+        local parts = {}
+        for seg in string.gmatch(settingsDir(), "[^/]+") do
+            parts[#parts + 1] = seg
+            local p = table.concat(parts, "/")
+            if not isfolder(p) then pcall(makefolder, p) end
+        end
+        return isfolder(settingsDir())
+    end
+
+    local function listConfigs()
+        local out = {}
+        if not (isfolder and listfiles) then return out end
+        local dir = settingsDir()
+        if not isfolder(dir) then return out end
+        local ok, files = pcall(listfiles, dir)
+        if not ok or type(files) ~= "table" then return out end
+        for _, f in ipairs(files) do
+            local name = tostring(f):match("([^/\\]+)%.json$")
+            if name and name ~= "" then out[#out + 1] = name end
+        end
+        table.sort(out)
+        return out
+    end
+
+    function sm:Save(name)
+        name = tostring(name or ""):match("^%s*(.-)%s*$")
+        if name == "" then lib:Notify({ Title = "Конфиг", Description = "Введите имя конфига", Time = 3 }) return false end
+        if not writefile then return false end
+        ensureDirs()
+        local data = { objects = {} }
+        for idx, t in pairs(lib.Toggles) do
+            if not sm.ignore[idx] then data.objects[idx] = { type = "Toggle", value = t.Value } end
+        end
+        for idx, o in pairs(lib.Options) do
+            if not sm.ignore[idx] then
+                if typeof(o.Value) == "Color3" then
+                    data.objects[idx] = { type = "ColorPicker", value = o.Value:ToHex() }
+                elseif o.Mode ~= nil then
+                    data.objects[idx] = { type = "KeyPicker", key = o.Value, mode = o.Mode }
+                elseif type(o.Value) == "number" then
+                    data.objects[idx] = { type = "Slider", value = o.Value }
+                elseif type(o.Value) == "string" then
+                    data.objects[idx] = { type = "Value", value = o.Value }
+                end
+            end
+        end
+        local ok, json = pcall(HttpSvc.JSONEncode, HttpSvc, data)
+        if ok and json then
+            pcall(writefile, settingsDir() .. "/" .. name .. ".json", json)
+            return true
+        end
+        return false
+    end
+
+    function sm:Load(name)
+        name = tostring(name or ""):match("^%s*(.-)%s*$")
+        if name == "" or not (isfile and readfile) then return false end
+        local path = settingsDir() .. "/" .. name .. ".json"
+        if not isfile(path) then return false end
+        local okR, raw = pcall(readfile, path)
+        if not okR or type(raw) ~= "string" then return false end
+        local okD, data = pcall(HttpSvc.JSONDecode, HttpSvc, raw)
+        if not okD or type(data) ~= "table" then return false end
+        local objs = data.objects or data
+        for idx, entry in pairs(objs) do
+            if not sm.ignore[idx] and type(entry) == "table" then
+                if entry.type == "Toggle" and lib.Toggles[idx] then
+                    pcall(function() lib.Toggles[idx]:SetValue(entry.value) end)
+                elseif entry.type == "ColorPicker" and lib.Options[idx] and entry.value then
+                    local okC, col = pcall(Color3.fromHex, tostring(entry.value))
+                    if okC then pcall(function() lib.Options[idx]:SetValueRGB(col) end) end
+                elseif entry.type == "KeyPicker" and lib.Options[idx] then
+                    pcall(function() lib.Options[idx]:SetValue({ entry.key, entry.mode }) end)
+                elseif lib.Options[idx] and entry.value ~= nil then
+                    pcall(function() lib.Options[idx]:SetValue(entry.value) end)
+                end
+            end
+        end
+        return true
+    end
+
+    function sm:LoadAutoloadConfig()
+        if not (isfile and readfile) then return end
+        local ap = settingsDir() .. "/autoload.txt"
+        if isfile(ap) then
+            local ok, n = pcall(readfile, ap)
+            if ok and type(n) == "string" then
+                n = n:match("^%s*(.-)%s*$")
+                if n and n ~= "" and n ~= "none" then sm:Load(n) end
+            end
+        end
+    end
+
+    function sm:BuildConfigSection(tab)
+        local cb = tab:AddRightGroupbox("Конфигурация")
+        local cfgName = cb:AddInput("ConfigName", { Text = "Имя конфига", Default = "", Placeholder = "main", Finished = true, Tooltip = "Название файла конфига для сохранения." })
+        local initCfgs = listConfigs()
+        local cfgList = cb:AddDropdown("ConfigList", { Text = "Список конфигов", Values = initCfgs, Default = initCfgs[1] or "", Tooltip = "Сохранённые конфиги в glupost_hub/configs." })
+        local function refreshList()
+            local l = listConfigs()
+            cfgList:SetValues(l)
+            if l[1] and (cfgList.Value == "" or not table.find(l, cfgList.Value)) then
+                cfgList:SetValue(l[1])
+            elseif #l == 0 then
+                cfgList:SetValue("")
+            end
+        end
+        cb:AddButton({ Text = "Создать / Сохранить", Tooltip = "Сохраняет все текущие настройки в выбранный файл.", Func = function()
+            local n = (cfgName.Value ~= "" and cfgName.Value) or cfgList.Value
+            if sm:Save(n) then
+                refreshList()
+                cfgList:SetValue(n)
+                lib:Notify({ Title = "Конфиг", Description = "Сохранено: " .. n, Time = 3 })
+            end
+        end })
+        cb:AddButton({ Text = "Загрузить выбранный", Tooltip = "Применяет настройки из выбранного конфига.", Func = function()
+            local n = cfgList.Value ~= "" and cfgList.Value or cfgName.Value
+            if sm:Load(n) then
+                lib:Notify({ Title = "Конфиг", Description = "Загружено: " .. n, Time = 3 })
+            end
+        end })
+        cb:AddButton({ Text = "Удалить выбранный", Tooltip = "Удаляет выбранный файл конфига.", Func = function()
+            local n = cfgList.Value
+            if n ~= "" and isfile and delfile then
+                local p = settingsDir() .. "/" .. n .. ".json"
+                if isfile(p) then pcall(delfile, p) end
+                local ap = settingsDir() .. "/autoload.txt"
+                if isfile(ap) and readfile then
+                    local okA, curA = pcall(readfile, ap)
+                    if okA and type(curA) == "string" and curA:match("^%s*(.-)%s*$") == n then
+                        pcall(delfile, ap)
+                    end
+                end
+                refreshList()
+                lib:Notify({ Title = "Конфиг", Description = "Удалён: " .. n, Time = 3 })
+            end
+        end })
+        cb:AddButton({ Text = "Сделать автозагрузкой", Tooltip = "Выбранный конфиг будет загружаться автоматически при каждом запуске.", Func = function()
+            local n = cfgList.Value ~= "" and cfgList.Value or cfgName.Value
+            if n ~= "" and writefile then
+                ensureDirs()
+                pcall(writefile, settingsDir() .. "/autoload.txt", n)
+                lib:Notify({ Title = "Autoload", Description = "Автоконфиг: " .. n, Time = 3 })
+            end
+        end })
+        cb:AddButton({ Text = "Обновить список", Tooltip = "Перечитывает папку конфигов.", Func = refreshList })
+        sm:SetIgnoreIndexes({ "ConfigName", "ConfigList", "MenuKey", "HelpTopic", "HelpSearch" })
+    end
+
+    return lib, sm
+end)()
+
+local Window = Library:CreateWindow({
+    Title = "glupost hub", Footer = VERSION,
 })
 Options = Library.Options
 Toggles = Library.Toggles
@@ -6648,15 +9857,20 @@ do
         if not inst:IsA("Frame") and not inst:IsA("CanvasGroup") and not inst:IsA("ScrollingFrame") then
             return false
         end
-        if inst == bgLayer then return false end
+        if inst == bgLayer or inst.Name == "NoPanelBg" then return false end
+        if inst.Name == "PanelBg" then return true end
         local sz = inst.Size
         local abs = inst.AbsoluteSize
-        local wideEnough = sz.X.Scale >= 0.35 or sz.X.Offset >= 140 or abs.X >= 140
+        if abs.X > 0 and abs.Y > 0 then
+            if abs.X < 120 or abs.Y < 36 then return false end
+            return true
+        end
+        local wideEnough = sz.X.Scale >= 0.35 or sz.X.Offset >= 140
         if not wideEnough then return false end
         if inst.AutomaticSize == Enum.AutomaticSize.Y or inst.AutomaticSize == Enum.AutomaticSize.XY then
             return true
         end
-        return sz.Y.Scale >= 0.15 or sz.Y.Offset >= 44 or abs.Y >= 44
+        return sz.Y.Scale >= 0.15 or sz.Y.Offset >= 44
     end
 
     local function collectPanels(root)
@@ -6961,17 +10175,19 @@ do
     local st = Tabs.ESP:AddLeftGroupbox("Рамка и маркеры")
     addToggle(st, "BoxOutline", "Обводка рамки", { "ESP", "Outline" },
         "Добавляет чёрную обводку вокруг рамки — сильно повышает читаемость на светлом фоне.")
+    addToggle(st, "BoxGlow", "Неоновое свечение", { "ESP", "BoxGlow" },
+        "Добавляет мягкое световое свечение вокруг рамки, скелета, трейсеров и линии взгляда.")
     addToggle(st, "BoxFill", "Заливка рамки", { "ESP", "BoxFill" },
-        "Рисует полупрозрачный фон внутри рамки игрока.")
+        "Рисует объёмную стеклянную градиент-заливку с верхней полосой внутри рамки игрока.")
     withDep(st, "BoxFill", true, function(d)
         addSlider(d, "FillOp", "Плотность заливки", { "ESP", "FillOpacity" }, 0.05, 0.8, 2,
             "Насыщенность полупрозрачной заливки внутри рамки.")
     end)
     addToggle(st, "HpBar", "Полоса здоровья", { "ESP", "HealthBar" },
-        "Рисует вертикальную полоску HP слева от рамки (цвет плавно меняется от зелёного к красному).")
+        "Рисует вертикальную полоску HP с рамкой и бликом слева от рамки (цвет плавно меняется от зелёного к красному).")
     withDep(st, "HpBar", true, function(d)
         addToggle(d, "HpTrail", "Шлейф урона (HP)", { "ESP", "HealthTrail" },
-            "После получения врагом урона на полосе здоровья остаётся плавно исчезающий белый/красный след.")
+            "После получения врагом урона на полосе здоровья остаётся плавно исчезающий коралловый след.")
     end)
     addToggle(st, "HeadDot", "Точка на голове", { "ESP", "HeadDot" },
         "Рисует кружок на голове цели для точного наведения.")
@@ -6996,6 +10212,8 @@ do
     local inf = Tabs.ESP:AddLeftGroupbox("Текст и урон")
     addToggle(inf, "ShowName", "Имена игроков", { "ESP", "ShowName" },
         "Показывать никнейм над рамкой игрока.")
+    addToggle(inf, "NamePlate", "Плашка под ником", { "ESP", "NamePlate" },
+        "Рисует тёмную полупрозрачную подложку с цветной акцент-полосой под ником и бейдж под оружием.")
     withDep(inf, "ShowName", true, function(d)
         addSlider(d, "NameYOff", "Сдвиг имени Y", { "ESP", "NameYOffset" }, -50, 50, 0,
             "Поднимает или опускает никнейм относительно верхнего края рамки.")
@@ -7028,6 +10246,8 @@ do
     withDep(ln, "ShowSk", true, function(d)
         addToggle(d, "SkOutline", "Обводка скелета", { "ESP", "SkeletonOutline" },
             "Чёрный контур вокруг линий скелета для контраста (немного нагружает Drawing).")
+        addToggle(d, "SkJoints", "Суставы скелета", { "ESP", "SkeletonJoints" },
+            "Добавляет светящиеся точки на суставах и голове скелета.")
         addSlider(d, "SkThick", "Толщина скелета", { "ESP", "SkeletonThickness" }, 1, 5, 0,
             "Толщина линий костей в пикселях.")
     end)
@@ -7094,7 +10314,7 @@ do
 
     CUR_GROUP = "Производительность"
     local pf = Tabs.ESP:AddRightGroupbox("Производительность")
-    local optBtnTip = "Моментально отключает скелет, чамсы, трейсеры, проверку видимости, заливку и переключает рамку на лёгкий 2D-режим."
+    local optBtnTip = "Моментально отключает скелет, чамсы, трейсеры, свечение, плашки, проверку видимости, заливку и переключает рамку на лёгкий 2D-режим."
     pf:AddButton({
         Text = "Оптимизация: лёгкий режим",
         Tooltip = optBtnTip,
@@ -7102,8 +10322,8 @@ do
             local e = cfg().ESP
             e.Skeleton, e.ShowTracer, e.Chams = false, false, false
             e.VisibleCheck, e.BoxType = false, "2D"
-            e.BoxFill, e.HeadDot, e.LookLine, e.Outline = false, false, false, false
-            e.DamageNumbers, e.HealthTrail, e.SkeletonOutline = false, false, false
+            e.BoxFill, e.BoxGlow, e.NamePlate, e.HeadDot, e.LookLine, e.Outline = false, false, false, false, false, false
+            e.DamageNumbers, e.HealthTrail, e.SkeletonOutline, e.SkeletonJoints = false, false, false, false
             e.BoxFit = "Fixed"
             syncUI()
             resyncChams()
@@ -7623,7 +10843,9 @@ do
         end)
     addDropdown(w, "WorldSky", "Замена неба (Sky)", { "World", "SkyPreset" },
         { "Auto", "None", "Clean Night", "Cyberpunk", "Cold Frost", "Warm Sunset", "Blood Moon", "Emerald Matrix", "Solar Gold", "Tokyo Neon", "Sakura Dusk", "Crimson Void", "Golden Dawn", "Midnight Mist" },
-        "Auto — берёт небо из выбранного пресета атмосферы; None — оставляет родное небо игры.")
+        "Заменяет небо, атмосферу и цветные облака под выбранную тему (Auto — берёт из пресета; None — родное небо игры).")
+    addToggle(w, "WorldClouds", "Объёмные облака (Sky)", { "World", "SkyClouds" },
+        "Добавляет тонированные 3D-облака на заменённом небе для глубокого объёмного вида.")
     addDropdown(w, "WorldWeather", "Погодные частицы", { "World", "Weather" },
         { "None", "Rain", "Snow", "CyberDust", "Embers", "Fireflies", "Sakura", "MatrixRain", "Starfall", "BloodRain" },
         "Клиентские частицы: дождь, снег, CyberDust, Embers, Fireflies, Sakura, MatrixRain, звездопад Starfall и BloodRain.")
@@ -7642,6 +10864,22 @@ do
     withDep(w, "AmbientOn", true, function(d)
         addColorPicker(d, "AmbientCol", "В помещении (Ambient)", { "World", "Ambient" })
         addColorPicker(d, "OutdoorCol", "На улице (Outdoor)", { "World", "OutdoorAmbient" })
+    end)
+
+    CUR_GROUP = "Отражения и шейдеры"
+    local sh = Tabs.World:AddLeftGroupbox("Отражения (Шейдеры)")
+    addToggle(sh, "ShadersOn", "Шейдерные отражения", { "World", "Shaders" },
+        "Включает PBR-отражения окружения и неба, глянец поверхностей карты, отражения на воде и солнечные лучи (RTX/Shader-эффект).")
+    withDep(sh, "ShadersOn", true, function(d)
+        addDropdown(d, "ShaderMode", "Режим шейдера", { "World", "ShaderMode" },
+            { "RTX Gloss", "Wet / Rain", "Chrome Mirror", "Cinematic" },
+            "RTX Gloss — реалистичный глянец и блики; Wet / Rain — эффект мокрого пола; Chrome Mirror — зеркальный блеск; Cinematic — мягкие кино-шейдеры.")
+        addSlider(d, "ShaderIntensity", "Сила отражений", { "World", "ShaderIntensity" }, 0.1, 1.0, 2,
+            "Интенсивность отражения неба, глянца поверхностей, воды и световых лучей.")
+        addToggle(d, "ShaderSurfaces", "Глянец поверхностей карты", { "World", "ShaderSurfaces" },
+            "Добавляет зеркальное отражение неба на пол, стены и объекты карты (в режиме Wet / Rain делает поверхности мокрыми).")
+        addToggle(d, "ShaderSunRays", "Солнечные лучи (SunRays)", { "World", "ShaderSunRays" },
+            "Добавляет объёмные световые лучи (SunRaysEffect) от солнца или луны.")
     end)
 
     CUR_GROUP = "Камера и FOV"
@@ -7703,17 +10941,18 @@ do
             "",
             "• При запуске все функции выключены по умолчанию — включите только то, что нужно сейчас (или нажмите F1 для ВХ).",
             "• Дополнительные настройки каждого модуля скрыты и раскрываются автоматически при его включении.",
-            "• Наведите курсор на любую настройку в соседних вкладках — появится всплывающая подсказка с описанием.",
+            "• В верхней панели меню есть быстрый поиск по настройкам, кнопка «Превью» (живой предпросмотр ВХ справа) и выбор акцента в «Настройки UI».",
+            "• Наведите курсор на любую настройку — появится всплывающая подсказка с описанием.",
             "• Скрыть или открыть меню: клавиша RightShift (меняется в «Настройки UI»).",
             "• Сбросить все включённые функции в 1 клик: кнопка «Выключить всё» в «Настройки UI».",
         }, "\n"),
         ["ВХ (ESP) и проверка видимости"] = table.concat({
-            "• Включить ВХ (F1): рисует рамки, HP, имена, оружие и дистанцию.",
+            "• Включить ВХ (F1): рисует рамки с неоновым свечением, градиент-заливку, HP с бликом, плашки под никами и дистанцию.",
             "• Дальность прорисовки: до 50000 стадов либо переключатель «Без лимита дистанции».",
             "• Тип рамки (F2): 2D — быстрая; Corner — 2D-уголки; 3D Corner — объёмные 3D-уголки; 3D — полный куб (тяжелее для FPS).",
-            "• Проверка видимости: делит игроков на видимых (Visible) и за укрытиями (Occluded). «Сквозь стекло / листву» пропускает полупрозрачные преграды.",
-            "• Опасная цель (Priority): вычисляет % угрозы по расстоянию, взгляду врага на вас и полученному урону, выделяя цель отдельным цветом, пульсирующим кольцом на голове и стрелке.",
-            "• Чамсы врагов: работают через Roblox Highlight (до 28 ближайших игроков); прозрачность заливки и контура настраиваются раздельно.",
+            "• Скелет и суставы: рисует кости (R6/R15) со светящимися точками суставов; неоновое свечение и плашки автоматически упрощаются вдали при Adaptive LOD.",
+            "• Опасная цель (Priority): вычисляет % угрозы по расстоянию, взгляду врага на вас и полученному урону, выделяя цель цветом, вращающимся октагоном под ногами и кольцом на голове.",
+            "• Чамсы врагов: работают через Roblox Highlight со светлой обводкой (до 28 ближайших игроков); прозрачность заливки и контура настраиваются раздельно.",
         }, "\n"),
         ["Персонаж и FX (Sandevistan / Стекло)"] = table.concat({
             "• Чамсы на себя (Liquid Glass): настраиваемое жидкое стекло с бликом, прозрачностью и 14 пресетами (Frost, Aurora, Cyber, Sakura, Obsidian и др.).",
@@ -7737,9 +10976,10 @@ do
             "• Кольца шагов: рисует двойную пульсирующую (Pulse) или одиночную (Solid) волну под ногами бегущих и прыгающих врагов.",
         }, "\n"),
         ["Мир, Погода и Speed FOV"] = table.concat({
-            "• Пресеты атмосферы: в 1 клик меняют небо, время суток, цветокоррекцию и Bloom (Cyberpunk, Tokyo Neon, Sakura Dusk, Crimson Void, Golden Dawn и др.).",
+            "• Пресеты атмосферы и Замена неба (Sky): меняют небо, цветную дымку Atmosphere, объёмные облака Clouds, время суток и Bloom.",
+            "• Отражения (Шейдеры): 4 режима (RTX Gloss, Wet / Rain, Chrome Mirror, Cinematic) — отражения неба на поверхностях, воде и солнечные лучи.",
             "• Погодные частицы: дождь, снег, CyberDust, Embers, Fireflies, Sakura, MatrixRain, звездопад Starfall и BloodRain.",
-            "• Убрать туман: очищает стандартную дымку карты для обзора вдаль.",
+            "• Убрать туман: очищает стандартную дымку карты, сохраняя окраску неба.",
             "• Динамический FOV от скорости: расширяет угол обзора при быстром беге или рывках.",
         }, "\n"),
         ["Поиск объектов (Object ESP)"] = table.concat({
@@ -7759,10 +10999,10 @@ do
         }, "\n"),
         ["Советы по FPS"] = table.concat({
             "Если на слабом ПК или в тяжёлой игре падает FPS:",
-            "1. Во вкладке «ВХ (ESP)» нажмите кнопку «Оптимизация: выключить тяжёлое».",
+            "1. Во вкладке «ВХ (ESP)» нажмите кнопку «Оптимизация: лёгкий режим».",
             "2. Включите «Адаптивный LOD (вдали)» и выберите подгонку рамки Fixed.",
             "3. Отключите обводку скелета/трейсеров и «Проверка видимости», если игроков на сервере 30+.",
-            "4. В Sandevistan уменьшите «Макс. копий одновременно» и увеличьте интервал.",
+            "4. В Sandevistan уменьшите «Макс. копий» и увеличьте интервал.",
         }, "\n"),
     }
 
@@ -7829,7 +11069,7 @@ do
         H.Enabled, H.KillEffect = false, false
         O.Watermark, O.Keybinds, O.TargetHUD, O.Speedometer, O.SpeedLines, O.DragHUD = false, false, false, false, false, false
         W.Preset, W.SkyPreset, W.Weather = "None", "Auto", "None"
-        W.TimeEnabled, W.FOVEnabled, W.SpeedFOV, W.NoFog, W.AmbientEnabled, W.Grading, W.BloomEnabled = false, false, false, false, false, false, false
+        W.Shaders, W.TimeEnabled, W.FOVEnabled, W.SpeedFOV, W.NoFog, W.AmbientEnabled, W.Grading, W.BloomEnabled = false, false, false, false, false, false, false, false
         V.LowHP, V.KillFlash, root.Misc.JoinLeave = false, false, false
         for _, sec in ipairs(DISABLE_SECTIONS) do root[sec].Enabled = false end
         hudState.drag = nil
@@ -7850,6 +11090,17 @@ do
         Default = "RightShift", Mode = "Toggle", NoUI = true, Text = "Клавиша меню",
     })
     regSearch("Клавиша открытия меню", "RightShift — скрыть или открыть окно меню")
+    addToggle(ui, "UiPlexusOn", "Сетка фона (Plexus)", { "UI", "Plexus" },
+        "Анимированные геометрические линии и вершины на фоне белого окна (работают только при открытом меню).")
+    addToggle(ui, "UiPreviewOn", "Окно превью ВХ", { "UI", "ShowPreview" },
+        "Пристыкованное справа окно с живым предпросмотром рамок, HP, скелета и плашек ВХ.",
+        function(v)
+            if Window and Window.SetPreviewVisible then Window:SetPreviewVisible(v) end
+        end)
+    addColorPicker(ui, "UiAccentCol", "Акцент меню", { "UI", "UiAccent" },
+        function(c)
+            if Library and Library.SetAccent then Library:SetAccent(c) end
+        end)
     ui:AddButton({
         Text = "Выключить всё",
         Tooltip = "Моментально выключает все активные модули (ВХ, эффекты, радар, HUD и мир) без выгрузки самого хаба.",
@@ -7925,7 +11176,7 @@ do
         Tooltip = "Аккуратный лёгкий ВХ с уголками, классический прицел, хитмаркер и минимум эффектов для максимального FPS.",
         Func = function()
             applyStylePreset("Clean Minimal", {
-                ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.06, Chams = false, Skeleton = false, ShowTracer = false, LookLine = false, DamageNumbers = false },
+                ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxGlow = false, NamePlate = false, SkeletonJoints = false, BoxFill = true, FillOpacity = 0.06, Chams = false, Skeleton = false, ShowTracer = false, LookLine = false, DamageNumbers = false },
                 Radar = { Enabled = false },
                 LookingAlert = { Enabled = false },
                 FootstepRings = { Enabled = false },
@@ -7942,7 +11193,7 @@ do
                 PlayerAura = { Enabled = false },
                 ParticleTrail = { Enabled = false },
                 JumpRings = { Enabled = false },
-                World = { Preset = "None", SkyPreset = "Auto", Weather = "None", NoFog = false, FOVEnabled = false, SpeedFOV = false, TimeEnabled = false, Grading = false, AmbientEnabled = false, BloomEnabled = false },
+                World = { Preset = "None", SkyPreset = "Auto", Weather = "None", Shaders = false, NoFog = false, FOVEnabled = false, SpeedFOV = false, TimeEnabled = false, Grading = false, AmbientEnabled = false, BloomEnabled = false },
             })
         end,
     })
@@ -8113,12 +11364,9 @@ do
     end)
 end
 
-if ThemeManager then pcall(function()
-    ThemeManager:SetLibrary(Library) ThemeManager:SetFolder("glupost_hub") ThemeManager:ApplyToTab(Tabs.UI)
-end) end
 if SaveManager then pcall(function()
     SaveManager:SetLibrary(Library) SaveManager:SetFolder("glupost_hub/configs")
-    SaveManager:IgnoreThemeSettings() SaveManager:SetIgnoreIndexes({ "MenuKey", "HelpTopic", "HelpSearch" })
+    SaveManager:IgnoreThemeSettings() SaveManager:SetIgnoreIndexes({ "MenuKey", "HelpTopic", "HelpSearch", "ConfigName", "ConfigList" })
     SaveManager:BuildConfigSection(Tabs.UI) SaveManager:LoadAutoloadConfig()
 end) end
 do
@@ -8214,7 +11462,7 @@ local function matchesBind(input, optIdx, fallback)
 end
 
 inputBeginConn = UIS.InputBegan:Connect(function(input, gp)
-    if gp or isUnloaded then return end
+    if gp or isUnloaded or UIS:GetFocusedTextBox() or (Library and Library._listeningKey) then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 and cfg().Overlay.DragHUD then
         local mp = UIS:GetMouseLocation()
         for _, id in ipairs({ "th", "radar", "kb" }) do
