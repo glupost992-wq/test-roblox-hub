@@ -523,25 +523,28 @@ local function poolCreated()
 end
 
 local KEYCLS = {
-    fill = "Square", fillgrad = "Square", fillbar = "Line", outline = "Line", linesglow = "Line",
-    hpbdr = "Square", hpbg = "Square", hptrail = "Square", hpfill = "Square", hpgloss = "Line",
+    fill = "Square", fillgrad = "Square", fillbar = "Line", fill3d = hasTriangle and "Triangle" or "Line",
+    outline = "Line", linesglow = "Line",
+    hpbdr = "Square", hpbg = "Square", hptrail = "Square", hpfill = "Square", hpgloss = "Line", hpticks = "Line",
+    hp3dbdr = "Line", hp3dbg = "Line", hp3dtrail = "Line", hp3dfill = "Line", hp3dgloss = "Line", hp3dticks = "Line",
     lines = "Line", corners = "Line", lines3dbg = "Line", lines3d = "Line",
     skeletonglow = "Line", skeletonbg = "Line", skeleton = "Line", skeljoints = "Circle",
-    lookglow = "Line", look = "Line", lookdot = "Circle",
-    tracerglow = "Line", tracer = "Line", tracerbg = "Line", tracerdot = "Circle",
+    lookglow = "Line", look = "Line", lookdot = "Circle", lookring = "Circle",
+    tracerglow = "Line", tracer = "Line", tracerbg = "Line", tracerdot = "Circle", tracerring = "Circle",
     arrows = "Line", arrowbg = hasTriangle and "Triangle" or "Line", arrowtri = hasTriangle and "Triangle" or "Line", arrowglow = "Line",
-    headdot = "Circle", headdotring = "Circle",
+    headdot = "Circle", headdotring = "Circle", headdotcross = "Line",
     priomarkbg = "Line", priomark = "Line",
     radarbg = "Circle", radar = "Circle", radarlook = "Line", radarprio = "Circle",
-    namebg = "Square", namebar = "Line", toolbg = "Square",
+    namebg = "Square", namebar = "Line", namepin = "Line", namepindot = "Circle",
+    toolbg = "Square", toolbar = "Line",
     texts = "Text",
 }
 local ZI = {
-    fill = 1, fillgrad = 1, outline = 2, lines3dbg = 2, linesglow = 2, fillbar = 2,
-    hpbdr = 3, hpbg = 3, tracerbg = 3, tracerglow = 3, skeletonbg = 3, skeletonglow = 3, lookglow = 3, arrowbg = 3, priomarkbg = 3,
-    hptrail = 4, lines = 4, corners = 4, lines3d = 4, skeleton = 4, look = 4, tracer = 4, arrows = 4, arrowtri = 4, headdotring = 4, priomark = 4, radarbg = 4,
-    hpfill = 5, hpgloss = 5, headdot = 5, lookdot = 5, skeljoints = 5, tracerdot = 5, arrowglow = 5, radar = 5, radarlook = 5, namebg = 5, toolbg = 5,
-    namebar = 6,
+    fill = 1, fillgrad = 1, fill3d = 1, outline = 2, lines3dbg = 2, linesglow = 2, fillbar = 2,
+    hpbdr = 3, hpbg = 3, hp3dbdr = 3, hp3dbg = 3, tracerbg = 3, tracerglow = 3, skeletonbg = 3, skeletonglow = 3, lookglow = 3, arrowbg = 3, priomarkbg = 3,
+    hptrail = 4, hp3dtrail = 4, lines = 4, corners = 4, lines3d = 4, skeleton = 4, look = 4, tracer = 4, arrows = 4, arrowtri = 4, headdotring = 4, priomark = 4, radarbg = 4,
+    hpfill = 5, hpgloss = 5, hp3dfill = 5, hp3dgloss = 5, headdot = 5, lookdot = 5, lookring = 5, skeljoints = 5, tracerdot = 5, tracerring = 5, arrowglow = 5, radar = 5, radarlook = 5, namebg = 5, toolbg = 5,
+    hpticks = 6, hp3dticks = 6, headdotcross = 6, namebar = 6, namepin = 6, namepindot = 6, toolbar = 6,
     texts = 7, radarprio = 7,
 }
 
@@ -3861,7 +3864,9 @@ local function hideKey(d, key)
     if t then for _, o in pairs(t) do o.Visible = false end end
 end
 
-local BOX_KEYS = { "lines", "corners", "lines3dbg", "lines3d", "outline", "linesglow", "fill", "fillgrad", "fillbar" }
+local BOX_KEYS = { "lines", "corners", "lines3dbg", "lines3d", "outline", "linesglow", "fill", "fillgrad", "fillbar", "fill3d" }
+local HP2D_KEYS = { "hpbdr", "hpbg", "hptrail", "hpfill", "hpgloss", "hpticks" }
+local HP3D_KEYS = { "hp3dbdr", "hp3dbg", "hp3dtrail", "hp3dfill", "hp3dgloss", "hp3dticks" }
 local ARROW_KEYS = { "arrows", "arrowbg", "arrowtri", "arrowglow" }
 local RADAR_KEYS = { "radarbg", "radar", "radarlook", "radarprio" }
 
@@ -3874,11 +3879,37 @@ local function hideRadar(d) hideList(d, RADAR_KEYS) end
 local function hideBox(d, rd)
     hideList(d, BOX_KEYS)
     rd.bL, rd.bR, rd.bT, rd.bB, rd.bH = nil, nil, nil, nil, nil
+    rd.uiL, rd.uiR, rd.uiT, rd.uiB = nil, nil, nil, nil
+    rd.hp3dBot, rd.hp3dTop, rd.name3dAnchor, rd.name3dStem, rd.is3DBox = nil, nil, nil, nil, nil
+end
+
+local function clipSegmentScreen(cam, wpA, wpB, zNear)
+    zNear = zNear or 0.25
+    local camCF = cam.CFrame
+    local rA = camCF:PointToObjectSpace(wpA)
+    local rB = camCF:PointToObjectSpace(wpB)
+    local lim = -zNear
+    if rA.Z > lim and rB.Z > lim then return nil, nil end
+    local wA, wB = wpA, wpB
+    if rA.Z > lim then
+        local denom = rB.Z - rA.Z
+        if abs(denom) < 1e-5 then return nil, nil end
+        local t = (lim - rA.Z) / denom
+        wA = camCF:PointToWorldSpace(rA + (rB - rA) * t)
+    elseif rB.Z > lim then
+        local denom = rA.Z - rB.Z
+        if abs(denom) < 1e-5 then return nil, nil end
+        local t = (lim - rB.Z) / denom
+        wB = camCF:PointToWorldSpace(rB + (rA - rB) * t)
+    end
+    local sA = cam:WorldToViewportPoint(wA)
+    local sB = cam:WorldToViewportPoint(wB)
+    return v2(sA.X, sA.Y), v2(sB.X, sB.Y)
 end
 
 local EDGES_3D = { {1,2},{3,4},{1,3},{2,4},{5,6},{7,8},{5,7},{6,8},{1,5},{2,6},{3,7},{4,8} }
-local screen3D = {}
-local skelPts, skelJointPts = {}, {}
+local box3DW = {}
+local skelPts, skelPtsW, skelJointPts = {}, {}, {}
 local SKEL_R15_KEYS = {
     "Head", "Torso", "HumanoidRootPart",
     "LeftArm", "RightArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand",
@@ -3909,11 +3940,13 @@ end
 
 local function drawBox(d, parts, rd)
     local e = cfg().ESP
-    if not rd.onScreen or not rd.headScreen or not rd.legScreen or not rd.hrpScreen then
+    local cam = workspace.CurrentCamera
+    if not cam or not rd.onScreen or not rd.headScreen or not rd.legScreen or not rd.hrpScreen then
         hideBox(d, rd)
         return
     end
 
+    local vp = cam.ViewportSize
     local top, bottom, left, right
     if rd.dynL then
         top, bottom, left, right = rd.dynT, rd.dynB, rd.dynL, rd.dynR
@@ -3928,8 +3961,9 @@ local function drawBox(d, parts, rd)
     if rd.dynL then
         w = right - left
     else
-        w = h * 0.58
-        left, right = rd.hrpScreen.X - w / 2, rd.hrpScreen.X + w / 2
+        w = min(h * 0.58, vp.X * 0.85)
+        local cx0 = clamp(rd.hrpScreen.X, -vp.X * 0.4, vp.X * 1.4)
+        left, right = cx0 - w / 2, cx0 + w / 2
     end
 
     local lod = e.AdaptiveLOD
@@ -3939,6 +3973,11 @@ local function drawBox(d, parts, rd)
         left, right, top, bottom = cx - 2, cx + 2, cy - 2, cy + 2
     end
     rd.bL, rd.bR, rd.bT, rd.bB, rd.bH = left, right, top, bottom, h
+    rd.uiL = clamp(left, 10, vp.X - 24)
+    rd.uiR = clamp(right, rd.uiL + 12, vp.X - 10)
+    rd.uiT = clamp(top, 10, vp.Y - 40)
+    rd.uiB = clamp(bottom, rd.uiT + 14, vp.Y - 12)
+    rd.hp3dBot, rd.hp3dTop, rd.name3dAnchor, rd.name3dStem, rd.is3DBox = nil, nil, nil, nil, false
 
     local thick = e.BoxThickness + ((rd.priority and (not lod or h >= 26)) and 1 or 0)
     if lod then
@@ -3947,7 +3986,7 @@ local function drawBox(d, parts, rd)
     end
 
     local col = boxColor(rd)
-    local glowCol = col:Lerp(WHITE, 0.25)
+    local glowCol = col:Lerp(WHITE, 0.30)
     local alpha = rd.alpha
     local bt = e.BoxType
     if bt == "Bracket" then bt = "3D Corner" end
@@ -3956,48 +3995,50 @@ local function drawBox(d, parts, rd)
         elseif (bt == "3D" or bt == "3D Corner") and h < 22 then bt = "2D" end
     end
 
-    if e.BoxFill and bt ~= "3D" and bt ~= "3D Corner" and (not lod or h >= 6) then
-        local F = ensure(d, "fill", 1)[1]
-        F.Position, F.Size = v2(left, top), v2(w, h)
-        F.Filled, F.Color = true, rgb(10, 12, 18):Lerp(col, 0.28)
-        F.Transparency, F.Visible = clamp(e.FillOpacity * 0.95, 0.04, 0.82) * alpha, true
-
-        if (not lod or h >= 18) and w >= 8 then
-            local FG = ensure(d, "fillgrad", 1)[1]
-            FG.Position, FG.Size = v2(left, top), v2(w, max(2, h * 0.44))
-            FG.Filled, FG.Color = true, col:Lerp(WHITE, 0.14)
-            FG.Transparency, FG.Visible = clamp(e.FillOpacity * 0.65, 0.03, 0.55) * alpha, true
-
-            if not lod or h >= 24 then
-                local FB = ensure(d, "fillbar", 1)[1]
-                FB.From, FB.To = v2(left + 1, top + 1), v2(right - 1, top + 1)
-                FB.Color, FB.Thickness, FB.Transparency, FB.Visible = glowCol, 1.5, alpha * 0.72, true
-            else
-                hideKey(d, "fillbar")
-            end
-        else
-            hideKey(d, "fillgrad") hideKey(d, "fillbar")
-        end
-    else
-        hideKey(d, "fill") hideKey(d, "fillgrad") hideKey(d, "fillbar")
-    end
-
     if bt == "2D" or bt == "Corner" then
         hideKey(d, "lines3d")
         hideKey(d, "lines3dbg")
+        hideKey(d, "fill3d")
+
+        if e.BoxFill and (not lod or h >= 6) then
+            local F = ensure(d, "fill", 1)[1]
+            F.Position, F.Size = v2(left, top), v2(w, h)
+            F.Filled, F.Color = true, rgb(10, 12, 18):Lerp(col, 0.28)
+            F.Transparency, F.Visible = clamp(e.FillOpacity * 0.95, 0.04, 0.82) * alpha, true
+
+            if (not lod or h >= 18) and w >= 8 then
+                local FG = ensure(d, "fillgrad", 1)[1]
+                FG.Position, FG.Size = v2(left, top), v2(w, max(2, h * 0.44))
+                FG.Filled, FG.Color = true, col:Lerp(WHITE, 0.16)
+                FG.Transparency, FG.Visible = clamp(e.FillOpacity * 0.65, 0.03, 0.55) * alpha, true
+
+                if not lod or h >= 24 then
+                    local FB = ensure(d, "fillbar", 1)[1]
+                    FB.From, FB.To = v2(left + 1, top + 1), v2(right - 1, top + 1)
+                    FB.Color, FB.Thickness, FB.Transparency, FB.Visible = glowCol, 1.5, alpha * 0.78, true
+                else
+                    hideKey(d, "fillbar")
+                end
+            else
+                hideKey(d, "fillgrad") hideKey(d, "fillbar")
+            end
+        else
+            hideKey(d, "fill") hideKey(d, "fillgrad") hideKey(d, "fillbar")
+        end
+
         local main, other, n = "lines", "corners", 4
         if bt == "Corner" then main, other, n = "corners", "lines", 8 end
         hideKey(d, other)
-        local len = min(15, h * 0.25)
+        local len = clamp(min(w, h) * 0.28, 5, 20)
 
         if e.BoxGlow and (not lod or h >= 22) then
             local GL = ensure(d, "linesglow", n)
             for i = n + 1, #GL do GL[i].Visible = false end
             for i = 1, n do
-                local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len, 0)
+                local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len, 0.5)
                 local o = GL[i]
                 o.From, o.To = v2(x1, y1), v2(x2, y2)
-                o.Color, o.Thickness, o.Transparency, o.Visible = glowCol, thick + 4, alpha * 0.22, true
+                o.Color, o.Thickness, o.Transparency, o.Visible = glowCol, thick + 4.5, alpha * 0.22, true
             end
         else
             hideKey(d, "linesglow")
@@ -4019,16 +4060,18 @@ local function drawBox(d, parts, rd)
         local L = ensure(d, main, n)
         for i = n + 1, #L do L[i].Visible = false end
         for i = 1, n do
-            local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len, 0)
+            local x1, y1, x2, y2 = segment(bt, i, left, top, right, bottom, len, 0.5)
             local o = L[i]
             o.From, o.To = v2(x1, y1), v2(x2, y2)
             o.Color, o.Thickness, o.Transparency, o.Visible = col, thick, alpha, true
         end
     else
         hideKey(d, "lines") hideKey(d, "corners") hideKey(d, "outline")
+        hideKey(d, "fill") hideKey(d, "fillgrad") hideKey(d, "fillbar")
+
         local hrp, head = parts.HumanoidRootPart, parts.Head
         if not (isPartValid(hrp) and isPartValid(head)) then
-            hideKey(d, "lines3d") hideKey(d, "lines3dbg") hideKey(d, "linesglow") return
+            hideKey(d, "lines3d") hideKey(d, "lines3dbg") hideKey(d, "linesglow") hideKey(d, "fill3d") return
         end
         local size, cf = hrp.Size, partCF(hrp)
         local minX, maxX, minY, maxY, minZ, maxZ
@@ -4060,15 +4103,29 @@ local function drawBox(d, parts, rd)
         end
 
         if not minX or minX == math.huge then
-            minX, maxX = -size.X * 0.9, size.X * 0.9
-            minY, maxY = -size.Y * 1.45, size.Y * 0.5 + head.Size.Y
-            minZ, maxZ = -size.Z * 0.85, size.Z * 0.85
+            minX, maxX = -size.X * 0.92, size.X * 0.92
+            minY, maxY = -size.Y * 1.48, size.Y * 0.5 + head.Size.Y * 0.95
+            minZ, maxZ = -size.Z * 0.88, size.Z * 0.88
         end
 
-        local cam = workspace.CurrentCamera
-        if not cam then hideKey(d, "lines3d") hideKey(d, "lines3dbg") hideKey(d, "linesglow") return end
-        local useOut = e.Outline and (not lod or h >= 24)
-        local useGlow = e.BoxGlow and (not lod or h >= 32)
+        -- Build the 8 world-space cube corners
+        -- 1:(minX,maxY,minZ) 2:(minX,maxY,maxZ) 3:(maxX,maxY,minZ) 4:(maxX,maxY,maxZ)
+        -- 5:(minX,minY,minZ) 6:(minX,minY,maxZ) 7:(maxX,minY,minZ) 8:(maxX,minY,maxZ)
+        local idx3 = 0
+        for iy = 1, 2 do
+            local cy = (iy == 1) and maxY or minY
+            for ix = 1, 2 do
+                local cx = (ix == 1) and minX or maxX
+                for iz = 1, 2 do
+                    idx3 += 1
+                    local cz = (iz == 1) and minZ or maxZ
+                    box3DW[idx3] = cf:PointToWorldSpace(v3(cx, cy, cz))
+                end
+            end
+        end
+
+        local useOut = e.Outline and (not lod or h >= 22)
+        local useGlow = e.BoxGlow and (not lod or h >= 28)
         local n3 = (bt == "3D Corner") and 24 or 12
         local BG = useOut and ensure(d, "lines3dbg", n3) or nil
         if not useOut then
@@ -4087,56 +4144,52 @@ local function drawBox(d, parts, rd)
             for i = n3 + 1, #L do L[i].Visible = false end
         end
 
+        local x3Min, y3Min, x3Max, y3Max = math.huge, math.huge, -math.huge, -math.huge
+        local anyVis3D = false
+        local function trackPt(pt)
+            anyVis3D = true
+            if pt.X < x3Min then x3Min = pt.X end
+            if pt.X > x3Max then x3Max = pt.X end
+            if pt.Y < y3Min then y3Min = pt.Y end
+            if pt.Y > y3Max then y3Max = pt.Y end
+        end
+
         if bt == "3D Corner" then
-            local armX = (maxX - minX) * 0.28
+            local armX = (maxX - minX) * 0.27
             local armY = (maxY - minY) * 0.24
-            local armZ = (maxZ - minZ) * 0.28
+            local armZ = (maxZ - minZ) * 0.27
             local vX = cf:VectorToWorldSpace(v3(armX, 0, 0))
             local vY = cf:VectorToWorldSpace(v3(0, armY, 0))
             local vZ = cf:VectorToWorldSpace(v3(0, 0, armZ))
             local li = 0
+            local cIdx = 0
             for iy = 1, 2 do
-                local cy = (iy == 1) and maxY or minY
                 local sy = (iy == 1) and -1 or 1
                 local offY = vY * sy
                 for ix = 1, 2 do
-                    local cx = (ix == 1) and minX or maxX
                     local sx = (ix == 1) and 1 or -1
                     local offX = vX * sx
                     for iz = 1, 2 do
-                        local cz = (iz == 1) and minZ or maxZ
+                        cIdx += 1
                         local sz = (iz == 1) and 1 or -1
-                        local wp = cf:PointToWorldSpace(v3(cx, cy, cz))
-                        local sp0 = cam:WorldToViewportPoint(wp)
-                        if sp0.Z > 0.1 then
-                            local a = v2(sp0.X, sp0.Y)
-                            local s1 = cam:WorldToViewportPoint(wp + offX)
-                            local s2 = cam:WorldToViewportPoint(wp + offY)
-                            local s3 = cam:WorldToViewportPoint(wp + vZ * sz)
-                            for k = 1, 3 do
-                                li += 1
-                                local sk = (k == 1) and s1 or ((k == 2) and s2 or s3)
-                                if sk.Z > 0.1 then
-                                    local b = v2(sk.X, sk.Y)
-                                    if GL then
-                                        GL[li].From, GL[li].To = a, b
-                                        GL[li].Color, GL[li].Thickness, GL[li].Transparency, GL[li].Visible = glowCol, thick + 4, alpha * 0.18, true
-                                    end
-                                    if BG then
-                                        BG[li].From, BG[li].To = a, b
-                                        BG[li].Color, BG[li].Thickness, BG[li].Transparency, BG[li].Visible = BLACK, thick + 2, alpha * 0.85, true
-                                    end
-                                    L[li].From, L[li].To = a, b
-                                    L[li].Color, L[li].Thickness, L[li].Transparency, L[li].Visible = col, thick, alpha, true
-                                else
-                                    if GL then GL[li].Visible = false end
-                                    if BG then BG[li].Visible = false end
-                                    L[li].Visible = false
+                        local wp = box3DW[cIdx]
+                        local offs = { offX, offY, vZ * sz }
+                        for k = 1, 3 do
+                            li += 1
+                            local a, b = clipSegmentScreen(cam, wp, wp + offs[k], 0.25)
+                            if a and b then
+                                trackPt(a); trackPt(b)
+                                if GL then
+                                    GL[li].From, GL[li].To = a, b
+                                    GL[li].Color, GL[li].Thickness, GL[li].Transparency, GL[li].Visible = glowCol, thick + 4.2, alpha * 0.22, true
                                 end
-                            end
-                        else
-                            for _ = 1, 3 do
-                                li += 1
+                                if BG then
+                                    BG[li].From, BG[li].To = a, b
+                                    BG[li].Color, BG[li].Thickness, BG[li].Transparency, BG[li].Visible = BLACK, thick + 2, alpha * 0.85, true
+                                end
+                                L[li].From, L[li].To = a, b
+                                L[li].Color, L[li].Thickness, L[li].Transparency, L[li].Visible = col, thick, alpha, true
+                            else
                                 if GL then GL[li].Visible = false end
                                 if BG then BG[li].Visible = false end
                                 L[li].Visible = false
@@ -4146,26 +4199,14 @@ local function drawBox(d, parts, rd)
                 end
             end
         else
-            local idx3 = 0
-            for iy = 1, 2 do
-                local cy = (iy == 1) and maxY or minY
-                for ix = 1, 2 do
-                    local cx = (ix == 1) and minX or maxX
-                    for iz = 1, 2 do
-                        idx3 += 1
-                        local cz = (iz == 1) and minZ or maxZ
-                        local sp = cam:WorldToViewportPoint(cf:PointToWorldSpace(v3(cx, cy, cz)))
-                        screen3D[idx3] = (sp.Z > 0.1) and v2(sp.X, sp.Y) or nil
-                    end
-                end
-            end
             for i = 1, 12 do
                 local ed = EDGES_3D[i]
-                local a, b = screen3D[ed[1]], screen3D[ed[2]]
+                local a, b = clipSegmentScreen(cam, box3DW[ed[1]], box3DW[ed[2]], 0.25)
                 if a and b then
+                    trackPt(a); trackPt(b)
                     if GL then
                         GL[i].From, GL[i].To = a, b
-                        GL[i].Color, GL[i].Thickness, GL[i].Transparency, GL[i].Visible = glowCol, thick + 4, alpha * 0.18, true
+                        GL[i].Color, GL[i].Thickness, GL[i].Transparency, GL[i].Visible = glowCol, thick + 4.2, alpha * 0.22, true
                     end
                     if BG then
                         BG[i].From, BG[i].To = a, b
@@ -4180,6 +4221,69 @@ local function drawBox(d, parts, rd)
                 end
             end
         end
+
+        -- Translucent 3D bottom-face floor plate when BoxFill is enabled
+        if e.BoxFill and hasTriangle and anyVis3D and (not lod or h >= 18) then
+            local camCF = cam.CFrame
+            local f5, f6, f7, f8 = box3DW[5], box3DW[6], box3DW[7], box3DW[8]
+            local zOk = camCF:PointToObjectSpace(f5).Z < -0.25
+                and camCF:PointToObjectSpace(f6).Z < -0.25
+                and camCF:PointToObjectSpace(f7).Z < -0.25
+                and camCF:PointToObjectSpace(f8).Z < -0.25
+            if zOk then
+                local s5 = cam:WorldToViewportPoint(f5)
+                local s6 = cam:WorldToViewportPoint(f6)
+                local s7 = cam:WorldToViewportPoint(f7)
+                local s8 = cam:WorldToViewportPoint(f8)
+                local p5, p6, p7, p8 = v2(s5.X, s5.Y), v2(s6.X, s6.Y), v2(s7.X, s7.Y), v2(s8.X, s8.Y)
+                local F3 = ensure(d, "fill3d", 2)
+                local fCol = rgb(10, 14, 22):Lerp(col, 0.38)
+                local fTr = clamp(e.FillOpacity * 0.85, 0.05, 0.62) * alpha
+                F3[1].PointA, F3[1].PointB, F3[1].PointC = p5, p6, p8
+                F3[1].Filled, F3[1].Color, F3[1].Transparency, F3[1].Visible = true, fCol, fTr, true
+                F3[2].PointA, F3[2].PointB, F3[2].PointC = p5, p8, p7
+                F3[2].Filled, F3[2].Color, F3[2].Transparency, F3[2].Visible = true, fCol, fTr, true
+            else
+                hideKey(d, "fill3d")
+            end
+        else
+            hideKey(d, "fill3d")
+        end
+
+        -- Compute world-space 3D HP bar edge (camera-leftmost vertical cube edge) & 3D NamePlate anchor
+        rd.is3DBox = true
+        local camRight = cam.CFrame.RightVector
+        local boxCenter = cf:PointToWorldSpace(v3((minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5))
+        local bestColScore, bestTop, bestBot = math.huge, nil, nil
+        for colIdx = 1, 4 do
+            local topW, botW = box3DW[colIdx], box3DW[colIdx + 4]
+            local midW = (topW + botW) * 0.5
+            local sc = camRight:Dot(midW - boxCenter)
+            if sc < bestColScore then
+                bestColScore, bestTop, bestBot = sc, topW, botW
+            end
+        end
+        if bestTop and bestBot then
+            local barOff = -camRight * clamp((maxX - minX) * 0.22, 0.28, 0.54)
+            rd.hp3dBot = bestBot + barOff
+            rd.hp3dTop = bestTop + barOff
+        end
+
+        local topMidW = cf:PointToWorldSpace(v3((minX + maxX) * 0.5, maxY, (minZ + maxZ) * 0.5))
+        local stemTop, stemBot = clipSegmentScreen(cam, topMidW + v3(0, 0.44, 0), topMidW, 0.25)
+        if stemTop and stemBot then
+            rd.name3dAnchor = stemTop
+            rd.name3dStem = stemBot
+        end
+
+        if anyVis3D then
+            rd.bL, rd.bR, rd.bT, rd.bB = x3Min, x3Max, y3Min, y3Max
+            rd.bH = max(4, y3Max - y3Min)
+            rd.uiL = clamp(x3Min, 10, vp.X - 24)
+            rd.uiR = clamp(x3Max, rd.uiL + 12, vp.X - 10)
+            rd.uiT = clamp(y3Min, 10, vp.Y - 40)
+            rd.uiB = clamp(y3Max, rd.uiT + 14, vp.Y - 12)
+        end
     end
 end
 
@@ -4188,7 +4292,9 @@ local function drawHealthBar(d, parts, rd, dt)
     local hum = parts.humanoid
     local h = rd.bH or 0
     if not e.HealthBar or not hum or not rd.bL or (e.AdaptiveLOD and h < 14) then
-        hideKey(d, "hpbdr") hideKey(d, "hpbg") hideKey(d, "hptrail") hideKey(d, "hpfill") hideKey(d, "hpgloss") return
+        hideList(d, HP2D_KEYS)
+        hideList(d, HP3D_KEYS)
+        return
     end
     local targetP = clamp(hum.Health / max(hum.MaxHealth, 1), 0, 1)
     if rd._hpSmooth == nil then rd._hpSmooth = targetP end
@@ -4205,11 +4311,85 @@ local function drawHealthBar(d, parts, rd, dt)
         rd._hpTrail = rd._hpTrail + (rd._hpSmooth - rd._hpTrail) * trailStep
     end
 
+    local hpCol = healthColor(rd._hpSmooth)
+    if rd._hpSmooth <= 0.30 then
+        hpCol = hpCol:Lerp(WHITE, (sin(clock() * 7.5) + 1) * 0.16)
+    end
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or v2(1920, 1080)
+
+    -- 3D Health Bar attached directly along the 3D box's camera-left edge
+    local drew3D = false
+    if rd.is3DBox and cam and rd.hp3dBot and rd.hp3dTop then
+        local pBot, pTop = clipSegmentScreen(cam, rd.hp3dBot, rd.hp3dTop, 0.25)
+        if pBot and pTop then
+            local segVec = pTop - pBot
+            local sLen = segVec.Magnitude
+            local mid = (pBot + pTop) * 0.5
+            if sLen >= 6 and mid.X >= -40 and mid.X <= vp.X + 40 and mid.Y >= -200 and mid.Y <= vp.Y + 200 then
+                drew3D = true
+                hideList(d, HP2D_KEYS)
+                local dir = segVec / sLen
+                local perp = v2(-dir.Y, dir.X)
+                local barW = clamp(sLen * 0.042, 2.2, 4.8)
+                local alpha = rd.alpha
+
+                local BDR = ensure(d, "hp3dbdr", 1)[1]
+                BDR.From, BDR.To = pBot - dir * 1.4, pTop + dir * 1.4
+                BDR.Color, BDR.Thickness, BDR.Transparency, BDR.Visible = BLACK, barW + 2.6, alpha * 0.88, true
+
+                local BG = ensure(d, "hp3dbg", 1)[1]
+                BG.From, BG.To = pBot, pTop
+                BG.Color, BG.Thickness, BG.Transparency, BG.Visible = rgb(14, 16, 23), barW, alpha * 0.88, true
+
+                if e.HealthTrail and rd._hpTrail > rd._hpSmooth + 0.005 then
+                    local TR = ensure(d, "hp3dtrail", 1)[1]
+                    TR.From, TR.To = pBot, pBot:Lerp(pTop, rd._hpTrail)
+                    TR.Color, TR.Thickness, TR.Transparency, TR.Visible = rgb(255, 115, 130):Lerp(WHITE, 0.42), barW, alpha * 0.88, true
+                else
+                    hideKey(d, "hp3dtrail")
+                end
+
+                local pFillTop = pBot:Lerp(pTop, max(0.03, rd._hpSmooth))
+                local F = ensure(d, "hp3dfill", 1)[1]
+                F.From, F.To = pBot, pFillTop
+                F.Color, F.Thickness, F.Transparency, F.Visible = hpCol, barW, alpha, true
+
+                if sLen >= 20 and rd._hpSmooth >= 0.05 then
+                    local gOff = perp * (barW * 0.22)
+                    local G = ensure(d, "hp3dgloss", 1)[1]
+                    G.From, G.To = pBot + gOff, pFillTop + gOff
+                    G.Color, G.Thickness, G.Transparency, G.Visible = hpCol:Lerp(WHITE, 0.60), max(1, barW * 0.34), alpha * 0.68, true
+                else
+                    hideKey(d, "hp3dgloss")
+                end
+
+                if sLen >= 38 then
+                    local TK = ensure(d, "hp3dticks", 3)
+                    local halfW = barW * 0.56
+                    for ti = 1, 3 do
+                        local tp = pBot:Lerp(pTop, ti * 0.25)
+                        TK[ti].From, TK[ti].To = tp - perp * halfW, tp + perp * halfW
+                        TK[ti].Color, TK[ti].Thickness, TK[ti].Transparency, TK[ti].Visible = BLACK, 1, alpha * 0.55, true
+                    end
+                else
+                    hideKey(d, "hp3dticks")
+                end
+            end
+        end
+    end
+
+    if drew3D then return end
+    hideList(d, HP3D_KEYS)
+
     local thin = e.AdaptiveLOD and h < 28
     local barW = thin and 2 or 3
-    local x = floor(rd.bL - barW - 5 + 0.5)
-    local top = floor(rd.bT + 0.5)
-    local bottom = floor(rd.bB + 0.5)
+    local safeL = rd.uiL or rd.bL
+    local safeT = clamp(rd.uiT or rd.bT, 8, vp.Y - 22)
+    local safeB = clamp(rd.uiB or rd.bB, safeT + 14, vp.Y - 8)
+    local x = clamp(floor(safeL - barW - 5 + 0.5), 4, vp.X - barW - 6)
+    local top = floor(safeT + 0.5)
+    local bottom = floor(safeB + 0.5)
     local barH = max(2, bottom - top)
 
     if not thin then
@@ -4233,10 +4413,6 @@ local function drawHealthBar(d, parts, rd, dt)
         hideKey(d, "hptrail")
     end
 
-    local hpCol = healthColor(rd._hpSmooth)
-    if rd._hpSmooth <= 0.30 then
-        hpCol = hpCol:Lerp(WHITE, (sin(clock() * 7.5) + 1) * 0.14)
-    end
     local fillH = max(1, floor(barH * rd._hpSmooth + 0.5))
     local fillTop = bottom - fillH
     local F = ensure(d, "hpfill", 1)[1]
@@ -4250,12 +4426,23 @@ local function drawHealthBar(d, parts, rd, dt)
     else
         hideKey(d, "hpgloss")
     end
+
+    if not thin and barH >= 38 then
+        local TK = ensure(d, "hpticks", 3)
+        for ti = 1, 3 do
+            local ty = floor(top + barH * (ti * 0.25) + 0.5)
+            TK[ti].From, TK[ti].To = v2(x, ty), v2(x + barW, ty)
+            TK[ti].Color, TK[ti].Thickness, TK[ti].Transparency, TK[ti].Visible = BLACK, 1, rd.alpha * 0.52, true
+        end
+    else
+        hideKey(d, "hpticks")
+    end
 end
 
 local function drawHeadDot(d, parts, rd)
     local e = cfg().ESP
     if not e.HeadDot or not rd.headDotScreen or not rd.headDotR or (e.AdaptiveLOD and (rd.bH or 0) < 16) then
-        hideKey(d, "headdot") hideKey(d, "headdotring")
+        hideKey(d, "headdot") hideKey(d, "headdotring") hideKey(d, "headdotcross")
         return
     end
     local col = boxColor(rd)
@@ -4269,13 +4456,25 @@ local function drawHeadDot(d, parts, rd)
         r.Position = rd.headDotScreen
         r.Radius, r.NumSides, r.Filled, r.Thickness = rd.headDotR * (1.85 * pulse), 20, false, 1.4
         r.Color, r.Transparency, r.Visible = WHITE:Lerp(col, 0.35), rd.alpha * 0.88, true
+        local cr = ensure(d, "headdotcross", 4)
+        local rIn, rOut = rd.headDotR * 1.15, rd.headDotR * 2.15 + 2
+        local cp = rd.headDotScreen
+        local cCol = WHITE:Lerp(col, 0.25)
+        cr[1].From, cr[1].To = cp - v2(rOut, 0), cp - v2(rIn, 0)
+        cr[2].From, cr[2].To = cp + v2(rIn, 0), cp + v2(rOut, 0)
+        cr[3].From, cr[3].To = cp - v2(0, rOut), cp - v2(0, rIn)
+        cr[4].From, cr[4].To = cp + v2(0, rIn), cp + v2(0, rOut)
+        for ti = 1, 4 do
+            cr[ti].Color, cr[ti].Thickness, cr[ti].Transparency, cr[ti].Visible = cCol, 1.3, rd.alpha * 0.9, true
+        end
     elseif not e.AdaptiveLOD or (rd.bH or 0) >= 24 then
         local r = ensure(d, "headdotring", 1)[1]
         r.Position = rd.headDotScreen
         r.Radius, r.NumSides, r.Filled, r.Thickness = rd.headDotR + 1.8, 20, false, 1.1
         r.Color, r.Transparency, r.Visible = e.BoxGlow and col:Lerp(WHITE, 0.45) or BLACK, rd.alpha * (e.BoxGlow and 0.45 or 0.72), true
+        hideKey(d, "headdotcross")
     else
-        hideKey(d, "headdotring")
+        hideKey(d, "headdotring") hideKey(d, "headdotcross")
     end
 end
 
@@ -4283,12 +4482,12 @@ local function drawLook(d, parts, rd)
     local e = cfg().ESP
     local head = parts.Head
     if not e.LookLine or not rd.onScreen or not isPartValid(head) or (e.AdaptiveLOD and (rd.bH or 0) < 16) then
-        hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot")
+        hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot") hideKey(d, "lookring")
         return
     end
     local cam = workspace.CurrentCamera
     if not cam then
-        hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot")
+        hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot") hideKey(d, "lookring")
         return
     end
     local p1 = partPos(head)
@@ -4305,31 +4504,37 @@ local function drawLook(d, parts, rd)
         if res then p2 = res.Position end
     end
 
-    local a = cam:WorldToViewportPoint(p1)
-    local b = cam:WorldToViewportPoint(p2)
-    if a.Z <= 0.1 or b.Z <= 0.1 then hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot") return end
+    local pA, pB = clipSegmentScreen(cam, p1, p2, 0.25)
+    if not pA or not pB then hideKey(d, "lookglow") hideKey(d, "look") hideKey(d, "lookdot") hideKey(d, "lookring") return end
 
     local toMe = cameraPos - p1
     local lookingAtMe = toMe.Magnitude > 0.5 and lookVec:Dot(toMe.Unit) >= 0.94
     local col = lookingAtMe and (e.Colors.LookAlert or HP_RED) or e.Colors.Look
-    local pA, pB = v2(a.X, a.Y), v2(b.X, b.Y)
 
     if e.BoxGlow and (not e.AdaptiveLOD or (rd.bH or 0) >= 24) then
         local LG = ensure(d, "lookglow", 1)[1]
         LG.From, LG.To = pA, pB
-        LG.Color, LG.Thickness, LG.Transparency, LG.Visible = col:Lerp(WHITE, 0.28), lookingAtMe and 5 or 4, rd.alpha * 0.22, true
+        LG.Color, LG.Thickness, LG.Transparency, LG.Visible = col:Lerp(WHITE, 0.28), lookingAtMe and 5 or 4, rd.alpha * 0.24, true
     else
         hideKey(d, "lookglow")
     end
 
     local L = ensure(d, "look", 1)[1]
     L.From, L.To = pA, pB
-    L.Color, L.Thickness, L.Transparency, L.Visible = col, lookingAtMe and 2 or 1.5, rd.alpha * 0.94, true
+    L.Color, L.Thickness, L.Transparency, L.Visible = col, lookingAtMe and 2.1 or 1.5, rd.alpha * 0.94, true
 
     local dot = ensure(d, "lookdot", 1)[1]
     local dotR = lookingAtMe and (3.6 + sin(clock() * 8) * 0.65) or 2.6
     dot.Position, dot.Radius, dot.NumSides, dot.Filled = pB, dotR, 12, true
     dot.Color, dot.Transparency, dot.Visible = WHITE:Lerp(col, 0.45), rd.alpha, true
+
+    if lookingAtMe or e.BoxGlow then
+        local lr = ensure(d, "lookring", 1)[1]
+        lr.Position, lr.Radius, lr.NumSides, lr.Filled, lr.Thickness = pB, dotR + 2.4, 14, false, 1.1
+        lr.Color, lr.Transparency, lr.Visible = col, rd.alpha * (lookingAtMe and 0.85 or 0.48), true
+    else
+        hideKey(d, "lookring")
+    end
 end
 
 local SKEL = {
@@ -4344,11 +4549,18 @@ local SKEL = {
     },
 }
 
-local function projSkel(cam, p, oy)
+local function worldSkel(p, oy)
     if not isPartValid(p) then return nil end
-    local pos = oy and partCF(p):PointToWorldSpace(v3(0, p.Size.Y * oy, 0)) or partPos(p)
+    return oy and partCF(p):PointToWorldSpace(v3(0, p.Size.Y * oy, 0)) or partPos(p)
+end
+
+local function projSkel(cam, p, oy)
+    local pos = worldSkel(p, oy)
+    if not pos then return nil end
+    local rel = cam.CFrame:PointToObjectSpace(pos)
+    if rel.Z > -0.25 then return nil end
     local s = cam:WorldToViewportPoint(pos)
-    return s.Z > 0.1 and v2(s.X, s.Y) or nil
+    return v2(s.X, s.Y)
 end
 
 local function drawSkeleton(d, parts, rd)
@@ -4402,12 +4614,16 @@ local function drawSkeleton(d, parts, rd)
         hideKey(d, "skeletonglow")
     end
 
-    local function drawSeg(idx, a, b)
+    local function drawSegW(idx, wA, wB)
         local line, bg, gl = S[idx], SB and SB[idx] or nil, SG and SG[idx] or nil
+        local a, b
+        if wA and wB then
+            a, b = clipSegmentScreen(cam, wA, wB, 0.25)
+        end
         if a and b then
             if gl then
                 gl.From, gl.To = a, b
-                gl.Color, gl.Thickness, gl.Transparency, gl.Visible = glowCol, skThick + 3.5, alpha * 0.20, true
+                gl.Color, gl.Thickness, gl.Transparency, gl.Visible = glowCol, skThick + 3.5, alpha * 0.22, true
             end
             if bg then
                 bg.From, bg.To = a, b
@@ -4426,11 +4642,12 @@ local function drawSkeleton(d, parts, rd)
     if isR15 then
         for i = 1, #SKEL_R15_KEYS do
             local k = SKEL_R15_KEYS[i]
+            skelPtsW[k] = worldSkel(parts[k])
             skelPts[k] = projSkel(cam, parts[k])
         end
         for i = 1, n do
             local pair = set[i]
-            drawSeg(i, skelPts[pair[1]], skelPts[pair[2]])
+            drawSegW(i, skelPtsW[pair[1]], skelPtsW[pair[2]])
         end
         if useJoints then
             for i = 1, #SKEL_R15_JOINTS do
@@ -4446,30 +4663,32 @@ local function drawSkeleton(d, parts, rd)
         end
     else
         local torsoP = isPartValid(parts.Torso) and parts.Torso or parts.HumanoidRootPart
-        local head = projSkel(cam, parts.Head)
-        local neck = projSkel(cam, torsoP, 0.34)
-        local pelvis = projSkel(cam, torsoP, -0.44)
-        local lSh, lHd = projSkel(cam, parts.LeftArm, 0.28), projSkel(cam, parts.LeftArm, -0.46)
-        local rSh, rHd = projSkel(cam, parts.RightArm, 0.28), projSkel(cam, parts.RightArm, -0.46)
-        local lHp, lFt = projSkel(cam, parts.LeftLeg, 0.44), projSkel(cam, parts.LeftLeg, -0.46)
-        local rHp, rFt = projSkel(cam, parts.RightLeg, 0.44), projSkel(cam, parts.RightLeg, -0.46)
-        drawSeg(1, head, neck)
-        drawSeg(2, neck, pelvis)
-        drawSeg(3, neck, lSh)
-        drawSeg(4, lSh, lHd)
-        drawSeg(5, neck, rSh)
-        drawSeg(6, rSh, rHd)
-        drawSeg(7, pelvis, lHp)
-        drawSeg(8, lHp, lFt)
-        drawSeg(9, pelvis, rHp)
-        drawSeg(10, rHp, rFt)
+        local wHead = worldSkel(parts.Head)
+        local wNeck = worldSkel(torsoP, 0.34)
+        local wPelvis = worldSkel(torsoP, -0.44)
+        local wLSh, wLHd = worldSkel(parts.LeftArm, 0.28), worldSkel(parts.LeftArm, -0.46)
+        local wRSh, wRHd = worldSkel(parts.RightArm, 0.28), worldSkel(parts.RightArm, -0.46)
+        local wLHp, wLFt = worldSkel(parts.LeftLeg, 0.44), worldSkel(parts.LeftLeg, -0.46)
+        local wRHp, wRFt = worldSkel(parts.RightLeg, 0.44), worldSkel(parts.RightLeg, -0.46)
+        drawSegW(1, wHead, wNeck)
+        drawSegW(2, wNeck, wPelvis)
+        drawSegW(3, wNeck, wLSh)
+        drawSegW(4, wLSh, wLHd)
+        drawSegW(5, wNeck, wRSh)
+        drawSegW(6, wRSh, wRHd)
+        drawSegW(7, wPelvis, wLHp)
+        drawSegW(8, wLHp, wLFt)
+        drawSegW(9, wPelvis, wRHp)
+        drawSegW(10, wRHp, wRFt)
         if useJoints then
-            local pts = { head, neck, pelvis, lSh, rSh, lHd, rHd, lHp, rHp, lFt, rFt }
+            local wPts = { wHead, wNeck, wPelvis, wLSh, wRSh, wLHd, wRHd, wLHp, wRHp, wLFt, wRFt }
             local startI = e.HeadDot and 2 or 1
-            for i = startI, #pts do
-                if pts[i] then
+            for i = startI, #wPts do
+                local wp = wPts[i]
+                if wp and cam.CFrame:PointToObjectSpace(wp).Z < -0.25 then
+                    local sp = cam:WorldToViewportPoint(wp)
                     jn += 1
-                    skelJointPts[jn] = pts[i]
+                    skelJointPts[jn] = v2(sp.X, sp.Y)
                 end
             end
         end
@@ -4510,13 +4729,16 @@ local function drawText(d, parts, rd, doText)
     local e = cfg().ESP
     local hum = parts.humanoid
     if not rd.onScreen or not hum or hum.Health <= 0 or not rd.bL then
-        hideKey(d, "texts") hideKey(d, "namebg") hideKey(d, "namebar") hideKey(d, "toolbg") return
+        hideKey(d, "texts") hideKey(d, "namebg") hideKey(d, "namebar") hideKey(d, "namepin") hideKey(d, "namepindot")
+        hideKey(d, "toolbg") hideKey(d, "toolbar")
+        return
     end
 
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or v2(1920, 1080)
     d.texts = d.texts or {}
     local T = d.texts
     local col = boxColor(rd)
-    local cx = floor((rd.bL + rd.bR) / 2 + 0.5)
     local h = rd.bH or 0
     local lod = e.AdaptiveLOD
 
@@ -4532,7 +4754,7 @@ local function drawText(d, parts, rd, doText)
     if doText or not rd._txtReady then
         rd._txtReady = true
         if e.ShowName then
-            local name = (rd.priority and "★ " or "") .. parts._player.DisplayName
+            local name = (rd.priority and "◆ " or "") .. parts._player.DisplayName
             if Module.PlayerTag then
                 local okT, tag = pcall(Module.PlayerTag, parts._player)
                 if okT and tag then name = name .. " " .. tostring(tag) end
@@ -4579,9 +4801,17 @@ local function drawText(d, parts, rd, doText)
     local outline = e.TextOutline
     local usePlate = e.NamePlate and (not lod or h >= 20)
 
-    local yt = rd.bT - size - (usePlate and 8 or 5) - e.NameYOffset
+    local safeL, safeR = rd.uiL or rd.bL, rd.uiR or rd.bR
+    local safeT, safeB = rd.uiT or rd.bT, rd.uiB or rd.bB
+    local rawCX = (rd.is3DBox and rd.name3dAnchor) and rd.name3dAnchor.X or ((safeL + safeR) * 0.5)
+    local cx = clamp(floor(rawCX + 0.5), 42, vp.X - 42)
+    local rawYT = (rd.is3DBox and rd.name3dAnchor)
+        and (rd.name3dAnchor.Y - size - (usePlate and 6 or 3) - e.NameYOffset)
+        or (safeT - size - (usePlate and 8 or 5) - e.NameYOffset)
+    local yt = clamp(rawYT, 8, vp.Y - 42)
+
     if rd._nameStr then
-        showEspText(T, "name", size, rd._nameStr, usePlate and WHITE:Lerp(col, 0.25) or col, yt, font, alpha, outline, cx)
+        showEspText(T, "name", size, rd._nameStr, usePlate and WHITE:Lerp(col, 0.22) or col, yt, font, alpha, outline, cx)
         if usePlate then
             if rd._npSz ~= size or rd._npFont ~= font then
                 rd._npSz, rd._npFont = size, font
@@ -4590,28 +4820,48 @@ local function drawText(d, parts, rd, doText)
             if not rd._nameMeasW and T.name then
                 local okB, bx = pcall(function() return T.name.TextBounds.X end)
                 if okB and type(bx) == "number" and bx > 4 then
-                    rd._nameMeasW = floor(bx + 12 + 0.5)
+                    rd._nameMeasW = floor(bx + 14 + 0.5)
                 end
             end
-            local nw = rd._nameMeasW or max(34, floor((rd._nameChars or 4) * size * 0.56 + 12 + 0.5))
-            local px = floor(cx - nw / 2 + 0.5)
+            local nw = rd._nameMeasW or max(36, floor((rd._nameChars or 4) * size * 0.56 + 14 + 0.5))
+            local px = clamp(floor(cx - nw / 2 + 0.5), 6, max(6, vp.X - nw - 6))
             local py = floor(yt - 2 + 0.5)
             local NBG = ensure(d, "namebg", 1)[1]
             NBG.Position, NBG.Size = v2(px, py), v2(nw, size + 5)
-            NBG.Filled, NBG.Color, NBG.Transparency, NBG.Visible = true, rgb(12, 14, 21), alpha * 0.76, true
+            NBG.Filled, NBG.Color, NBG.Transparency, NBG.Visible = true, rgb(12, 15, 23), alpha * 0.80, true
 
             local NBAR = ensure(d, "namebar", 1)[1]
             NBAR.From, NBAR.To = v2(px + 1, py + size + 5), v2(px + nw - 1, py + size + 5)
-            NBAR.Color, NBAR.Thickness, NBAR.Transparency, NBAR.Visible = col:Lerp(WHITE, 0.25), 1.5, alpha * 0.94, true
+            NBAR.Color, NBAR.Thickness, NBAR.Transparency, NBAR.Visible = col:Lerp(WHITE, 0.28), 1.8, alpha * 0.96, true
         else
             hideKey(d, "namebg") hideKey(d, "namebar")
         end
+
+        -- 3D Callout connector pin from 3D box top-center to floating NamePlate
+        if rd.is3DBox and rd.name3dStem and (not lod or h >= 28) then
+            local stemP = rd.name3dStem
+            local topY = usePlate and (floor(yt - 2 + 0.5) + size + 5) or (yt + size)
+            if stemP.Y > topY + 1 and stemP.Y <= vp.Y - 12 and (stemP.Y - topY) <= 95 and abs(stemP.X - cx) <= 120 then
+                local NP = ensure(d, "namepin", 1)[1]
+                NP.From, NP.To = v2(cx, topY), stemP
+                NP.Color, NP.Thickness, NP.Transparency, NP.Visible = col:Lerp(WHITE, 0.35), 1.2, alpha * 0.72, true
+                local ND = ensure(d, "namepindot", 1)[1]
+                ND.Position, ND.Radius, ND.NumSides, ND.Filled = stemP, 2.4, 10, true
+                ND.Color, ND.Transparency, ND.Visible = WHITE:Lerp(col, 0.35), alpha * 0.9, true
+            else
+                hideKey(d, "namepin") hideKey(d, "namepindot")
+            end
+        else
+            hideKey(d, "namepin") hideKey(d, "namepindot")
+        end
     else
         if T.name then T.name.Visible = false end
-        hideKey(d, "namebg") hideKey(d, "namebar")
+        hideKey(d, "namebg") hideKey(d, "namebar") hideKey(d, "namepin") hideKey(d, "namepindot")
     end
 
-    local yb = rd.bB + 4
+    local subCount = (showHP and 1 or 0) + (showDist and 1 or 0) + (showTool and 1 or 0)
+    local maxYB = vp.Y - max(18, subCount * (subSize + 3) + 6)
+    local yb = clamp(safeB + 4, yt + size + 8, max(yt + size + 8, maxYB))
     if showHP then
         showEspText(T, "hp", subSize, rd._hpStr, rd._hpCol, yb, font, alpha, outline, cx)
         yb += subSize + 2
@@ -4630,30 +4880,35 @@ local function drawText(d, parts, rd, doText)
             if not rd._toolMeasW and T.tool then
                 local okB, bx = pcall(function() return T.tool.TextBounds.X end)
                 if okB and type(bx) == "number" and bx > 4 then
-                    rd._toolMeasW = floor(bx + 10 + 0.5)
+                    rd._toolMeasW = floor(bx + 12 + 0.5)
                 end
             end
-            local tw = rd._toolMeasW or max(30, floor((rd._toolChars or 4) * subSize * 0.54 + 10 + 0.5))
+            local tw = rd._toolMeasW or max(32, floor((rd._toolChars or 4) * subSize * 0.54 + 12 + 0.5))
+            local tx = clamp(floor(cx - tw / 2 + 0.5), 6, max(6, vp.X - tw - 6))
+            local ty = floor(yb - 1 + 0.5)
             local TBG = ensure(d, "toolbg", 1)[1]
-            TBG.Position, TBG.Size = v2(floor(cx - tw / 2 + 0.5), floor(yb - 1 + 0.5)), v2(tw, subSize + 3)
-            TBG.Filled, TBG.Color, TBG.Transparency, TBG.Visible = true, rgb(12, 15, 22), alpha * 0.68, true
+            TBG.Position, TBG.Size = v2(tx, ty), v2(tw, subSize + 3)
+            TBG.Filled, TBG.Color, TBG.Transparency, TBG.Visible = true, rgb(12, 15, 22), alpha * 0.72, true
+            local TBAR = ensure(d, "toolbar", 1)[1]
+            TBAR.From, TBAR.To = v2(tx + 1, ty + subSize + 3), v2(tx + tw - 1, ty + subSize + 3)
+            TBAR.Color, TBAR.Thickness, TBAR.Transparency, TBAR.Visible = TOOL_COLOR, 1.2, alpha * 0.85, true
         else
-            hideKey(d, "toolbg")
+            hideKey(d, "toolbg") hideKey(d, "toolbar")
         end
     else
         if T.tool then T.tool.Visible = false end
-        hideKey(d, "toolbg")
+        hideKey(d, "toolbg") hideKey(d, "toolbar")
     end
 end
 
 local function drawTracer(d, rd)
     local e = cfg().ESP
     if not e.ShowTracer or not rd.onScreen or not rd.hrpScreen then
-        hideKey(d, "tracerglow") hideKey(d, "tracer") hideKey(d, "tracerbg") hideKey(d, "tracerdot") return
+        hideKey(d, "tracerglow") hideKey(d, "tracer") hideKey(d, "tracerbg") hideKey(d, "tracerdot") hideKey(d, "tracerring") return
     end
     local cam = workspace.CurrentCamera
     if not cam then
-        hideKey(d, "tracerglow") hideKey(d, "tracer") hideKey(d, "tracerbg") hideKey(d, "tracerdot") return
+        hideKey(d, "tracerglow") hideKey(d, "tracer") hideKey(d, "tracerbg") hideKey(d, "tracerdot") hideKey(d, "tracerring") return
     end
     local vp = cam.ViewportSize
     local from
@@ -4661,7 +4916,7 @@ local function drawTracer(d, rd)
     elseif e.TracerOrigin == "Center" then from = v2(vp.X / 2, vp.Y / 2)
     elseif e.TracerOrigin == "Top" then from = v2(vp.X / 2, 0)
     else from = v2(vp.X / 2, vp.Y) end
-    local to = v2(rd.hrpScreen.X, rd.bB or (rd.legScreen and rd.legScreen.Y) or rd.hrpScreen.Y)
+    local to = v2(clamp(rd.hrpScreen.X, 4, vp.X - 4), clamp(rd.bB or (rd.legScreen and rd.legScreen.Y) or rd.hrpScreen.Y, 4, vp.Y - 4))
     local normDist = e.UnlimitedDistance and 50000 or max(e.MaxDistance, 1)
     local a = e.TracerFade and clamp(1 - rd.distance / max(normDist * 0.6, 1), 0.25, 0.9) or rd.alpha
     local col = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Tracer)
@@ -4669,7 +4924,7 @@ local function drawTracer(d, rd)
     if e.BoxGlow then
         local G = ensure(d, "tracerglow", 1)[1]
         G.From, G.To = from, to
-        G.Color, G.Thickness, G.Transparency, G.Visible = col:Lerp(WHITE, 0.25), e.TracerThickness + 4, a * 0.18, true
+        G.Color, G.Thickness, G.Transparency, G.Visible = col:Lerp(WHITE, 0.25), e.TracerThickness + 4, a * 0.20, true
     else
         hideKey(d, "tracerglow")
     end
@@ -4687,11 +4942,15 @@ local function drawTracer(d, rd)
     T.Color, T.Thickness, T.Transparency, T.Visible = col, e.TracerThickness, a, true
 
     if not e.AdaptiveLOD or (rd.bH or 0) >= 18 then
+        local dr = clamp(e.TracerThickness + 1.5, 2.5, 4.2)
         local TD = ensure(d, "tracerdot", 1)[1]
-        TD.Position, TD.Radius, TD.NumSides, TD.Filled = to, clamp(e.TracerThickness + 1.5, 2.5, 4.2), 10, true
+        TD.Position, TD.Radius, TD.NumSides, TD.Filled = to, dr, 12, true
         TD.Color, TD.Transparency, TD.Visible = WHITE:Lerp(col, 0.35), a, true
+        local TR = ensure(d, "tracerring", 1)[1]
+        TR.Position, TR.Radius, TR.NumSides, TR.Filled, TR.Thickness = to, dr + 2.4, 14, false, 1.1
+        TR.Color, TR.Transparency, TR.Visible = col, a * 0.55, true
     else
-        hideKey(d, "tracerdot")
+        hideKey(d, "tracerdot") hideKey(d, "tracerring")
     end
 end
 
@@ -4717,41 +4976,49 @@ local function drawArrow(d, rd)
 
     local pulse = rd.priority and (1 + sin(clock() * 6.5) * 0.14) or 1
     local len = e.ArrowSize * pulse
-    local tip, back = base + dir * (len * 0.65), base - dir * (len * 0.45)
-    local perp = v2(-dir.Y, dir.X) * (len * 0.48)
+    local tip, back = base + dir * (len * 0.68), base - dir * (len * 0.48)
+    local notch = base - dir * (len * 0.22)
+    local perp = v2(-dir.Y, dir.X) * (len * 0.50)
     local col = rd.priority and e.Colors.Priority or (e.Rainbow and rainbow or e.Colors.Arrow)
 
     if hasTriangle then
         hideKey(d, "arrows")
-        local bg = ensure(d, "arrowbg", 1)[1]
-        local bPerp = v2(-dir.Y, dir.X) * (len * 0.48 + 2.5)
-        bg.PointA, bg.PointB, bg.PointC = tip + dir * 2.5, (back - dir * 1.5) + bPerp, (back - dir * 1.5) - bPerp
-        bg.Filled, bg.Color, bg.Transparency, bg.Visible = true, BLACK, rd.alpha * 0.85, true
+        local bg = ensure(d, "arrowbg", 2)
+        local bPerp = v2(-dir.Y, dir.X) * (len * 0.50 + 2.6)
+        local bTip, bBack, bNotch = tip + dir * 2.8, back - dir * 1.8, notch - dir * 1.5
+        bg[1].PointA, bg[1].PointB, bg[1].PointC = bTip, bBack + bPerp, bNotch
+        bg[2].PointA, bg[2].PointB, bg[2].PointC = bTip, bNotch, bBack - bPerp
+        for bi = 1, 2 do
+            bg[bi].Filled, bg[bi].Color, bg[bi].Transparency, bg[bi].Visible = true, BLACK, rd.alpha * 0.85, true
+        end
 
-        local tri = ensure(d, "arrowtri", 1)[1]
-        tri.PointA, tri.PointB, tri.PointC = tip, back + perp, back - perp
-        tri.Filled, tri.Color, tri.Transparency, tri.Visible = true, col, rd.alpha, true
+        local tri = ensure(d, "arrowtri", 2)
+        tri[1].PointA, tri[1].PointB, tri[1].PointC = tip, back + perp, notch
+        tri[2].PointA, tri[2].PointB, tri[2].PointC = tip, notch, back - perp
+        tri[1].Filled, tri[1].Color, tri[1].Transparency, tri[1].Visible = true, col, rd.alpha, true
+        tri[2].Filled, tri[2].Color, tri[2].Transparency, tri[2].Visible = true, col:Lerp(WHITE, 0.16), rd.alpha, true
 
         local gl = ensure(d, "arrowglow", 2)
         local glCol = WHITE:Lerp(col, 0.35)
         gl[1].From, gl[1].To = tip, back + perp
         gl[2].From, gl[2].To = tip, back - perp
         for _, g in ipairs(gl) do
-            g.Color, g.Thickness, g.Transparency, g.Visible = glCol, 1.4, rd.alpha * 0.9, true
+            g.Color, g.Thickness, g.Transparency, g.Visible = glCol, 1.5, rd.alpha * 0.92, true
         end
     else
         hideKey(d, "arrowglow")
-        local A = ensure(d, "arrows", 3)
+        local A = ensure(d, "arrows", 4)
         A[1].From, A[1].To = tip, back + perp
         A[2].From, A[2].To = tip, back - perp
-        A[3].From, A[3].To = back + perp, back - perp
+        A[3].From, A[3].To = back + perp, notch
+        A[4].From, A[4].To = back - perp, notch
         for _, a in ipairs(A) do
             a.Thickness, a.Color, a.Transparency, a.Visible = 2, col, rd.alpha, true
         end
     end
 end
 
-local prioPtsIn, prioPtsOut = {}, {}
+local prioPtsWIn, prioPtsWOut = {}, {}
 local function drawPriorityMarker(d, parts, rd)
     local e = cfg().ESP
     local hrp = parts and parts.HumanoidRootPart
@@ -4767,11 +5034,9 @@ local function drawPriorityMarker(d, parts, rd)
     for k = 1, 8 do
         local a = ang + (k - 1) * (math.pi * 0.25)
         local ca, sa = cos(a), sin(a)
-        local s1 = cam:WorldToViewportPoint(base + v3(ca * rad, 0, sa * rad))
-        prioPtsIn[k] = (s1.Z > 0.1) and v2(s1.X, s1.Y) or nil
+        prioPtsWIn[k] = base + v3(ca * rad, 0, sa * rad)
         if k % 2 == 1 then
-            local s2 = cam:WorldToViewportPoint(base + v3(ca * (rad + 0.9), 0, sa * (rad + 0.9)))
-            prioPtsOut[(k + 1) / 2] = (s2.Z > 0.1) and v2(s2.X, s2.Y) or nil
+            prioPtsWOut[(k + 1) / 2] = base + v3(ca * (rad + 0.9), 0, sa * (rad + 0.9))
         end
     end
     local col = e.Colors.Priority
@@ -4780,7 +5045,7 @@ local function drawPriorityMarker(d, parts, rd)
     local LN = ensure(d, "priomark", 12)
     for k = 1, 8 do
         local j = (k % 8) + 1
-        local p1, p2 = prioPtsIn[k], prioPtsIn[j]
+        local p1, p2 = clipSegmentScreen(cam, prioPtsWIn[k], prioPtsWIn[j], 0.25)
         if p1 and p2 then
             BG[k].From, BG[k].To, BG[k].Color, BG[k].Thickness, BG[k].Transparency, BG[k].Visible = p1, p2, BLACK, 3.5, rd.alpha * 0.68, true
             LN[k].From, LN[k].To, LN[k].Color, LN[k].Thickness, LN[k].Transparency, LN[k].Visible = p1, p2, col, 1.6, rd.alpha, true
@@ -4790,7 +5055,7 @@ local function drawPriorityMarker(d, parts, rd)
     end
     for k = 1, 4 do
         local tk = 8 + k
-        local p1, po = prioPtsIn[k * 2 - 1], prioPtsOut[k]
+        local p1, po = clipSegmentScreen(cam, prioPtsWIn[k * 2 - 1], prioPtsWOut[k], 0.25)
         if p1 and po then
             BG[tk].From, BG[tk].To, BG[tk].Color, BG[tk].Thickness, BG[tk].Transparency, BG[tk].Visible = p1, po, BLACK, 3.5, rd.alpha * 0.68, true
             LN[tk].From, LN[tk].To, LN[tk].Color, LN[tk].Thickness, LN[tk].Transparency, LN[tk].Visible = p1, po, spikeCol, 1.6, rd.alpha, true
@@ -6418,7 +6683,7 @@ local function dynamicBounds(cam, parts)
                 for sy = -1, 1, 2 do
                     for sz = -1, 1, 2 do
                         local v = cam:WorldToViewportPoint(cf:PointToWorldSpace(Vector3.new(hx * sx, hy * sy, hz * sz)))
-                        if v.Z > 0.1 then
+                        if v.Z > 0.25 then
                             validCorners += 1
                             if v.X < xMin then xMin = v.X end
                             if v.X > xMax then xMax = v.X end
@@ -6443,6 +6708,7 @@ end
 local function projectPlayers()
     local cam = workspace.CurrentCamera
     if not cam then return end
+    local camCF = cam.CFrame
     local vp = cam.ViewportSize
     local m = 300
     local e = cfg().ESP
@@ -6457,23 +6723,42 @@ local function projectPlayers()
             local hrp, head = parts.HumanoidRootPart, parts.Head
             if isPartValid(hrp) and isPartValid(head) then
                 local hpos, rpos = partPos(head), partPos(hrp)
-                local h3 = cam:WorldToViewportPoint(hpos + v3(0, 0.5, 0))
-                local l3 = cam:WorldToViewportPoint(rpos - v3(0, 3, 0))
-                local r3 = cam:WorldToViewportPoint(rpos)
-                if h3.Z > 0.1 and l3.Z > 0.1 then
+                local topW, botW = hpos + v3(0, 0.55, 0), rpos - v3(0, 3.0, 0)
+                local rA = camCF:PointToObjectSpace(topW)
+                local rB = camCF:PointToObjectSpace(botW)
+                local lim = -0.25
+                if rA.Z <= lim or rB.Z <= lim then
+                    local wTop, wBot = topW, botW
+                    if rA.Z > lim then
+                        local denom = rB.Z - rA.Z
+                        if abs(denom) > 1e-5 then
+                            wTop = camCF:PointToWorldSpace(rA + (rB - rA) * ((lim - rA.Z) / denom))
+                        end
+                    elseif rB.Z > lim then
+                        local denom = rA.Z - rB.Z
+                        if abs(denom) > 1e-5 then
+                            wBot = camCF:PointToWorldSpace(rB + (rA - rB) * ((lim - rB.Z) / denom))
+                        end
+                    end
+                    local h3 = cam:WorldToViewportPoint(wTop)
+                    local l3 = cam:WorldToViewportPoint(wBot)
+                    local r3 = cam:WorldToViewportPoint(rpos)
                     rd.headScreen = v2(h3.X, h3.Y)
                     rd.legScreen  = v2(l3.X, l3.Y)
-                    rd.hrpScreen  = v2(r3.X, r3.Y)
-                    local cx, cy = rd.hrpScreen.X, rd.hrpScreen.Y
-                    rd.onScreen = cx > -m and cx < vp.X + m and cy > -m and cy < vp.Y + m
-                    if wantDot then
+                    rd.hrpScreen  = (r3.Z > 0.25) and v2(r3.X, r3.Y) or rd.headScreen:Lerp(rd.legScreen, 0.5)
+                    local minSX = min(rd.headScreen.X, rd.legScreen.X, rd.hrpScreen.X)
+                    local maxSX = max(rd.headScreen.X, rd.legScreen.X, rd.hrpScreen.X)
+                    local minSY = min(rd.headScreen.Y, rd.legScreen.Y, rd.hrpScreen.Y)
+                    local maxSY = max(rd.headScreen.Y, rd.legScreen.Y, rd.hrpScreen.Y)
+                    rd.onScreen = maxSX > -m and minSX < vp.X + m and maxSY > -m and minSY < vp.Y + m
+                    if wantDot and rd.onScreen then
                         local hd = cam:WorldToViewportPoint(hpos)
-                        if hd.Z > 0.1 then
+                        if hd.Z > 0.25 then
                             rd.headDotScreen = v2(hd.X, hd.Y)
                             local up = partCF(head).UpVector * (head.Size.Y / 2)
                             local a = cam:WorldToViewportPoint(hpos + up)
                             local b = cam:WorldToViewportPoint(hpos - up)
-                            rd.headDotR = max(2, abs(a.Y - b.Y) / 2)
+                            rd.headDotR = clamp(abs(a.Y - b.Y) / 2, 2, 24)
                         end
                     end
                     if dyn and rd.onScreen and rd.distance <= 400 then
@@ -8004,14 +8289,34 @@ Library, SaveManager = (function()
         conn(guiObj.MouseLeave, hideTip)
     end
 
+    local popupBackdrop = mk("TextButton", {
+        Name = "PopupBackdrop",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        Text = "",
+        AutoButtonColor = false,
+        Visible = false,
+        ZIndex = 74,
+    }, overlay)
+
     local activePopup, activePopupTrigger, closePopupFn, openedPopupAt = nil, nil, nil, 0
     local function closeActivePopup()
+        popupBackdrop.Visible = false
         if activePopup then
             if closePopupFn then pcall(closePopupFn) end
             pcall(function() activePopup:Destroy() end)
             activePopup, activePopupTrigger, closePopupFn = nil, nil, nil
         end
     end
+
+    conn(popupBackdrop.MouseButton1Down, function()
+        if clock() - openedPopupAt < 0.05 then return end
+        closeActivePopup()
+    end)
+    conn(popupBackdrop.MouseButton2Down, function()
+        if clock() - openedPopupAt < 0.05 then return end
+        closeActivePopup()
+    end)
 
     local function pointInGui(inst, mp)
         if not inst or not inst.Parent then return false end
@@ -8021,22 +8326,9 @@ Library, SaveManager = (function()
 
     conn(UIS.InputBegan, function(inp)
         if lib._unloaded or not activePopup then return end
-        if inp.UserInputType ~= Enum.UserInputType.MouseButton1
-            and inp.UserInputType ~= Enum.UserInputType.MouseButton2
-            and inp.UserInputType ~= Enum.UserInputType.Touch then
-            return
+        if inp.UserInputType == Enum.UserInputType.Keyboard and inp.KeyCode == Enum.KeyCode.Escape then
+            closeActivePopup()
         end
-        if clock() - openedPopupAt < 0.05 then return end
-        local mp
-        if inp.UserInputType == Enum.UserInputType.Touch then
-            local okI, ins = pcall(GuiSvc.GetGuiInset, GuiSvc)
-            local iv = okI and ins or v2(0, 0)
-            mp = v2(inp.Position.X + iv.X, inp.Position.Y + iv.Y)
-        else
-            mp = UIS:GetMouseLocation()
-        end
-        if pointInGui(activePopup, mp) or pointInGui(activePopupTrigger, mp) then return end
-        closeActivePopup()
     end)
 
     function lib:Notify(opts)
@@ -8858,11 +9150,13 @@ Library, SaveManager = (function()
                 if #hits == 0 then return end
                 local sp = searchWrap.AbsolutePosition
                 local ss = searchWrap.AbsoluteSize
+                local ovPos, ovSize = overlay.AbsolutePosition, overlay.AbsoluteSize
                 local curCam = workspace.CurrentCamera
                 local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
-                local sx = clamp(sp.X - 70, 8, max(8, cvp.X - 268))
+                local maxW = (ovSize.X > 100) and ovSize.X or cvp.X
+                local sx = clamp((sp.X - ovPos.X) - 70, 8, max(8, maxW - 268))
                 searchPopup = mk("Frame", {
-                    Position = UDim2.fromOffset(sx, sp.Y + ss.Y + 5),
+                    Position = UDim2.fromOffset(sx, (sp.Y - ovPos.Y) + ss.Y + 5),
                     Size = UDim2.fromOffset(260, 0),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundColor3 = TH.CardBg,
@@ -10606,30 +10900,49 @@ Library, SaveManager = (function()
                     end
                     closeActivePopup()
                     local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
+                    local ovPos, ovSize = overlay.AbsolutePosition, overlay.AbsoluteSize
                     local curCam = workspace.CurrentCamera
                     local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
-                    local itemH, gap, padY = 23, 2, 8
+                    local maxW = (ovSize.X > 100) and ovSize.X or cvp.X
+                    local maxH = (ovSize.Y > 100) and ovSize.Y or cvp.Y
+                    local relX = bp.X - ovPos.X
+                    local relY = bp.Y - ovPos.Y
+                    local itemH, gap, padY = 23, 2, 10
                     local cnt = #obj.Values
                     local totalCanvasH = max(itemH + padY, cnt * itemH + max(0, cnt - 1) * gap + padY)
-                    local maxListH = clamp(floor(cvp.Y * 0.44), 160, 290)
+                    local maxListH = clamp(floor(maxH * 0.44), 160, 290)
                     local listH = clamp(totalCanvasH, 32, maxListH)
-                    local py = bp.Y + bs.Y + 4
-                    if py + listH > cvp.Y - 10 then
-                        local upY = bp.Y - listH - 4
-                        py = (upY >= 8) and upY or clamp(py, 8, max(8, cvp.Y - listH - 8))
+                    local px = clamp(relX, 6, max(6, maxW - bs.X - 6))
+                    local py = relY + bs.Y + 4
+                    if py + listH > maxH - 8 then
+                        local upY = relY - listH - 4
+                        if upY >= 8 then
+                            py = upY
+                        else
+                            local spaceBelow = max(60, maxH - (relY + bs.Y + 12))
+                            local spaceAbove = max(60, relY - 12)
+                            if spaceAbove > spaceBelow then
+                                listH = min(listH, spaceAbove)
+                                py = max(8, relY - listH - 4)
+                            else
+                                listH = min(listH, spaceBelow)
+                                py = relY + bs.Y + 4
+                            end
+                        end
                     end
+                    local scrollable = (totalCanvasH > listH + 1)
 
                     local pop = mk("ScrollingFrame", {
                         Name = "Drop_" .. idx,
-                        Position = UDim2.fromOffset(bp.X, py),
-                        Size = UDim2.fromOffset(bs.X, listH),
+                        Position = UDim2.fromOffset(px, py),
+                        Size = UDim2.fromOffset(bs.X, max(24, listH - 10)),
                         BackgroundColor3 = TH.CardBg,
                         BackgroundTransparency = 0,
                         Active = true,
-                        ScrollingEnabled = true,
+                        ScrollingEnabled = scrollable,
                         ScrollingDirection = Enum.ScrollingDirection.Y,
                         ElasticBehavior = Enum.ElasticBehavior.Never,
-                        ScrollBarThickness = 4,
+                        ScrollBarThickness = scrollable and 4 or 0,
                         ScrollBarImageColor3 = TH.BorderStrong,
                         CanvasSize = UDim2.fromOffset(0, totalCanvasH),
                         AutomaticCanvasSize = Enum.AutomaticSize.None,
@@ -10638,11 +10951,11 @@ Library, SaveManager = (function()
                     }, overlay)
                     corner(pop, 6)
                     stroke(pop, TH.BorderStrong, 1, 0)
-                    pad(pop, 4, 10, 4, 4)
+                    pad(pop, 4, scrollable and 10 or 4, 4, 4)
                     mk("UIListLayout", { Padding = UDim.new(0, gap), SortOrder = Enum.SortOrder.LayoutOrder }, pop)
-                    local popScale = mk("UIScale", { Scale = 0.94 }, pop)
-                    twS(popScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
+                    twS(pop, 0.16, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(bs.X, listH) })
                     twS(arrowLbl, 0.18, Enum.EasingStyle.Back, { Rotation = 180 })
+                    popupBackdrop.Visible = true
                     activePopup = pop
                     activePopupTrigger = btn
                     openedPopupAt = clock()
@@ -10676,16 +10989,34 @@ Library, SaveManager = (function()
                             if vItem ~= obj.Value then tw(opt, 0.08, { BackgroundTransparency = 1 }) end
                         end)
                         local picked = false
+                        local pressPos = nil
                         local function pickItem()
                             if picked then return end
                             picked = true
                             obj:SetValue(vItem)
                             closeActivePopup()
                         end
+                        if not scrollable then
+                            conn(opt.MouseButton1Down, pickItem)
+                        else
+                            conn(opt.InputBegan, function(inp)
+                                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                                    pressPos = inp.Position
+                                end
+                            end)
+                            conn(opt.InputEnded, function(inp)
+                                if pressPos and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
+                                    if (inp.Position - pressPos).Magnitude <= 8 then
+                                        pickItem()
+                                    end
+                                    pressPos = nil
+                                end
+                            end)
+                        end
                         conn(opt.Activated, pickItem)
                         conn(opt.MouseButton1Click, pickItem)
                     end
-                    if totalCanvasH > listH and curIdx > 1 then
+                    if scrollable and curIdx > 1 then
                         local targetY = clamp((curIdx - 2) * (itemH + gap), 0, max(0, totalCanvasH - listH))
                         pop.CanvasPosition = v2(0, targetY)
                     end
@@ -10859,10 +11190,13 @@ Library, SaveManager = (function()
                         end
                         closeActivePopup()
                         local sp, ss = swatch.AbsolutePosition, swatch.AbsoluteSize
+                        local ovPos, ovSize = overlay.AbsolutePosition, overlay.AbsoluteSize
                         local curCam = workspace.CurrentCamera
                         local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
-                        local px = clamp(sp.X - 180, 8, max(8, cvp.X - 224))
-                        local py = clamp(sp.Y + ss.Y + 6, 8, max(8, cvp.Y - 210))
+                        local maxW = (ovSize.X > 100) and ovSize.X or cvp.X
+                        local maxH = (ovSize.Y > 100) and ovSize.Y or cvp.Y
+                        local px = clamp((sp.X - ovPos.X) - 180, 8, max(8, maxW - 224))
+                        local py = clamp((sp.Y - ovPos.Y) + ss.Y + 6, 8, max(8, maxH - 210))
 
                         local pop = mk("Frame", {
                             Name = "Col_" .. idx,
@@ -10870,12 +11204,14 @@ Library, SaveManager = (function()
                             Size = UDim2.fromOffset(216, 198),
                             BackgroundColor3 = TH.CardBg,
                             BackgroundTransparency = 0,
+                            Active = true,
                             ZIndex = 75,
                         }, overlay)
                         corner(pop, 6)
                         stroke(pop, TH.BorderStrong, 1, 0)
                         local colScale = mk("UIScale", { Scale = 0.96 }, pop)
                         tw(colScale, 0.12, { Scale = 1 })
+                        popupBackdrop.Visible = true
                         activePopup = pop
                         activePopupTrigger = swatch
                         openedPopupAt = clock()
