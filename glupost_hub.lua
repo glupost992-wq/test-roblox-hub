@@ -2740,21 +2740,29 @@ local function updateLocalEffects(dt)
             clearSatellites()
             satShapeCur, satCountCur, satSizeCur = shape, cnt, sz
             local par = workspace.CurrentCamera or workspace
-            local function mkOrb(parent, size, useSphere, mat, tr, mode, offset, anim, ax, ay, az)
+            local function mkOrb(parent, size, kind, mat, tr, mode, offset, anim, ax, ay, az)
                 local sp = Instance.new("Part")
                 sp.Name, sp.Anchored, sp.CastShadow, sp.Massless = "GlupostSatSub", true, false, true
                 sp.CanCollide, sp.CanTouch, sp.CanQuery = false, false, false
                 sp.Material = mat or Enum.Material.Neon
                 sp.Transparency = tr or 0.1
-                sp.Shape = useSphere == "ball" and Enum.PartType.Ball or Enum.PartType.Block
+                if kind == "ball" then
+                    sp.Shape = Enum.PartType.Ball
+                elseif kind == "wedge" then
+                    sp.Shape = Enum.PartType.Wedge
+                elseif kind == "cyl" then
+                    sp.Shape = Enum.PartType.Cylinder
+                else
+                    sp.Shape = Enum.PartType.Block
+                end
                 sp.Size = size
-                if useSphere == "sphere" then
+                if kind == "sphere" then
                     local sm = Instance.new("SpecialMesh")
                     sm.MeshType = Enum.MeshType.Sphere
                     sm.Parent = sp
                 end
                 sp.Parent = parent
-                return { part = sp, offset = offset, mode = mode or 1, baseTr = tr or 0.1, anim = anim, ax = ax, ay = ay, az = az }
+                return { part = sp, offset = offset or cfNew(), mode = mode or 1, baseTr = tr or 0.1, anim = anim, ax = ax, ay = ay, az = az }
             end
             for i = 1, cnt do
                 local p = Instance.new("Part")
@@ -2766,115 +2774,195 @@ local function updateLocalEffects(dt)
                 local rootBaseTr = 0.1
 
                 if shape == "Star" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.24, sz * 0.24, sz * 0.24)
-                    rootMode, rootBaseTr = 2, 0.04
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.07, sz * 1.48), "sphere", Enum.Material.Neon, 0.08, 1, cfNew(0, 0, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 1.48, sz * 0.07, sz * 0.16), "sphere", Enum.Material.Neon, 0.08, 1, cfNew(0, 0, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.09, sz * 0.05, sz * 0.78), "sphere", Enum.Material.Neon, 0.16, 2, cfAng(0, math.pi * 0.25, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.09, sz * 0.05, sz * 0.78), "sphere", Enum.Material.Neon, 0.16, 2, cfAng(0, -math.pi * 0.25, 0))
-                elseif shape == "Sakura" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.24, sz * 0.20, sz * 0.24)
-                    rootMode, rootBaseTr = 2, 0.04
-                    for k = 1, 5 do
-                        local pa = (k - 1) * (math.pi * 2 / 5)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.38, sz * 0.06, sz * 0.62), "sphere", Enum.Material.Neon, 0.16, 1, cfAng(0, pa, 0), "petal", pa, 0.40 * sz, 0.24)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.08, sz * 0.08, sz * 0.08), "ball", Enum.Material.Neon, 0.06, 2, cfAng(0, pa + 0.31, 0) * cfNew(0, 0.08 * sz, -0.21 * sz))
-                    end
-                elseif shape == "Lotus" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.30, sz * 0.30, sz * 0.30)
-                    rootMode, rootBaseTr = 2, 0.05
-                    for k = 1, 6 do
-                        local pa = (k - 1) * (math.pi / 3)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.28, sz * 0.05, sz * 0.66), "sphere", Enum.Material.Neon, 0.16, 1, cfAng(0, pa, 0), "petal", pa, 0.42 * sz, 0.56)
-                    end
-                    for k = 1, 4 do
-                        local pa = (k - 1) * (math.pi * 0.5) + 0.39
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.20, sz * 0.05, sz * 0.46), "sphere", Enum.Material.Neon, 0.12, 2, cfAng(0, pa, 0), "petal", pa, 0.28 * sz, 0.96)
-                    end
-                elseif shape == "Clover" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.22, sz * 0.22, sz * 0.22)
-                    rootMode, rootBaseTr = 2, 0.05
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.26, sz * 0.26, sz * 0.26)
+                    rootMode, rootBaseTr = "blade", 0.02
                     for k = 1, 4 do
                         local pa = (k - 1) * (math.pi * 0.5)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.44, sz * 0.06, sz * 0.56), "sphere", Enum.Material.Neon, 0.15, 1, cfAng(0, pa, 0), "petal", pa, 0.36 * sz, 0.14)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.08, sz * 0.08, sz * 0.08), "ball", Enum.Material.Neon, 0.08, 2, cfAng(0, pa + math.pi * 0.25, 0) * cfNew(0, 0.04 * sz, -0.44 * sz))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.14, sz * 0.14, sz * 0.72), "wedge", Enum.Material.Neon, 0.06, 1, cfAng(0, pa, 0) * cfNew(0, 0, -0.44 * sz))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.09, sz * 0.09, sz * 0.48), "wedge", Enum.Material.Neon, 0.10, 2, cfAng(0, pa + math.pi * 0.25, 0) * cfNew(0, 0, -0.32 * sz))
                     end
+                    for k = 1, 10 do
+                        local ra = (k - 1) * (math.pi * 2 / 10)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.28, sz * 0.04, sz * 0.05), "sphere", Enum.Material.Neon, 0.22, 2, cfAng(0.28, 0, -0.18) * cfAng(0, ra, 0) * cfNew(0, 0, 0.78 * sz), "spinY", ra, 0.78 * sz)
+                    end
+                elseif shape == "Sakura" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.24, sz * 0.18, sz * 0.24)
+                    rootMode, rootBaseTr = "blade", 0.04
+                    for k = 1, 5 do
+                        local pa = (k - 1) * (math.pi * 2 / 5)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.05, sz * 0.58), "sphere", Enum.Material.Neon, 0.15, 1, cfAng(0, 0.16, 0), "petal", pa, 0.39 * sz, 0.22)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.05, sz * 0.58), "sphere", Enum.Material.Neon, 0.15, 1, cfAng(0, -0.16, 0), "petal", pa, 0.39 * sz, 0.22)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.07, sz * 0.07, sz * 0.07), "ball", Enum.Material.Neon, 0.05, 2, cfAng(0, pa + 0.31, 0) * cfNew(0, 0.09 * sz, -0.22 * sz))
+                    end
+                elseif shape == "Lotus" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.28, sz * 0.24, sz * 0.28)
+                    rootMode, rootBaseTr = "blade", 0.04
+                    for k = 1, 6 do
+                        local pa = (k - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.30, sz * 0.05, sz * 0.68), "sphere", Enum.Material.Neon, 0.16, 1, cfNew(), "petal", pa, 0.44 * sz, 0.52)
+                    end
+                    for k = 1, 6 do
+                        local pa = (k - 1) * (math.pi / 3) + 0.52
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.20, sz * 0.05, sz * 0.48), "sphere", Enum.Material.Neon, 0.12, 2, cfNew(), "petal", pa, 0.30 * sz, 0.94)
+                    end
+                elseif shape == "Clover" then
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.20, sz * 0.18, sz * 0.20)
+                    rootMode, rootBaseTr = "blade", 0.04
+                    for k = 1, 4 do
+                        local pa = (k - 1) * (math.pi * 0.5)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.30, sz * 0.05, sz * 0.52), "sphere", Enum.Material.Neon, 0.15, 1, cfAng(0, 0.30, 0), "petal", pa, 0.36 * sz, 0.14)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.30, sz * 0.05, sz * 0.52), "sphere", Enum.Material.Neon, 0.15, 1, cfAng(0, -0.30, 0), "petal", pa, 0.36 * sz, 0.14)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.07, sz * 0.07, sz * 0.07), "ball", Enum.Material.Neon, 0.08, 2, cfAng(0, pa + math.pi * 0.25, 0) * cfNew(0, 0.05 * sz, -0.44 * sz))
+                    end
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.06, sz * 0.05, sz * 0.44), "sphere", Enum.Material.Neon, 0.12, 2, cfNew(0, -0.02 * sz, 0.28 * sz) * cfAng(0.28, 0.22, 0))
                 elseif shape == "Crescent" then
-                    p.Shape, p.Size, p.Transparency = Enum.PartType.Block, v3(sz * 0.15, sz * 0.15, sz * 0.15), 1
+                    p.Shape, p.Size, p.Transparency = Enum.PartType.Block, v3(sz * 0.12, sz * 0.12, sz * 0.12), 1
                     rootMode, rootBaseTr = "none", 1
-                    for k = -3, 3 do
-                        local f = k / 3
-                        local ca = f * 1.18
-                        local w = (1 - f * f * 0.72) * 0.22 * sz
-                        local l = 0.26 * sz
-                        subs[#subs + 1] = mkOrb(p, v3(w, sz * 0.08, l), "sphere", Enum.Material.Neon, 0.10, 1, cfNew(cos(ca) * 0.52 * sz - 0.14 * sz, sin(ca) * 0.52 * sz, 0) * cfAng(0, 0, ca + math.pi * 0.5))
+                    for k = -5, 5 do
+                        local f = k / 5
+                        local ca = f * 1.42
+                        local belly = max(0.03, (1 - f * f * 0.88)) * 0.18 * sz
+                        local segLen = 0.22 * sz
+                        subs[#subs + 1] = mkOrb(p, v3(belly, sz * 0.07, segLen), "sphere", Enum.Material.Neon, 0.06, (abs(k) >= 4) and 2 or 1,
+                            cfNew(cos(ca) * 0.56 * sz - 0.12 * sz, sin(ca) * 0.56 * sz, 0) * cfAng(0, 0, ca))
                     end
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.07, sz * 0.05, sz * 0.42), "sphere", Enum.Material.Neon, 0.05, 2, cfNew(0.24 * sz, 0.04 * sz, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.42, sz * 0.05, sz * 0.07), "sphere", Enum.Material.Neon, 0.05, 2, cfNew(0.24 * sz, 0.04 * sz, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.12, sz * 0.12, sz * 0.12), "ball", Enum.Material.Neon, 0.04, 2, cfNew(0.24 * sz, 0.04 * sz, 0))
+                    for k = 1, 4 do
+                        local sa = (k - 1) * (math.pi * 0.5)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.08, sz * 0.06, sz * 0.24), "wedge", Enum.Material.Neon, 0.04, "blade",
+                            cfNew(0.26 * sz, 0.05 * sz, 0) * cfAng(0, 0, sa) * cfNew(0, 0.13 * sz, 0) * cfAng(math.pi * 0.5, 0, 0))
+                    end
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.12, sz * 0.12, sz * 0.12), "ball", Enum.Material.Neon, 0.04, "blade", cfNew(0.26 * sz, 0.05 * sz, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.04, sz * 0.24, sz * 0.04), "sphere", Enum.Material.Neon, 0.20, 2, cfNew(0.06 * sz, -0.62 * sz, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.10, sz * 0.10, sz * 0.10), "ball", Enum.Material.Neon, 0.06, "blade", cfNew(0.06 * sz, -0.76 * sz, 0))
                 elseif shape == "Snowflake" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.20, sz * 0.20, sz * 0.20)
-                    rootMode, rootBaseTr = 2, 0.05
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.18, sz * 0.16, sz * 0.18)
+                    rootMode, rootBaseTr = "blade", 0.04
                     for k = 1, 3 do
                         local sa = (k - 1) * (math.pi / 3)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.08, sz * 0.05, sz * 1.42), "sphere", Enum.Material.Neon, 0.10, 1, cfAng(0, sa, 0))
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.30, sz * 0.05, sz * 0.07), "sphere", Enum.Material.Neon, 0.14, 2, cfAng(0, sa, 0) * cfNew(0, 0, 0.44 * sz))
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.30, sz * 0.05, sz * 0.07), "sphere", Enum.Material.Neon, 0.14, 2, cfAng(0, sa, 0) * cfNew(0, 0, -0.44 * sz))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.07, sz * 0.04, sz * 1.48), "sphere", Enum.Material.Neon, 0.08, 1, cfAng(0, sa, 0))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.04, sz * 0.34), "wedge", Enum.Material.Neon, 0.12, 2, cfAng(0, sa, 0) * cfNew(0.11 * sz, 0, 0.44 * sz) * cfAng(0, -0.78, 0))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.04, sz * 0.34), "wedge", Enum.Material.Neon, 0.12, 2, cfAng(0, sa, 0) * cfNew(-0.11 * sz, 0, 0.44 * sz) * cfAng(0, 0.78, 0))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.04, sz * 0.34), "wedge", Enum.Material.Neon, 0.12, 2, cfAng(0, sa, 0) * cfNew(0.11 * sz, 0, -0.44 * sz) * cfAng(0, 0.78 + math.pi, 0))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.04, sz * 0.34), "wedge", Enum.Material.Neon, 0.12, 2, cfAng(0, sa, 0) * cfNew(-0.11 * sz, 0, -0.44 * sz) * cfAng(0, -0.78 + math.pi, 0))
+                    end
+                    for k = 1, 6 do
+                        local ha = (k - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.22, sz * 0.04, sz * 0.04), "sphere", Enum.Material.Neon, 0.10, "blade", cfAng(0, ha, 0) * cfNew(0, 0, 0.22 * sz))
                     end
                 elseif shape == "Butterfly" then
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.11, sz * 0.11, sz * 0.72)
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.10, sz * 0.10, sz * 0.76)
                     do
                         local bm = Instance.new("SpecialMesh")
                         bm.MeshType = Enum.MeshType.Sphere
                         bm.Parent = p
                     end
-                    rootMode, rootBaseTr = 2, 0.06
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.84, sz * 0.04, sz * 0.56), "sphere", Enum.Material.Neon, 0.20, 1, cfNew(-0.44 * sz, 0, -0.14 * sz), "wingL", -0.44 * sz, 0, -0.14 * sz)
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.84, sz * 0.04, sz * 0.56), "sphere", Enum.Material.Neon, 0.20, 1, cfNew(0.44 * sz, 0, -0.14 * sz), "wingR", 0.44 * sz, 0, -0.14 * sz)
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.56, sz * 0.04, sz * 0.44), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(-0.30 * sz, 0, 0.30 * sz), "wingL2", -0.30 * sz, 0, 0.30 * sz)
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.56, sz * 0.04, sz * 0.44), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(0.30 * sz, 0, 0.30 * sz), "wingR2", 0.30 * sz, 0, 0.30 * sz)
+                    rootMode, rootBaseTr = "blade", 0.05
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.03, sz * 0.03, sz * 0.34), "sphere", Enum.Material.Neon, 0.08, 2, cfNew(-0.08 * sz, 0.10 * sz, -0.44 * sz) * cfAng(0.45, 0.35, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.03, sz * 0.03, sz * 0.34), "sphere", Enum.Material.Neon, 0.08, 2, cfNew(0.08 * sz, 0.10 * sz, -0.44 * sz) * cfAng(0.45, -0.35, 0))
+                    -- Forewings + glowing inner veins + tip accents
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.88, sz * 0.04, sz * 0.56), "sphere", Enum.Material.Neon, 0.24, 1, cfNew(-0.46 * sz, 0, -0.15 * sz) * cfAng(0, 0.22, 0), "wingL")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.54, sz * 0.05, sz * 0.30), "sphere", Enum.Material.Neon, 0.08, 2, cfNew(-0.42 * sz, 0.02 * sz, -0.16 * sz) * cfAng(0, 0.24, 0), "wingL")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.04, sz * 0.18), "wedge", Enum.Material.Neon, 0.06, "blade", cfNew(-0.82 * sz, 0.01 * sz, -0.26 * sz) * cfAng(0, 0.65, 0), "wingL")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.88, sz * 0.04, sz * 0.56), "sphere", Enum.Material.Neon, 0.24, 1, cfNew(0.46 * sz, 0, -0.15 * sz) * cfAng(0, -0.22, 0), "wingR")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.54, sz * 0.05, sz * 0.30), "sphere", Enum.Material.Neon, 0.08, 2, cfNew(0.42 * sz, 0.02 * sz, -0.16 * sz) * cfAng(0, -0.24, 0), "wingR")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.04, sz * 0.18), "wedge", Enum.Material.Neon, 0.06, "blade", cfNew(0.82 * sz, 0.01 * sz, -0.26 * sz) * cfAng(0, -0.65, 0), "wingR")
+                    -- Hindwings + eyespots
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.56, sz * 0.04, sz * 0.48), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(-0.32 * sz, 0, 0.30 * sz) * cfAng(0, -0.26, 0), "wingL")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.05, sz * 0.16), "ball", Enum.Material.Neon, 0.06, "blade", cfNew(-0.36 * sz, 0.02 * sz, 0.32 * sz), "wingL")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.56, sz * 0.04, sz * 0.48), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(0.32 * sz, 0, 0.30 * sz) * cfAng(0, 0.26, 0), "wingR")
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.05, sz * 0.16), "ball", Enum.Material.Neon, 0.06, "blade", cfNew(0.36 * sz, 0.02 * sz, 0.32 * sz), "wingR")
                 elseif shape == "Kunai" then
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.08, sz * 0.08, sz * 0.52)
-                    rootMode, rootBaseTr = 2, 0.06
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.28, sz * 0.06, sz * 0.85), "sphere", Enum.Material.Neon, 0.06, "blade", cfNew(0, 0, -0.64 * sz))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.04, sz * 0.42), "sphere", Enum.Material.Neon, 0.14, 1, cfNew(0, 0, -0.68 * sz))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.24, sz * 0.06, sz * 0.24), "ball", Enum.Material.Neon, 0.08, 1, cfNew(0, 0, 0.34 * sz))
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.08, sz * 0.08, sz * 0.48)
+                    rootMode, rootBaseTr = 1, 0.08
+                    -- 4-facet diamond wedge blade + central spine + guard
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.06, sz * 0.18, sz * 0.88), "wedge", Enum.Material.Neon, 0.04, "blade", cfNew(-0.08 * sz, 0, -0.68 * sz) * cfAng(0, 0, -math.pi * 0.5))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.06, sz * 0.18, sz * 0.88), "wedge", Enum.Material.Neon, 0.04, "blade", cfNew(0.08 * sz, 0, -0.68 * sz) * cfAng(0, 0, math.pi * 0.5))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.04, sz * 0.06, sz * 0.82), "block", Enum.Material.SmoothPlastic, 0.02, 1, cfNew(0, 0, -0.64 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.22, sz * 0.10, sz * 0.06), "block", Enum.Material.Neon, 0.05, 2, cfNew(0, 0, -0.24 * sz))
+                    -- Hollow 6-segment pommel ring
+                    for rk = 1, 6 do
+                        local ra = (rk - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.12, sz * 0.05, sz * 0.05), "block", Enum.Material.Neon, 0.05, 2,
+                            cfNew(0, 0, 0.36 * sz) * cfAng(0, ra, 0) * cfNew(0, 0, 0.12 * sz))
+                    end
+                    -- Fluttering glowing ofuda / chakra tag
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.14, sz * 0.02, sz * 0.38), "block", Enum.Material.Neon, 0.14, 2, cfNew(0, 0, 0.66 * sz), "tag", 0.48 * sz, 0.18 * sz)
                 elseif shape == "Shuriken" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.22, sz * 0.14, sz * 0.22)
-                    rootMode, rootBaseTr = 2, 0.04
+                    p.Shape, p.Size, p.Transparency = Enum.PartType.Block, v3(sz * 0.16, sz * 0.08, sz * 0.16), 1
+                    rootMode, rootBaseTr = "none", 1
+                    -- Hollow inner hub ring
+                    for rk = 1, 6 do
+                        local ra = (rk - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.15, sz * 0.06, sz * 0.05), "block", Enum.Material.Neon, 0.06, 2,
+                            cfAng(0, ra, 0) * cfNew(0, 0, 0.15 * sz))
+                    end
+                    -- 4 razor swept wedge blades with bright outer bevels
                     for k = 1, 4 do
                         local ba = (k - 1) * (math.pi * 0.5)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.18, sz * 0.05, sz * 0.72), "sphere", Enum.Material.Neon, 0.06, "blade", cfAng(0, ba, 0) * cfNew(0.12 * sz, 0, -0.42 * sz) * cfAng(0, -0.35, 0))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.22, sz * 0.68), "wedge", Enum.Material.SmoothPlastic, 0.02, 1,
+                            cfAng(0, ba, 0) * cfNew(0.16 * sz, 0, -0.44 * sz) * cfAng(0, -0.42, math.pi * 0.5))
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.03, sz * 0.10, sz * 0.66), "wedge", Enum.Material.Neon, 0.04, "blade",
+                            cfAng(0, ba, 0) * cfNew(0.22 * sz, 0, -0.46 * sz) * cfAng(0, -0.42, math.pi * 0.5))
                     end
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.46, sz * 0.06, sz * 0.46), "sphere", Enum.Material.Neon, 0.18, 1, cfNew(0, 0, 0))
                 elseif shape == "Spirit Flame" then
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.38, sz * 0.42, sz * 0.38)
-                    rootMode, rootBaseTr = 1, 0.08
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.78, sz * 0.26), "sphere", Enum.Material.Neon, 0.18, 2, cfNew(0, 0.32 * sz, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.55, sz * 0.16), "sphere", Enum.Material.Neon, 0.26, "blade", cfNew(0.12 * sz, 0.42 * sz, 0.06 * sz) * cfAng(0, 0, -0.2))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.14, sz * 0.48, sz * 0.14), "sphere", Enum.Material.Neon, 0.26, 2, cfNew(-0.12 * sz, 0.38 * sz, -0.06 * sz) * cfAng(0, 0, 0.2))
-                elseif shape == "Katana" then
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.09, sz * 0.12, sz * 0.55)
-                    rootMode, rootBaseTr = 2, 0.08
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.26, sz * 0.26, sz * 0.05), "sphere", Enum.Material.Neon, 0.04, 1, cfNew(0, 0, -0.28 * sz))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.12, sz * 1.55), "sphere", Enum.Material.Neon, 0.05, "blade", cfNew(0, 0.04 * sz, -1.06 * sz) * cfAng(-0.04, 0, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.04, sz * 0.06, sz * 1.35), "sphere", Enum.Material.Neon, 0.16, 1, cfNew(0, 0.02 * sz, -1.02 * sz))
-                elseif shape == "Magic Card" then
-                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.56, sz * 0.86, sz * 0.04)
-                    rootMode, rootBaseTr = 1, 0.24
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.62, sz * 0.06, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(0, 0.43 * sz, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.62, sz * 0.06, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(0, -0.43 * sz, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.06, sz * 0.90, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(0.28 * sz, 0, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.06, sz * 0.90, sz * 0.06), nil, Enum.Material.Neon, 0.05, 2, cfNew(-0.28 * sz, 0, 0))
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.24, sz * 0.24, sz * 0.07), "sphere", Enum.Material.Neon, 0.04, "blade", cfNew(0, 0, 0) * cfAng(0, 0, math.pi * 0.25))
-                else -- "Planet"
-                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.62, sz * 0.62, sz * 0.62)
-                    rootMode, rootBaseTr = 1, 0.12
-                    for k = 1, 10 do
-                        local ra = (k - 1) * (math.pi * 2 / 10)
-                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.22, sz * 0.04, sz * 0.07), "sphere", Enum.Material.Neon, 0.16, 2, cfAng(0.34, 0, -0.22) * cfAng(0, ra, 0) * cfNew(0, 0, 0.58 * sz))
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.34, sz * 0.36, sz * 0.34)
+                    rootMode, rootBaseTr = "blade", 0.04
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.52, sz * 0.56, sz * 0.52), "ball", Enum.Material.Neon, 0.42, 1, cfNew(0, 0.04 * sz, 0))
+                    for fk = 1, 5 do
+                        local fa = (fk - 1) * (math.pi * 2 / 5)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.14, sz * 0.58, sz * 0.18), "wedge", Enum.Material.Neon, 0.18, (fk % 2 == 1) and 1 or 2,
+                            cfNew(), "flame", fa, 0.18 * sz, 0.28 * sz)
                     end
-                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.16, sz * 0.16), "ball", Enum.Material.Neon, 0.06, "blade", cfNew(0.84 * sz, 0, 0), "moon", 0.84 * sz)
+                    for sk = 1, 3 do
+                        local sa = (sk - 1) * (math.pi * 2 / 3)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.09, sz * 0.09, sz * 0.09), "ball", Enum.Material.Neon, 0.05, "blade",
+                            cfNew(), "spark", sa, 0.34 * sz, 0.42 * sz)
+                    end
+                elseif shape == "Katana" then
+                    p.Shape, p.Size = Enum.PartType.Block, v3(sz * 0.08, sz * 0.11, sz * 0.52)
+                    rootMode, rootBaseTr = 1, 0.06
+                    -- Kashira pommel cap & octagonal tsuba handguard
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.10, sz * 0.13, sz * 0.08), "block", Enum.Material.Neon, 0.04, 2, cfNew(0, 0, 0.28 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.24, sz * 0.24, sz * 0.05), "block", Enum.Material.Neon, 0.05, 2, cfNew(0, 0, -0.27 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.24, sz * 0.24, sz * 0.04), "block", Enum.Material.Neon, 0.05, "blade", cfNew(0, 0, -0.27 * sz) * cfAng(0, 0, math.pi * 0.25))
+                    -- Spine (mune), glowing edge (ha), and crisp wedge kissaki tip
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.04, sz * 0.07, sz * 1.48), "block", Enum.Material.SmoothPlastic, 0.02, 1, cfNew(0, 0.03 * sz, -1.03 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.025, sz * 0.06, sz * 1.48), "block", Enum.Material.Neon, 0.02, "blade", cfNew(0, -0.02 * sz, -1.03 * sz))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.03, sz * 0.11, sz * 0.34), "wedge", Enum.Material.Neon, 0.02, "blade", cfNew(0, 0.01 * sz, -1.94 * sz) * cfAng(math.pi, 0, 0))
+                elseif shape == "Magic Card" then
+                    p.Shape, p.Size, p.Material = Enum.PartType.Block, v3(sz * 0.56, sz * 0.88, sz * 0.03), Enum.Material.Glass
+                    rootMode, rootBaseTr = 1, 0.26
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.60, sz * 0.05, sz * 0.05), nil, Enum.Material.Neon, 0.05, 2, cfNew(0, 0.44 * sz, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.60, sz * 0.05, sz * 0.05), nil, Enum.Material.Neon, 0.05, 2, cfNew(0, -0.44 * sz, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.90, sz * 0.05), nil, Enum.Material.Neon, 0.05, 2, cfNew(0.28 * sz, 0, 0))
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.05, sz * 0.90, sz * 0.05), nil, Enum.Material.Neon, 0.05, 2, cfNew(-0.28 * sz, 0, 0))
+                    for ck = 1, 4 do
+                        local sx = (ck <= 2) and -1 or 1
+                        local sy = (ck % 2 == 1) and -1 or 1
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.10, sz * 0.10, sz * 0.06), nil, Enum.Material.Neon, 0.04, "blade",
+                            cfNew(sx * 0.24 * sz, sy * 0.39 * sz, 0) * cfAng(0, 0, math.pi * 0.25))
+                    end
+                    -- Rotating magic seal ring floating on card face
+                    for rk = 1, 6 do
+                        local ra = (rk - 1) * (math.pi / 3)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.19, sz * 0.035, sz * 0.04), nil, Enum.Material.Neon, 0.06, "blade",
+                            cfNew(), "spinZ", ra, 0.18 * sz, 0.05 * sz)
+                    end
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.16, sz * 0.16, sz * 0.05), nil, Enum.Material.Neon, 0.06, 2, cfNew(0, 0, 0.04 * sz), "spinZ", 0, 0, 0.05 * sz)
+                else -- "Planet"
+                    p.Shape, p.Size = Enum.PartType.Ball, v3(sz * 0.58, sz * 0.58, sz * 0.58)
+                    rootMode, rootBaseTr = 1, 0.08
+                    for k = 1, 14 do
+                        local ra = (k - 1) * (math.pi * 2 / 14)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.24, sz * 0.03, sz * 0.08), "sphere", Enum.Material.Neon, 0.14, 2,
+                            cfAng(0.36, 0, -0.22) * cfAng(0, ra, 0) * cfNew(0, 0, 0.56 * sz))
+                    end
+                    for k = 1, 12 do
+                        local ra = (k - 1) * (math.pi * 2 / 12)
+                        subs[#subs + 1] = mkOrb(p, v3(sz * 0.22, sz * 0.025, sz * 0.04), "sphere", Enum.Material.Neon, 0.28, "blade",
+                            cfAng(-0.28, 0, 0.30) * cfAng(0, ra, 0) * cfNew(0, 0, 0.72 * sz))
+                    end
+                    subs[#subs + 1] = mkOrb(p, v3(sz * 0.18, sz * 0.18, sz * 0.18), "ball", Enum.Material.Neon, 0.04, "blade", cfNew(0.88 * sz, 0, 0), "moon", 0.88 * sz)
                 end
 
                 local ta0 = Instance.new("Attachment")
@@ -2918,6 +3006,9 @@ local function updateLocalEffects(dt)
             elseif item.rootMode == 2 then
                 item.part.Color = c2
                 item.part.Transparency = item.rootBaseTr + shimmer * 0.08
+            elseif item.rootMode == "blade" then
+                item.part.Color = cBlade
+                item.part.Transparency = item.rootBaseTr
             end
             if item.trail then
                 if item.trail.Enabled ~= wantTrail then item.trail.Enabled = wantTrail end
@@ -2961,18 +3052,35 @@ local function updateLocalEffects(dt)
                     sub.part.Color = cBlade
                 end
                 local anim = sub.anim
-                if anim == "wingL" or anim == "wingL2" then
-                    local flap = sin(tNow * 9.5 + item.phase) * 0.62
-                    sub.part.CFrame = baseCF * cfAng(0, 0, -flap) * cfNew(sub.ax, 0, sub.az)
-                elseif anim == "wingR" or anim == "wingR2" then
-                    local flap = sin(tNow * 9.5 + item.phase) * 0.62
-                    sub.part.CFrame = baseCF * cfAng(0, 0, flap) * cfNew(sub.ax, 0, sub.az)
+                if anim == "wingL" then
+                    local flap = sin(tNow * 9.5 + item.phase) * 0.60
+                    sub.part.CFrame = baseCF * cfAng(0, 0, -flap) * sub.offset
+                elseif anim == "wingR" then
+                    local flap = sin(tNow * 9.5 + item.phase) * 0.60
+                    sub.part.CFrame = baseCF * cfAng(0, 0, flap) * sub.offset
                 elseif anim == "petal" then
                     local openAng = sub.az + sin(tNow * 2.4 + item.phase) * 0.14
-                    sub.part.CFrame = baseCF * cfAng(0, sub.ax, 0) * cfAng(openAng, 0, 0) * cfNew(0, 0, -sub.ay)
+                    sub.part.CFrame = baseCF * cfAng(0, sub.ax, 0) * cfAng(openAng, 0, 0) * cfNew(0, 0, -sub.ay) * sub.offset
                 elseif anim == "moon" then
                     local ma = tNow * 3.6 + item.phase
                     sub.part.CFrame = baseCF * cfAng(0.34, ma, -0.22) * cfNew(sub.ax, 0, 0)
+                elseif anim == "spinY" then
+                    sub.part.CFrame = baseCF * cfAng(0.28, tNow * 2.6 + sub.ax, -0.18) * cfNew(0, 0, sub.ay)
+                elseif anim == "spinZ" then
+                    local ra = tNow * 2.2 + sub.ax + item.phase
+                    sub.part.CFrame = baseCF * cfNew(cos(ra) * sub.ay, sin(ra) * sub.ay, sub.az) * cfAng(0, 0, ra + math.pi * 0.5)
+                elseif anim == "flame" then
+                    local fa = sub.ax + tNow * 4.2 + item.phase
+                    local rise = (sin(tNow * 5.2 + sub.ax * 2) + 1) * 0.5
+                    sub.part.CFrame = baseCF * cfNew(cos(fa) * sub.ay, sub.az + rise * sub.ay * 0.7, sin(fa) * sub.ay)
+                        * cfAng(-0.28, -fa + math.pi * 0.5, sin(fa) * 0.18)
+                elseif anim == "spark" then
+                    local sa = sub.ax + tNow * 3.8 + item.phase
+                    local sy = ((tNow * 1.4 + sub.ax * 0.4) % 1) * sub.az
+                    sub.part.CFrame = baseCF * cfNew(cos(sa) * sub.ay, -sub.az * 0.3 + sy, sin(sa) * sub.ay)
+                elseif anim == "tag" then
+                    local wave = sin(tNow * 8.0 + item.phase) * 0.32
+                    sub.part.CFrame = baseCF * cfNew(0, 0, sub.ax) * cfAng(wave, 0, wave * 0.5) * cfNew(0, 0, sub.ay)
                 else
                     sub.part.CFrame = baseCF * sub.offset
                 end
@@ -3002,14 +3110,20 @@ local function updateLocalEffects(dt)
             clearAnimeWings()
             wingShapeCur, wingSizeCur = wShape, wSz
             local par = workspace.CurrentCamera or workspace
-            local function addWSeg(size, isSphere, mode, meta)
+            local function addWSeg(size, kind, mode, meta, mat)
                 local wp = Instance.new("Part")
                 wp.Name, wp.Anchored, wp.CastShadow, wp.Massless = "GlupostAnimeWing", true, false, true
                 wp.CanCollide, wp.CanTouch, wp.CanQuery = false, false, false
-                wp.Material = Enum.Material.Neon
-                wp.Shape = isSphere == "ball" and Enum.PartType.Ball or Enum.PartType.Block
+                wp.Material = mat or Enum.Material.Neon
+                if kind == "ball" then
+                    wp.Shape = Enum.PartType.Ball
+                elseif kind == "wedge" then
+                    wp.Shape = Enum.PartType.Wedge
+                else
+                    wp.Shape = Enum.PartType.Block
+                end
                 wp.Size = size
-                if isSphere == "sphere" then
+                if kind == "sphere" then
                     local sm = Instance.new("SpecialMesh")
                     sm.MeshType = Enum.MeshType.Sphere
                     sm.Parent = wp
@@ -3018,6 +3132,7 @@ local function updateLocalEffects(dt)
                 local entry = { part = wp, mode = mode }
                 if meta then for k, v in pairs(meta) do entry[k] = v end end
                 wingItems[#wingItems + 1] = entry
+                return entry
             end
             if wShape == "Seraph" then
                 for side = -1, 1, 2 do
@@ -3038,32 +3153,40 @@ local function updateLocalEffects(dt)
                 end
             elseif wShape == "Kagune" then
                 local chains = {}
-                local segCount = 12
+                local segCount = 14
                 for k = 1, 4 do
                     local side = (k <= 2) and -1 or 1
                     local tier = (k % 2 == 1) and 1 or -1
-                    local chain = { side = side, tier = tier, idx = k, segs = {}, pts = {} }
+                    local chain = { side = side, tier = tier, idx = k, segs = {}, cores = {}, spikes = {}, pts = {} }
                     for s = 1, segCount do
                         local f = (s - 0.5) / segCount
-                        local rad = (0.15 + sin(f * math.pi * 0.72) * 0.13) * (1 - f * 0.72) * wSz
-                        if s == segCount then rad = 0.045 * wSz end
-                        addWSeg(v3(rad * 1.85, rad * 1.75, 0.52 * wSz), "sphere", (s >= segCount - 2) and 2 or 1, { chain = true })
-                        local entry = wingItems[#wingItems]
-                        entry.f = f
-                        entry.rad = rad
-                        chain.segs[s] = entry
+                        local rad = (0.09 + sin((f ^ 0.85) * math.pi) * 0.11) * (1 - f * 0.58) * wSz
+                        if s == segCount then rad = 0.032 * wSz end
+                        local outer = addWSeg(v3(rad * 1.45, rad * 1.18, 0.52 * wSz), "sphere", 1, { chain = true, f = f, rad = rad }, Enum.Material.SmoothPlastic)
+                        chain.segs[s] = outer
+                        if s >= 2 and s <= segCount - 1 then
+                            chain.cores[s] = addWSeg(v3(rad * 0.62, rad * 0.52, 0.50 * wSz), "sphere", 2, { chain = true, f = f, rad = rad * 0.55 })
+                        end
+                        if s == 4 or s == 7 or s == 10 or s == 12 then
+                            chain.spikes[#chain.spikes + 1] = {
+                                segIdx = s,
+                                entry = addWSeg(v3(rad * 0.55, rad * 1.55, 0.44 * wSz), "wedge", 2, { chain = true, f = f }),
+                            }
+                        end
                         if s == segCount then
+                            chain.tipL = addWSeg(v3(0.03 * wSz, 0.18 * wSz, 0.56 * wSz), "wedge", 3, { chain = true })
+                            chain.tipR = addWSeg(v3(0.03 * wSz, 0.18 * wSz, 0.56 * wSz), "wedge", 3, { chain = true })
                             local ta0 = Instance.new("Attachment")
-                            ta0.Position, ta0.Parent = v3(0, 0.07 * wSz, 0), entry.part
+                            ta0.Position, ta0.Parent = v3(0, 0.07 * wSz, 0), outer.part
                             local ta1 = Instance.new("Attachment")
-                            ta1.Position, ta1.Parent = v3(0, -0.07 * wSz, 0), entry.part
+                            ta1.Position, ta1.Parent = v3(0, -0.07 * wSz, 0), outer.part
                             local tr = Instance.new("Trail")
                             tr.Name, tr.Attachment0, tr.Attachment1 = "GlupostWingTipTrail", ta0, ta1
                             tr.FaceCamera, tr.LightEmission, tr.LightInfluence = true, 1, 0
-                            tr.Lifetime, tr.MinLength, tr.Brightness = 0.30, 0.02, 4.2
+                            tr.Lifetime, tr.MinLength, tr.Brightness = 0.34, 0.02, 4.5
                             tr.WidthScale = numSeq({ {0, 1}, {0.5, 0.45}, {1, 0} })
-                            tr.Transparency = numSeq({ {0, 0.25}, {1, 1} })
-                            tr.Parent = entry.part
+                            tr.Transparency = numSeq({ {0, 0.22}, {1, 1} })
+                            tr.Parent = outer.part
                             chain.trail = tr
                         end
                     end
@@ -3072,32 +3195,42 @@ local function updateLocalEffects(dt)
                 wingItems._chains = chains
             elseif wShape == "Nine Tails" then
                 local chains = {}
-                local segCount = 11
+                local segCount = 13
+                wingItems._baseOrb = addWSeg(v3(0.32 * wSz, 0.26 * wSz, 0.30 * wSz), "ball", 3, { role = "rootcrest" })
                 for k = 1, 9 do
                     local rank = k - 5
-                    local chain = { rank = rank, idx = k, segs = {}, pts = {} }
+                    local chain = { rank = rank, idx = k, segs = {}, cores = {}, tufts = {}, pts = {} }
                     for s = 1, segCount do
                         local f = (s - 0.5) / segCount
-                        -- Lush fox-tail silhouette: slim root -> plush mid belly -> crisp tapered point
-                        local profile = 0.11 + (sin((f ^ 0.85) * math.pi) ^ 1.15) * 0.30 + (1 - f) * 0.06
+                        -- Sleek kitsune fur plume: narrow base -> plush taper -> razor flame brush tip
+                        local profile = 0.062 + (sin((f ^ 0.82) * math.pi) ^ 1.25) * 0.145 + (1 - f) * 0.025
                         local rad = profile * wSz
-                        addWSeg(v3(rad * 1.9, rad * 1.78, 0.48 * wSz), "sphere", (s >= segCount - 2) and 2 or 1, { chain = true })
-                        local entry = wingItems[#wingItems]
-                        entry.f = f
-                        entry.rad = rad
-                        chain.segs[s] = entry
+                        local outer = addWSeg(v3(rad * 1.65, rad * 1.50, 0.54 * wSz), "sphere", (s >= segCount - 2) and 2 or 1, { chain = true, f = f, rad = rad })
+                        chain.segs[s] = outer
+                        if s >= 3 and s <= segCount - 2 then
+                            chain.cores[s] = addWSeg(v3(rad * 0.78, rad * 0.70, 0.52 * wSz), "sphere", 3, { chain = true, f = f, rad = rad * 0.46 })
+                        end
+                        if s == 4 or s == 7 or s == 10 then
+                            chain.tufts[#chain.tufts + 1] = {
+                                segIdx = s,
+                                left = addWSeg(v3(0.045 * wSz, rad * 0.95, 0.42 * wSz), "wedge", 2, { chain = true, f = f }),
+                                right = addWSeg(v3(0.045 * wSz, rad * 0.95, 0.42 * wSz), "wedge", 2, { chain = true, f = f }),
+                            }
+                        end
                         if s == segCount then
+                            chain.tipL = addWSeg(v3(0.04 * wSz, 0.15 * wSz, 0.58 * wSz), "wedge", 3, { chain = true })
+                            chain.tipR = addWSeg(v3(0.04 * wSz, 0.15 * wSz, 0.58 * wSz), "wedge", 3, { chain = true })
                             local ta0 = Instance.new("Attachment")
-                            ta0.Position, ta0.Parent = v3(0, 0.08 * wSz, 0), entry.part
+                            ta0.Position, ta0.Parent = v3(0, 0.07 * wSz, 0), outer.part
                             local ta1 = Instance.new("Attachment")
-                            ta1.Position, ta1.Parent = v3(0, -0.08 * wSz, 0), entry.part
+                            ta1.Position, ta1.Parent = v3(0, -0.07 * wSz, 0), outer.part
                             local tr = Instance.new("Trail")
                             tr.Name, tr.Attachment0, tr.Attachment1 = "GlupostTailTipTrail", ta0, ta1
                             tr.FaceCamera, tr.LightEmission, tr.LightInfluence = true, 1, 0
-                            tr.Lifetime, tr.MinLength, tr.Brightness = 0.32, 0.02, 4.0
+                            tr.Lifetime, tr.MinLength, tr.Brightness = 0.36, 0.02, 4.2
                             tr.WidthScale = numSeq({ {0, 1}, {0.45, 0.45}, {1, 0} })
-                            tr.Transparency = numSeq({ {0, 0.32}, {1, 1} })
-                            tr.Parent = entry.part
+                            tr.Transparency = numSeq({ {0, 0.26}, {1, 1} })
+                            tr.Parent = outer.part
                             chain.trail = tr
                         end
                     end
@@ -3119,49 +3252,55 @@ local function updateLocalEffects(dt)
         local baseTr = clamp(aw.Transparency or 0.18, 0.02, 0.9)
         local tCF = torsoPart.CFrame
         local c1, c2 = styleColors(aw.Style, aw.Color, fSpd)
-        local cCore = c2:Lerp(WHITE, 0.48)
+        local cCore = c2:Lerp(WHITE, 0.52)
         local chains = wingItems._chains
 
         if (wShape == "Nine Tails" or wShape == "Kagune") and chains then
             local tipCol = c2:Lerp(WHITE, 0.46)
+            local darkArmor = c1:Lerp(BLACK, 0.52)
             local trailSeq = ColorSequence.new(c1, tipCol)
             local baseRoot = char:FindFirstChild("LowerTorso") or torsoPart
             local anchorCF = (wShape == "Nine Tails" and isPartValid(baseRoot)) and baseRoot.CFrame or tCF
+
+            if wingItems._baseOrb and wingItems._baseOrb.part then
+                wingItems._baseOrb.part.CFrame = anchorCF * cfNew(0, -0.32, 0.32)
+                wingItems._baseOrb.part.Color = cCore
+                wingItems._baseOrb.part.Transparency = clamp(baseTr, 0.04, 0.65)
+            end
 
             for _, ch in ipairs(chains) do
                 local pts = ch.pts
                 local n = #ch.segs
                 if wShape == "Nine Tails" then
                     local rank = ch.rank
-                    local fanYaw = rank * 0.27
-                    local fanPitch = 0.14 + (4 - abs(rank)) * 0.07
+                    local fanYaw = rank * 0.25
+                    local fanPitch = 0.16 + (4 - abs(rank)) * 0.08
                     local segStep = 0.34 * wSz
-                    local rootLocal = v3(sin(fanYaw) * 0.12, -0.32 + abs(rank) * 0.03, 0.34)
+                    local rootLocal = v3(sin(fanYaw) * 0.08, -0.32 + (4 - abs(rank)) * 0.02, 0.34)
                     local p = anchorCF:PointToWorldSpace(rootLocal)
                     pts[0] = p
                     for s = 1, n do
                         local f = s / n
-                        local swayWave = sin(tNow * 2.35 * fSpd - f * 3.8 + ch.idx * 0.72) * (0.14 + f * 0.42)
-                        local bobWave = cos(tNow * 1.85 * fSpd - f * 3.2 + ch.idx * 0.55) * (0.06 + f * 0.24)
-                        local yaw = fanYaw * (0.55 + f * 0.55) + swayWave
-                        -- Arcs outward, lifts gracefully, and curls forward slightly near tip
-                        local pitch = fanPitch + sin(f * math.pi * 0.85) * 0.55 - (f > 0.72 and (f - 0.72) * 1.45 or 0) + bobWave
+                        local swayWave = sin(tNow * 2.4 * fSpd - f * 4.0 + ch.idx * 0.68) * (0.12 + f * 0.38)
+                        local bobWave = cos(tNow * 1.9 * fSpd - f * 3.4 + ch.idx * 0.52) * (0.05 + f * 0.22)
+                        local yaw = fanYaw * (0.52 + f * 0.58) + swayWave
+                        local pitch = fanPitch + sin(f * math.pi * 0.85) * 0.58 - (f > 0.72 and (f - 0.72) * 1.38 or 0) + bobWave
                         local dirLocal = v3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
                         p = p + anchorCF:VectorToWorldSpace(dirLocal * segStep)
                         pts[s] = p
                     end
                 else -- Kagune
                     local side, tier = ch.side, ch.tier
-                    local segStep = 0.38 * wSz
-                    local rootLocal = v3(side * 0.16, tier > 0 and 0.22 or -0.22, 0.42)
+                    local segStep = 0.36 * wSz
+                    local rootLocal = v3(side * 0.14, tier > 0 and 0.20 or -0.22, 0.42)
                     local p = anchorCF:PointToWorldSpace(rootLocal)
                     pts[0] = p
                     for s = 1, n do
                         local f = s / n
-                        local writheA = sin(tNow * 2.9 * fSpd - f * 4.4 + ch.idx * 1.15) * (0.16 + f * 0.36)
-                        local writheB = cos(tNow * 2.3 * fSpd - f * 3.9 + ch.idx * 0.85) * (0.12 + f * 0.28)
-                        local yaw = side * (0.68 - f * 0.36 + (f > 0.65 and (f - 0.65) * -1.4 or 0)) + writheA
-                        local pitch = (tier > 0 and 0.62 or -0.18) - f * 0.75 + writheB
+                        local writheA = sin(tNow * 2.9 * fSpd - f * 4.6 + ch.idx * 1.15) * (0.14 + f * 0.34)
+                        local writheB = cos(tNow * 2.3 * fSpd - f * 4.0 + ch.idx * 0.85) * (0.10 + f * 0.26)
+                        local yaw = side * (0.66 - f * 0.34 + (f > 0.66 and (f - 0.66) * -1.45 or 0)) + writheA
+                        local pitch = (tier > 0 and 0.64 or -0.16) - f * 0.76 + writheB
                         local dirLocal = v3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
                         p = p + anchorCF:VectorToWorldSpace(dirLocal * segStep)
                         pts[s] = p
@@ -3174,13 +3313,71 @@ local function updateLocalEffects(dt)
                     local span = p1 - p0
                     local dist = max(0.05, span.Magnitude)
                     local mid = (p0 + p1) * 0.5
+                    local segCF = cfNew(mid, p1)
                     local r = entry.rad
-                    entry.part.Size = v3(r * 1.88, r * 1.76, dist * 1.48)
-                    entry.part.CFrame = cfNew(mid, p1)
                     local f = entry.f
-                    local colSeg = (f < 0.65) and c1:Lerp(c2, f / 0.65) or c2:Lerp(tipCol, (f - 0.65) / 0.35)
-                    entry.part.Color = colSeg
-                    entry.part.Transparency = clamp(baseTr + (1 - sin(clamp(f, 0.05, 0.95) * math.pi)) * 0.08, 0.02, 0.94)
+
+                    if wShape == "Nine Tails" then
+                        entry.part.Size = v3(r * 1.65, r * 1.50, dist * 1.62)
+                        entry.part.CFrame = segCF
+                        entry.part.Color = (f < 0.62) and c1:Lerp(c2, f / 0.62) or c2:Lerp(tipCol, (f - 0.62) / 0.38)
+                        entry.part.Transparency = clamp(baseTr + 0.16 + (1 - sin(clamp(f, 0.05, 0.95) * math.pi)) * 0.10, 0.10, 0.92)
+                        local core = ch.cores[s]
+                        if core then
+                            core.part.Size = v3(r * 0.78, r * 0.70, dist * 1.58)
+                            core.part.CFrame = segCF
+                            core.part.Color = cCore
+                            core.part.Transparency = clamp(baseTr * 0.4, 0.02, 0.45)
+                        end
+                    else
+                        entry.part.Size = v3(r * 1.48, r * 1.18, dist * 1.54)
+                        entry.part.CFrame = segCF
+                        entry.part.Color = darkArmor:Lerp(c1, f * 0.55)
+                        entry.part.Transparency = clamp(baseTr * 0.55, 0.02, 0.65)
+                        local core = ch.cores[s]
+                        if core then
+                            core.part.Size = v3(r * 0.62, r * 0.52, dist * 1.50)
+                            core.part.CFrame = segCF * cfNew(0, r * 0.36, 0)
+                            core.part.Color = (f > 0.7) and tipCol or c2
+                            core.part.Transparency = 0.04
+                        end
+                    end
+                end
+
+                if ch.tufts then
+                    for _, tf in ipairs(ch.tufts) do
+                        local si = tf.segIdx
+                        local p0, p1 = pts[si - 1], pts[si]
+                        local segCF = cfNew((p0 + p1) * 0.5, p1)
+                        local r = ch.segs[si].rad
+                        local f = ch.segs[si].f
+                        local tfCol = (f < 0.6) and c1:Lerp(c2, f / 0.6) or c2:Lerp(tipCol, (f - 0.6) / 0.4)
+                        tf.left.part.CFrame = segCF * cfAng(0, 0.44, math.pi * 0.5) * cfNew(0, r * 0.85, -0.06 * wSz)
+                        tf.right.part.CFrame = segCF * cfAng(0, -0.44, -math.pi * 0.5) * cfNew(0, r * 0.85, -0.06 * wSz)
+                        tf.left.part.Color, tf.right.part.Color = tfCol, tfCol
+                        tf.left.part.Transparency = clamp(baseTr + 0.08, 0.04, 0.85)
+                        tf.right.part.Transparency = tf.left.part.Transparency
+                    end
+                end
+                if ch.spikes then
+                    for _, sp in ipairs(ch.spikes) do
+                        local si = sp.segIdx
+                        local p0, p1 = pts[si - 1], pts[si]
+                        local segCF = cfNew((p0 + p1) * 0.5, p1)
+                        local r = ch.segs[si].rad
+                        sp.entry.part.CFrame = segCF * cfNew(0, r * 0.85, -0.04 * wSz) * cfAng(-0.42, math.pi, 0)
+                        sp.entry.part.Color = c2
+                        sp.entry.part.Transparency = 0.05
+                    end
+                end
+                if ch.tipL and ch.tipR then
+                    local pPrev, pEnd = pts[n - 1], pts[n]
+                    local tipCF = cfNew(pEnd, pEnd + (pEnd - pPrev))
+                    ch.tipL.part.CFrame = tipCF * cfNew(0, 0, -0.22 * wSz) * cfAng(0, 0, math.pi * 0.5)
+                    ch.tipR.part.CFrame = tipCF * cfNew(0, 0, -0.22 * wSz) * cfAng(0, 0, -math.pi * 0.5)
+                    ch.tipL.part.Color, ch.tipR.part.Color = tipCol, tipCol
+                    ch.tipL.part.Transparency = clamp(baseTr * 0.5, 0.02, 0.6)
+                    ch.tipR.part.Transparency = ch.tipL.part.Transparency
                 end
                 if ch.trail and ch.trail.Parent then
                     ch.trail.Color = trailSeq
@@ -9792,6 +9989,7 @@ Library, SaveManager = (function()
 
             -- Reusable 3D SelfFX Preview Parts inside WorldModel
             local fxHatParts, fxAuraParts, fxWingParts, fxTrailParts, fxSatParts = {}, {}, {}, {}, {}
+            local fxWingMeta, fxSatMeta = {}, {}
             local fxBuiltMode = { hat = "", aura = "", wing = "", trail = "", sat = "" }
 
             local function clearArr(arr)
@@ -9805,7 +10003,16 @@ Library, SaveManager = (function()
                 p.Size = sz
                 p.Color = col or WHITE
                 p.Material = mat or Enum.Material.Neon
-                p.Shape = shape or Enum.PartType.Block
+                if shape == "wedge" then
+                    p.Shape = Enum.PartType.Wedge
+                elseif shape == "sphere" then
+                    p.Shape = Enum.PartType.Block
+                    local sm = Instance.new("SpecialMesh")
+                    sm.MeshType = Enum.MeshType.Sphere
+                    sm.Parent = p
+                else
+                    p.Shape = shape or Enum.PartType.Block
+                end
                 p.Anchored = true
                 p.CanCollide = false
                 p.TopSurface = Enum.SurfaceType.Smooth
@@ -10178,18 +10385,66 @@ Library, SaveManager = (function()
                 local wantWing = aw.Enabled and (aw.Shape or "Seraph") or ""
                 if fxBuiltMode.wing ~= wantWing then
                     clearArr(fxWingParts)
+                    table.clear(fxWingMeta)
                     fxBuiltMode.wing = wantWing
                     if wantWing == "Nine Tails" then
-                        for i = 1, 54 do
-                            fxWingParts[i] = mkFxPart(v3(0.24, 0.22, 0.42), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        local rootOrb = mkFxPart(v3(0.28, 0.24, 0.26), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        fxWingParts[#fxWingParts + 1] = rootOrb
+                        fxWingMeta.rootOrb = rootOrb
+                        fxWingMeta.chains = {}
+                        for k = 1, 9 do
+                            local ch = { rank = k - 5, segs = {}, cores = {}, tufts = {} }
+                            for s = 1, 10 do
+                                local op = mkFxPart(v3(0.18, 0.16, 0.42), WHITE, Enum.Material.Neon, "sphere")
+                                fxWingParts[#fxWingParts + 1] = op
+                                ch.segs[s] = op
+                                if s >= 3 and s <= 8 then
+                                    local cp = mkFxPart(v3(0.08, 0.08, 0.40), WHITE, Enum.Material.Neon, "sphere")
+                                    fxWingParts[#fxWingParts + 1] = cp
+                                    ch.cores[s] = cp
+                                end
+                                if s == 4 or s == 7 then
+                                    local tl = mkFxPart(v3(0.04, 0.14, 0.34), WHITE, Enum.Material.Neon, "wedge")
+                                    local tr = mkFxPart(v3(0.04, 0.14, 0.34), WHITE, Enum.Material.Neon, "wedge")
+                                    fxWingParts[#fxWingParts + 1] = tl
+                                    fxWingParts[#fxWingParts + 1] = tr
+                                    ch.tufts[#ch.tufts + 1] = { segIdx = s, left = tl, right = tr }
+                                end
+                            end
+                            ch.tipL = mkFxPart(v3(0.035, 0.13, 0.48), WHITE, Enum.Material.Neon, "wedge")
+                            ch.tipR = mkFxPart(v3(0.035, 0.13, 0.48), WHITE, Enum.Material.Neon, "wedge")
+                            fxWingParts[#fxWingParts + 1] = ch.tipL
+                            fxWingParts[#fxWingParts + 1] = ch.tipR
+                            fxWingMeta.chains[k] = ch
                         end
                     elseif wantWing == "Kagune" then
-                        for i = 1, 24 do
-                            fxWingParts[i] = mkFxPart(v3(0.18, 0.18, 0.44), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        fxWingMeta.chains = {}
+                        for k = 1, 4 do
+                            local ch = { segs = {}, cores = {}, spikes = {} }
+                            for s = 1, 10 do
+                                local op = mkFxPart(v3(0.15, 0.12, 0.44), WHITE, Enum.Material.SmoothPlastic, "sphere")
+                                fxWingParts[#fxWingParts + 1] = op
+                                ch.segs[s] = op
+                                if s >= 2 and s <= 9 then
+                                    local cp = mkFxPart(v3(0.07, 0.06, 0.42), WHITE, Enum.Material.Neon, "sphere")
+                                    fxWingParts[#fxWingParts + 1] = cp
+                                    ch.cores[s] = cp
+                                end
+                                if s == 4 or s == 6 or s == 8 then
+                                    local sp = mkFxPart(v3(0.06, 0.16, 0.36), WHITE, Enum.Material.Neon, "wedge")
+                                    fxWingParts[#fxWingParts + 1] = sp
+                                    ch.spikes[#ch.spikes + 1] = { segIdx = s, part = sp }
+                                end
+                            end
+                            ch.tipL = mkFxPart(v3(0.03, 0.15, 0.46), WHITE, Enum.Material.Neon, "wedge")
+                            ch.tipR = mkFxPart(v3(0.03, 0.15, 0.46), WHITE, Enum.Material.Neon, "wedge")
+                            fxWingParts[#fxWingParts + 1] = ch.tipL
+                            fxWingParts[#fxWingParts + 1] = ch.tipR
+                            fxWingMeta.chains[k] = ch
                         end
                     elseif wantWing == "Demon" then
                         for i = 1, 10 do
-                            fxWingParts[i] = mkFxPart(v3(0.12, 1.35, 0.12), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                            fxWingParts[i] = mkFxPart(v3(0.12, 1.35, 0.12), WHITE, Enum.Material.Neon, "sphere")
                         end
                     elseif wantWing == "Cyber Mecha" then
                         for i = 1, 8 do
@@ -10197,61 +10452,121 @@ Library, SaveManager = (function()
                         end
                     elseif wantWing ~= "" then
                         for i = 1, 12 do
-                            fxWingParts[i] = mkFxPart(v3(0.12, 1.35, 0.26), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                            fxWingParts[i] = mkFxPart(v3(0.12, 1.35, 0.26), WHITE, Enum.Material.Neon, "sphere")
                         end
                     end
                 end
                 if wantWing ~= "" then
                     local wCol, wCol2 = styleColors(aw.Style, aw.Color, 1.4)
-                    local wTip = wCol2:Lerp(WHITE, 0.46)
+                    local wTip = wCol2:Lerp(WHITE, 0.48)
+                    local wCore = wCol2:Lerp(WHITE, 0.54)
+                    local darkArmor = wCol:Lerp(BLACK, 0.52)
                     local scW = clamp(aw.Size or 1.15, 0.6, 1.5)
                     local fSpd = clamp(aw.FlapSpeed or 1.4, 0.3, 3.0)
                     local baseY = (rigBMin.Y + rigBMax.Y) * 0.56
                     local trW = clamp(aw.Transparency or 0.18, 0.05, 0.72)
 
-                    if wantWing == "Nine Tails" then
-                        local segsPerTail = 6
+                    if wantWing == "Nine Tails" and fxWingMeta.chains then
+                        if fxWingMeta.rootOrb then
+                            fxWingMeta.rootOrb.Size = v3(0.28 * scW, 0.24 * scW, 0.26 * scW)
+                            fxWingMeta.rootOrb.CFrame = cfNew(0, rigBMin.Y + 1.85, 0.32)
+                            fxWingMeta.rootOrb.Color = wCore
+                            fxWingMeta.rootOrb.Transparency = clamp(trW, 0.04, 0.6)
+                        end
                         for k = 1, 9 do
-                            local rank = k - 5
-                            local fanYaw = rank * 0.27
-                            local fanPitch = 0.14 + (4 - abs(rank)) * 0.07
-                            local p = v3(sin(fanYaw) * 0.12, rigBMin.Y + 1.85, 0.35)
-                            for s = 1, segsPerTail do
-                                local f = s / segsPerTail
-                                local sway = sin(tNow * 2.35 * fSpd - f * 3.8 + k * 0.72) * (0.12 + f * 0.38)
-                                local yawT = fanYaw * (0.55 + f * 0.55) + sway
-                                local pitchT = fanPitch + sin(f * math.pi * 0.85) * 0.55 - (f > 0.72 and (f - 0.72) * 1.4 or 0)
-                                local np = p + v3(sin(yawT) * cos(pitchT), sin(pitchT), cos(yawT) * cos(pitchT)) * (0.42 * scW)
-                                local part = fxWingParts[(k - 1) * segsPerTail + s]
-                                local prof = (0.11 + (sin((f ^ 0.85) * math.pi) ^ 1.15) * 0.28 + (1 - f) * 0.05) * scW
-                                part.Size = v3(prof * 1.85, prof * 1.75, (np - p).Magnitude * 1.48)
-                                part.CFrame = cfNew((p + np) * 0.5, np)
-                                part.Color = (f < 0.65) and wCol:Lerp(wCol2, f / 0.65) or wCol2:Lerp(wTip, (f - 0.65) / 0.35)
-                                part.Transparency = trW
+                            local ch = fxWingMeta.chains[k]
+                            local rank = ch.rank
+                            local fanYaw = rank * 0.25
+                            local fanPitch = 0.16 + (4 - abs(rank)) * 0.08
+                            local p = v3(sin(fanYaw) * 0.08, rigBMin.Y + 1.85 + (4 - abs(rank)) * 0.02, 0.34)
+                            local pLast, pPrev
+                            for s = 1, 10 do
+                                local f = s / 10
+                                local sway = sin(tNow * 2.4 * fSpd - f * 4.0 + k * 0.68) * (0.12 + f * 0.36)
+                                local yawT = fanYaw * (0.52 + f * 0.58) + sway
+                                local pitchT = fanPitch + sin(f * math.pi * 0.85) * 0.58 - (f > 0.72 and (f - 0.72) * 1.38 or 0)
+                                local np = p + v3(sin(yawT) * cos(pitchT), sin(pitchT), cos(yawT) * cos(pitchT)) * (0.34 * scW)
+                                local prof = (0.062 + (sin((f ^ 0.82) * math.pi) ^ 1.25) * 0.145 + (1 - f) * 0.025) * scW
+                                local segLen = max(0.05, (np - p).Magnitude)
+                                local segCF = cfNew((p + np) * 0.5, np)
+                                local part = ch.segs[s]
+                                part.Size = v3(prof * 1.65, prof * 1.50, segLen * 1.62)
+                                part.CFrame = segCF
+                                part.Color = (f < 0.62) and wCol:Lerp(wCol2, f / 0.62) or wCol2:Lerp(wTip, (f - 0.62) / 0.38)
+                                part.Transparency = clamp(trW + 0.16, 0.10, 0.86)
+                                if ch.cores[s] then
+                                    ch.cores[s].Size = v3(prof * 0.78, prof * 0.70, segLen * 1.58)
+                                    ch.cores[s].CFrame = segCF
+                                    ch.cores[s].Color = wCore
+                                    ch.cores[s].Transparency = 0.04
+                                end
+                                for _, tf in ipairs(ch.tufts) do
+                                    if tf.segIdx == s then
+                                        tf.left.Size = v3(0.04 * scW, prof * 0.95, 0.36 * scW)
+                                        tf.right.Size = tf.left.Size
+                                        tf.left.CFrame = segCF * cfAng(0, 0.44, math.pi * 0.5) * cfNew(0, prof * 0.85, -0.05 * scW)
+                                        tf.right.CFrame = segCF * cfAng(0, -0.44, -math.pi * 0.5) * cfNew(0, prof * 0.85, -0.05 * scW)
+                                        tf.left.Color, tf.right.Color = part.Color, part.Color
+                                        tf.left.Transparency, tf.right.Transparency = trW, trW
+                                    end
+                                end
+                                pPrev, pLast = p, np
                                 p = np
                             end
+                            local tipCF = cfNew(pLast, pLast + (pLast - pPrev))
+                            ch.tipL.Size = v3(0.035 * scW, 0.13 * scW, 0.48 * scW)
+                            ch.tipR.Size = ch.tipL.Size
+                            ch.tipL.CFrame = tipCF * cfNew(0, 0, -0.18 * scW) * cfAng(0, 0, math.pi * 0.5)
+                            ch.tipR.CFrame = tipCF * cfNew(0, 0, -0.18 * scW) * cfAng(0, 0, -math.pi * 0.5)
+                            ch.tipL.Color, ch.tipR.Color = wTip, wTip
+                            ch.tipL.Transparency, ch.tipR.Transparency = 0.04, 0.04
                         end
-                    elseif wantWing == "Kagune" then
-                        local segsPerK = 6
+                    elseif wantWing == "Kagune" and fxWingMeta.chains then
                         for k = 1, 4 do
+                            local ch = fxWingMeta.chains[k]
                             local side = (k <= 2) and -1 or 1
                             local tier = (k % 2 == 1) and 1 or -1
-                            local p = v3(side * 0.18, baseY + (tier > 0 and 0.20 or -0.22), 0.40)
-                            for s = 1, segsPerK do
-                                local f = s / segsPerK
-                                local wA = sin(tNow * 2.9 * fSpd - f * 4.4 + k * 1.15) * (0.14 + f * 0.32)
-                                local wB = cos(tNow * 2.3 * fSpd - f * 3.9 + k * 0.85) * (0.10 + f * 0.24)
-                                local yawK = side * (0.68 - f * 0.36 + (f > 0.65 and (f - 0.65) * -1.4 or 0)) + wA
-                                local pitchK = (tier > 0 and 0.62 or -0.18) - f * 0.75 + wB
-                                local np = p + v3(sin(yawK) * cos(pitchK), sin(pitchK), cos(yawK) * cos(pitchK)) * (0.46 * scW)
-                                local part = fxWingParts[(k - 1) * segsPerK + s]
-                                local rad = (0.14 + sin(f * math.pi * 0.72) * 0.12) * (1 - f * 0.70) * scW
-                                part.Size = v3(rad * 1.85, rad * 1.75, (np - p).Magnitude * 1.45)
-                                part.CFrame = cfNew((p + np) * 0.5, np)
-                                part.Color = (f < 0.65) and wCol:Lerp(wCol2, f / 0.65) or wCol2:Lerp(wTip, (f - 0.65) / 0.35)
-                                part.Transparency = trW
+                            local p = v3(side * 0.14, baseY + (tier > 0 and 0.20 or -0.22), 0.40)
+                            local pLast, pPrev
+                            for s = 1, 10 do
+                                local f = s / 10
+                                local wA = sin(tNow * 2.9 * fSpd - f * 4.6 + k * 1.15) * (0.14 + f * 0.34)
+                                local wB = cos(tNow * 2.3 * fSpd - f * 4.0 + k * 0.85) * (0.10 + f * 0.26)
+                                local yawK = side * (0.66 - f * 0.34 + (f > 0.66 and (f - 0.66) * -1.45 or 0)) + wA
+                                local pitchK = (tier > 0 and 0.64 or -0.16) - f * 0.76 + wB
+                                local np = p + v3(sin(yawK) * cos(pitchK), sin(pitchK), cos(yawK) * cos(pitchK)) * (0.36 * scW)
+                                local rad = (0.09 + sin((f ^ 0.85) * math.pi) * 0.11) * (1 - f * 0.56) * scW
+                                local segLen = max(0.05, (np - p).Magnitude)
+                                local segCF = cfNew((p + np) * 0.5, np)
+                                local part = ch.segs[s]
+                                part.Size = v3(rad * 1.48, rad * 1.18, segLen * 1.54)
+                                part.CFrame = segCF
+                                part.Color = darkArmor:Lerp(wCol, f * 0.55)
+                                part.Transparency = clamp(trW * 0.55, 0.02, 0.58)
+                                if ch.cores[s] then
+                                    ch.cores[s].Size = v3(rad * 0.62, rad * 0.52, segLen * 1.50)
+                                    ch.cores[s].CFrame = segCF * cfNew(0, rad * 0.36, 0)
+                                    ch.cores[s].Color = (f > 0.7) and wTip or wCol2
+                                    ch.cores[s].Transparency = 0.04
+                                end
+                                for _, sp in ipairs(ch.spikes) do
+                                    if sp.segIdx == s then
+                                        sp.part.Size = v3(rad * 0.55, rad * 1.55, 0.38 * scW)
+                                        sp.part.CFrame = segCF * cfNew(0, rad * 0.85, -0.04 * scW) * cfAng(-0.42, math.pi, 0)
+                                        sp.part.Color = wCol2
+                                        sp.part.Transparency = 0.05
+                                    end
+                                end
+                                pPrev, pLast = p, np
                                 p = np
                             end
+                            local tipCF = cfNew(pLast, pLast + (pLast - pPrev))
+                            ch.tipL.Size = v3(0.03 * scW, 0.15 * scW, 0.46 * scW)
+                            ch.tipR.Size = ch.tipL.Size
+                            ch.tipL.CFrame = tipCF * cfNew(0, 0, -0.18 * scW) * cfAng(0, 0, math.pi * 0.5)
+                            ch.tipR.CFrame = tipCF * cfNew(0, 0, -0.18 * scW) * cfAng(0, 0, -math.pi * 0.5)
+                            ch.tipL.Color, ch.tipR.Color = wTip, wTip
+                            ch.tipL.Transparency, ch.tipR.Transparency = 0.03, 0.03
                         end
                     elseif wantWing == "Demon" then
                         local flap = sin(tNow * fSpd * 2.2) * 0.24
@@ -10352,31 +10667,145 @@ Library, SaveManager = (function()
                     end
                 end
 
-                -- 4c) Live 3D Satellites Preview
-                local wantSat = sat.Enabled and (tostring(clamp(floor(sat.Count or 3), 1, 6)) .. "_" .. (sat.Shape or "Star")) or ""
+                -- 4c) Live 3D Satellites Preview (shape-accurate multi-part models)
+                local satShapePv = sat.Shape or "Star"
+                local satSzPv = clamp(sat.Size or 0.45, 0.2, 0.9) * 0.78
+                local wantSat = sat.Enabled and (tostring(clamp(floor(sat.Count or 3), 1, 6)) .. "_" .. satShapePv .. "_" .. tostring(floor(satSzPv * 100))) or ""
                 if fxBuiltMode.sat ~= wantSat then
                     clearArr(fxSatParts)
+                    table.clear(fxSatMeta)
                     fxBuiltMode.sat = wantSat
                     if wantSat ~= "" then
                         local cnt = clamp(floor(sat.Count or 3), 1, 6)
+                        local function addPvSub(list, szV, shape, mat, tr, mode, off, anim, ax, ay, az)
+                            local p = mkFxPart(szV, WHITE, mat or Enum.Material.Neon, shape)
+                            p.Transparency = tr or 0.08
+                            fxSatParts[#fxSatParts + 1] = p
+                            list[#list + 1] = { part = p, off = off or cfNew(), mode = mode or 1, tr = tr or 0.08, anim = anim, ax = ax, ay = ay, az = az }
+                            return p
+                        end
                         for i = 1, cnt do
-                            fxSatParts[i] = mkFxPart(v3(0.32, 0.32, 0.32), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                            local list = {}
+                            if satShapePv == "Katana" then
+                                addPvSub(list, v3(0.08, 0.11, 0.48) * satSzPv, nil, Enum.Material.Neon, 0.06, 1, cfNew())
+                                addPvSub(list, v3(0.24, 0.24, 0.05) * satSzPv, nil, Enum.Material.Neon, 0.05, 2, cfNew(0, 0, -0.25 * satSzPv))
+                                addPvSub(list, v3(0.04, 0.07, 1.38) * satSzPv, nil, Enum.Material.SmoothPlastic, 0.02, 1, cfNew(0, 0.03 * satSzPv, -0.95 * satSzPv))
+                                addPvSub(list, v3(0.025, 0.06, 1.38) * satSzPv, nil, Enum.Material.Neon, 0.02, 3, cfNew(0, -0.02 * satSzPv, -0.95 * satSzPv))
+                                addPvSub(list, v3(0.03, 0.11, 0.30) * satSzPv, "wedge", Enum.Material.Neon, 0.02, 3, cfNew(0, 0.01 * satSzPv, -1.78 * satSzPv) * cfAng(math.pi, 0, 0))
+                            elseif satShapePv == "Kunai" then
+                                addPvSub(list, v3(0.08, 0.08, 0.46) * satSzPv, nil, Enum.Material.Neon, 0.06, 1, cfNew())
+                                addPvSub(list, v3(0.06, 0.17, 0.82) * satSzPv, "wedge", Enum.Material.Neon, 0.04, 3, cfNew(-0.08 * satSzPv, 0, -0.64 * satSzPv) * cfAng(0, 0, -math.pi * 0.5))
+                                addPvSub(list, v3(0.06, 0.17, 0.82) * satSzPv, "wedge", Enum.Material.Neon, 0.04, 3, cfNew(0.08 * satSzPv, 0, -0.64 * satSzPv) * cfAng(0, 0, math.pi * 0.5))
+                                for rk = 1, 6 do
+                                    local ra = (rk - 1) * (math.pi / 3)
+                                    addPvSub(list, v3(0.12, 0.05, 0.05) * satSzPv, nil, Enum.Material.Neon, 0.05, 2, cfNew(0, 0, 0.34 * satSzPv) * cfAng(0, ra, 0) * cfNew(0, 0, 0.11 * satSzPv))
+                                end
+                                addPvSub(list, v3(0.14, 0.02, 0.34) * satSzPv, nil, Enum.Material.Neon, 0.14, 2, cfNew(0, 0, 0.62 * satSzPv))
+                            elseif satShapePv == "Shuriken" then
+                                for k = 1, 4 do
+                                    local ba = (k - 1) * (math.pi * 0.5)
+                                    addPvSub(list, v3(0.05, 0.20, 0.64) * satSzPv, "wedge", Enum.Material.SmoothPlastic, 0.02, 1,
+                                        cfAng(0, ba, 0) * cfNew(0.15 * satSzPv, 0, -0.40 * satSzPv) * cfAng(0, -0.42, math.pi * 0.5))
+                                    addPvSub(list, v3(0.03, 0.09, 0.62) * satSzPv, "wedge", Enum.Material.Neon, 0.04, 3,
+                                        cfAng(0, ba, 0) * cfNew(0.20 * satSzPv, 0, -0.42 * satSzPv) * cfAng(0, -0.42, math.pi * 0.5))
+                                end
+                                for rk = 1, 6 do
+                                    local ra = (rk - 1) * (math.pi / 3)
+                                    addPvSub(list, v3(0.14, 0.05, 0.05) * satSzPv, nil, Enum.Material.Neon, 0.06, 2, cfAng(0, ra, 0) * cfNew(0, 0, 0.14 * satSzPv))
+                                end
+                            elseif satShapePv == "Magic Card" then
+                                addPvSub(list, v3(0.56, 0.88, 0.03) * satSzPv, nil, Enum.Material.Glass, 0.28, 1, cfNew())
+                                addPvSub(list, v3(0.60, 0.05, 0.05) * satSzPv, nil, Enum.Material.Neon, 0.05, 2, cfNew(0, 0.44 * satSzPv, 0))
+                                addPvSub(list, v3(0.60, 0.05, 0.05) * satSzPv, nil, Enum.Material.Neon, 0.05, 2, cfNew(0, -0.44 * satSzPv, 0))
+                                addPvSub(list, v3(0.05, 0.90, 0.05) * satSzPv, nil, Enum.Material.Neon, 0.05, 2, cfNew(0.28 * satSzPv, 0, 0))
+                                addPvSub(list, v3(0.05, 0.90, 0.05) * satSzPv, nil, Enum.Material.Neon, 0.05, 2, cfNew(-0.28 * satSzPv, 0, 0))
+                                addPvSub(list, v3(0.22, 0.22, 0.06) * satSzPv, nil, Enum.Material.Neon, 0.04, 3, cfNew(0, 0, 0.04 * satSzPv) * cfAng(0, 0, math.pi * 0.25))
+                            elseif satShapePv == "Spirit Flame" then
+                                addPvSub(list, v3(0.32, 0.34, 0.32) * satSzPv, Enum.PartType.Ball, Enum.Material.Neon, 0.04, 3, cfNew())
+                                for fk = 1, 4 do
+                                    local fa = (fk - 1) * (math.pi * 0.5)
+                                    addPvSub(list, v3(0.13, 0.54, 0.16) * satSzPv, "wedge", Enum.Material.Neon, 0.18, (fk % 2 == 1) and 1 or 2,
+                                        cfAng(0, fa, 0) * cfNew(0, 0.26 * satSzPv, 0.16 * satSzPv) * cfAng(-0.24, 0, 0))
+                                end
+                            elseif satShapePv == "Crescent" then
+                                for k = -4, 4 do
+                                    local f = k / 4
+                                    local ca = f * 1.38
+                                    local bly = max(0.03, (1 - f * f * 0.85)) * 0.17 * satSzPv
+                                    addPvSub(list, v3(bly, 0.07 * satSzPv, 0.22 * satSzPv), "sphere", Enum.Material.Neon, 0.06, (abs(k) >= 3) and 2 or 1,
+                                        cfNew(cos(ca) * 0.52 * satSzPv - 0.12 * satSzPv, sin(ca) * 0.52 * satSzPv, 0) * cfAng(0, 0, ca))
+                                end
+                                addPvSub(list, v3(0.14, 0.14, 0.14) * satSzPv, Enum.PartType.Ball, Enum.Material.Neon, 0.04, 3, cfNew(0.24 * satSzPv, 0.04 * satSzPv, 0))
+                            elseif satShapePv == "Butterfly" then
+                                addPvSub(list, v3(0.10, 0.10, 0.72) * satSzPv, "sphere", Enum.Material.Neon, 0.05, 3, cfNew())
+                                addPvSub(list, v3(0.82, 0.04, 0.52) * satSzPv, "sphere", Enum.Material.Neon, 0.20, 1, cfNew(-0.44 * satSzPv, 0, -0.14 * satSzPv), "wingL")
+                                addPvSub(list, v3(0.82, 0.04, 0.52) * satSzPv, "sphere", Enum.Material.Neon, 0.20, 1, cfNew(0.44 * satSzPv, 0, -0.14 * satSzPv), "wingR")
+                                addPvSub(list, v3(0.52, 0.04, 0.42) * satSzPv, "sphere", Enum.Material.Neon, 0.24, 2, cfNew(-0.30 * satSzPv, 0, 0.28 * satSzPv), "wingL")
+                                addPvSub(list, v3(0.52, 0.04, 0.42) * satSzPv, "sphere", Enum.Material.Neon, 0.24, 2, cfNew(0.30 * satSzPv, 0, 0.28 * satSzPv), "wingR")
+                            elseif satShapePv == "Planet" then
+                                addPvSub(list, v3(0.56, 0.56, 0.56) * satSzPv, Enum.PartType.Ball, Enum.Material.Neon, 0.08, 1, cfNew())
+                                for rk = 1, 10 do
+                                    local ra = (rk - 1) * (math.pi * 2 / 10)
+                                    addPvSub(list, v3(0.26, 0.03, 0.07) * satSzPv, "sphere", Enum.Material.Neon, 0.14, 2, cfAng(0.36, 0, -0.22) * cfAng(0, ra, 0) * cfNew(0, 0, 0.54 * satSzPv))
+                                end
+                                addPvSub(list, v3(0.17, 0.17, 0.17) * satSzPv, Enum.PartType.Ball, Enum.Material.Neon, 0.04, 3, cfNew(0.82 * satSzPv, 0, 0))
+                            elseif satShapePv == "Snowflake" then
+                                addPvSub(list, v3(0.16, 0.14, 0.16) * satSzPv, Enum.PartType.Ball, Enum.Material.Neon, 0.04, 3, cfNew())
+                                for k = 1, 3 do
+                                    local sa = (k - 1) * (math.pi / 3)
+                                    addPvSub(list, v3(0.07, 0.04, 1.38) * satSzPv, "sphere", Enum.Material.Neon, 0.08, 1, cfAng(0, sa, 0))
+                                    addPvSub(list, v3(0.28, 0.04, 0.06) * satSzPv, "sphere", Enum.Material.Neon, 0.12, 2, cfAng(0, sa, 0) * cfNew(0, 0, 0.42 * satSzPv))
+                                    addPvSub(list, v3(0.28, 0.04, 0.06) * satSzPv, "sphere", Enum.Material.Neon, 0.12, 2, cfAng(0, sa, 0) * cfNew(0, 0, -0.42 * satSzPv))
+                                end
+                            elseif satShapePv == "Sakura" or satShapePv == "Lotus" or satShapePv == "Clover" then
+                                local pCnt = (satShapePv == "Lotus") and 6 or ((satShapePv == "Clover") and 4 or 5)
+                                addPvSub(list, v3(0.24, 0.18, 0.24) * satSzPv, Enum.PartType.Ball, Enum.Material.Neon, 0.04, 3, cfNew())
+                                for k = 1, pCnt do
+                                    local pa = (k - 1) * (math.pi * 2 / pCnt)
+                                    addPvSub(list, v3(0.32, 0.05, 0.56) * satSzPv, "sphere", Enum.Material.Neon, 0.14, (k % 2 == 1) and 1 or 2, cfAng(0, pa, 0) * cfNew(0, 0, -0.36 * satSzPv))
+                                end
+                            else -- Star
+                                addPvSub(list, v3(0.24, 0.24, 0.24) * satSzPv, Enum.PartType.Ball, Enum.Material.Neon, 0.04, 3, cfNew())
+                                for k = 1, 4 do
+                                    local pa = (k - 1) * (math.pi * 0.5)
+                                    addPvSub(list, v3(0.14, 0.14, 0.68) * satSzPv, "wedge", Enum.Material.Neon, 0.06, 1, cfAng(0, pa, 0) * cfNew(0, 0, -0.42 * satSzPv))
+                                    addPvSub(list, v3(0.09, 0.09, 0.44) * satSzPv, "wedge", Enum.Material.Neon, 0.10, 2, cfAng(0, pa + math.pi * 0.25, 0) * cfNew(0, 0, -0.30 * satSzPv))
+                                end
+                            end
+                            fxSatMeta[i] = list
                         end
                     end
                 end
-                if wantSat ~= "" then
+                if wantSat ~= "" and #fxSatMeta > 0 then
                     local sCol, sCol2 = styleColors(sat.Style, sat.Color, sat.Speed or 1.4)
-                    local cnt = #fxSatParts
+                    local sBlade = sCol2:Lerp(WHITE, 0.44)
+                    local cnt = #fxSatMeta
                     local sr = clamp(sat.Radius or 3.2, 1.5, 5.0) * 0.65
                     local sSpd = clamp(sat.Speed or 1.4, 0.3, 3.5)
-                    local sSz = clamp(sat.Size or 0.45, 0.2, 0.9) * 0.75
                     for i = 1, cnt do
-                        local ang = tNow * sSpd * 1.85 + (i - 1) * ((math.pi * 2) / cnt)
-                        local p = fxSatParts[i]
-                        p.Size = v3(sSz, sSz, sSz)
-                        p.CFrame = cfNew(cos(ang) * sr, rigCenterY + (sat.Height or 0.8) * 0.45 + sin(ang * 2 + i) * 0.28, sin(ang) * sr) * cfAng(tNow * 2, ang, 0)
-                        p.Color = (i % 2 == 1) and sCol or sCol2
-                        p.Transparency = 0.10
+                        local phase = (i - 1) * ((math.pi * 2) / cnt)
+                        local ang = tNow * sSpd * 1.85 + phase
+                        local pos = v3(cos(ang) * sr, rigCenterY + (sat.Height or 0.8) * 0.45 + sin(ang * 2 + i) * 0.28, sin(ang) * sr)
+                        local bCF
+                        if satShapePv == "Butterfly" or satShapePv == "Kunai" or satShapePv == "Katana" then
+                            bCF = cfNew(pos, pos + v3(-sin(ang), 0, cos(ang))) * cfAng(0, 0, 0.25 * sin(tNow * 2 + phase))
+                        elseif satShapePv == "Shuriken" then
+                            bCF = cfNew(pos) * cfAng(0.25, tNow * 8.5 + phase, 0.18)
+                        else
+                            bCF = cfNew(pos) * cfAng(0.35 + 0.12 * sin(tNow * 1.6 + phase), tNow * 1.8 + phase, 0)
+                        end
+                        local flap = sin(tNow * 9.0 + phase) * 0.56
+                        for _, item in ipairs(fxSatMeta[i]) do
+                            item.part.Color = (item.mode == 3) and sBlade or ((item.mode == 2) and sCol2 or sCol)
+                            item.part.Transparency = item.tr
+                            if item.anim == "wingL" then
+                                item.part.CFrame = bCF * cfAng(0, 0, -flap) * item.off
+                            elseif item.anim == "wingR" then
+                                item.part.CFrame = bCF * cfAng(0, 0, flap) * item.off
+                            else
+                                item.part.CFrame = bCF * item.off
+                            end
+                        end
                     end
                 end
 
