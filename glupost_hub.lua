@@ -8765,9 +8765,9 @@ Library, SaveManager = (function()
             if not col then return end
             local idx = 0
             for _, ch in ipairs(col:GetChildren()) do
-                if ch:IsA("Frame") and ch._cardScale then
+                local sc = ch:IsA("Frame") and ch:FindFirstChild("CardScale")
+                if sc then
                     idx += 1
-                    local sc = ch._cardScale
                     sc.Scale = 0.96
                     local d = min(idx - 1, 5) * 0.025
                     task.delay(d, function()
@@ -11254,7 +11254,7 @@ Library, SaveManager = (function()
                 }, colFrame)
                 corner(card, 7)
                 local cst = stroke(card, TH.Border, 1, 0)
-                card._cardScale = mk("UIScale", { Scale = 1 }, card)
+                mk("UIScale", { Name = "CardScale", Scale = 1 }, card)
                 conn(card.MouseEnter, function() tw(cst, 0.14, { Color = TH.BorderStrong }) end)
                 conn(card.MouseLeave, function() tw(cst, 0.14, { Color = TH.Border }) end)
                 local hdr = mk("Frame", {
