@@ -404,10 +404,10 @@ local Profile = {
     },
     Misc = { JoinLeave = false },
     UI = {
-        BgEnabled = false,
-        BgId = "",
-        BgOpacity = 0.65,
-        BgPanelOpacity = 0.78,
+        BgEnabled = true,
+        BgId = "eris:default",
+        BgOpacity = 0.62,
+        BgPanelOpacity = 0.70,
         BgScale = "Crop",
         BgTint = Color3.fromRGB(255, 255, 255),
         Plexus = true,
@@ -785,16 +785,20 @@ local function clearAura()
     table.clear(auraDrawNodes)
 end
 
+local trailCoreObjects, trailCoreSeq = {}, nil
+
 local function clearTrail()
     for _, tr in ipairs(trailObjects) do safeDestroy(tr) end
+    for _, tr in ipairs(trailCoreObjects) do safeDestroy(tr) end
     for _, em in ipairs(trailEmitters) do safeDestroy(em) end
     for _, a in ipairs(trailAttachments) do safeDestroy(a) end
     table.clear(trailObjects)
+    table.clear(trailCoreObjects)
     table.clear(trailEmitters)
     table.clear(trailAttachments)
     table.clear(trailOrbitPairs)
     trailModeCur, trailPatternCur, trailSparksCur, trailWidthCur = nil, nil, nil, nil
-    trailSeqC1, trailSeqC2, trailSeq = nil, nil, nil
+    trailSeqC1, trailSeqC2, trailSeq, trailCoreSeq = nil, nil, nil, nil
 end
 
 local function clearAfterimages()
@@ -843,6 +847,8 @@ local function clearAnimeWings()
         safeDestroy(seg.part)
     end
     tclear(wingItems)
+    wingItems._chains = nil
+    wingItems._trailCols = nil
     wingShapeCur, wingSizeCur = nil, 0
 end
 
@@ -882,17 +888,60 @@ local function ensureAuraLight(root)
 end
 
 local TRAIL_PATTERNS = {
-    Pulse = { br = 3.4, mode = Enum.TextureMode.Stretch, w = { {0,1},{0.2,0.35},{0.4,0.95},{0.65,0.25},{0.85,0.7},{1,0} }, t = { {0,0.04},{0.25,0.72},{0.5,0.12},{0.75,0.78},{1,1} } },
-    Starlight = { br = 3.8, mode = Enum.TextureMode.Wrap, tex = "rbxasset://textures/particles/sparkles_main.dds", tlen = 1.6, w = { {0,1.15},{0.4,0.85},{1,0} }, t = { {0,0.05},{0.6,0.35},{1,1} } },
-    Blade = { br = 4.0, mode = Enum.TextureMode.Stretch, w = { {0,1.35},{0.18,1.05},{0.65,0.35},{1,0} }, t = { {0,0},{0.22,0.12},{0.75,0.68},{1,1} } },
-    ["Neon Core"] = { br = 4.6, mode = Enum.TextureMode.Stretch, w = { {0,1.15},{0.55,0.95},{0.85,0.55},{1,0} }, t = { {0,0.02},{0.7,0.25},{1,1} } },
-    Chakra = { br = 4.8, mode = Enum.TextureMode.Stretch, w = { {0,1.4},{0.22,0.9},{0.45,1.25},{0.75,0.45},{1,0} }, t = { {0,0.02},{0.45,0.22},{0.8,0.62},{1,1} } },
-    ["Slash Arc"] = { br = 5.2, mode = Enum.TextureMode.Stretch, w = { {0,1.65},{0.15,1.25},{0.45,0.35},{1,0} }, t = { {0,0},{0.18,0.08},{0.55,0.6},{1,1} } },
-    Smooth = { br = 2.8, mode = Enum.TextureMode.Stretch, w = { {0,1},{0.28,0.72},{0.7,0.25},{1,0} }, t = { {0,0.06},{0.5,0.45},{1,1} } },
+    Smooth = {
+        br = 2.6, coreBr = 4.6, wScale = 1.0, mode = Enum.TextureMode.Stretch,
+        w = { {0, 0.72}, {0.14, 1.0}, {0.55, 0.58}, {1, 0} },
+        cw = { {0, 0.34}, {0.16, 0.42}, {0.58, 0.18}, {1, 0} },
+        t = { {0, 0.32}, {0.35, 0.56}, {0.75, 0.84}, {1, 1} },
+        ct = { {0, 0.02}, {0.42, 0.24}, {0.8, 0.72}, {1, 1} },
+    },
+    Pulse = {
+        br = 3.0, coreBr = 5.2, wScale = 1.08, mode = Enum.TextureMode.Stretch,
+        w = { {0, 0.65}, {0.2, 1.0}, {0.42, 0.58}, {0.66, 0.88}, {1, 0} },
+        cw = { {0, 0.30}, {0.2, 0.44}, {0.42, 0.22}, {0.66, 0.36}, {1, 0} },
+        t = { {0, 0.26}, {0.25, 0.58}, {0.5, 0.34}, {0.78, 0.78}, {1, 1} },
+        ct = { {0, 0.02}, {0.35, 0.35}, {0.6, 0.16}, {0.85, 0.75}, {1, 1} },
+    },
+    Starlight = {
+        br = 3.4, coreBr = 5.5, wScale = 1.15, mode = Enum.TextureMode.Wrap,
+        tex = "rbxasset://textures/particles/sparkles_main.dds", tlen = 1.8,
+        w = { {0, 0.88}, {0.22, 1.0}, {0.65, 0.52}, {1, 0} },
+        cw = { {0, 0.36}, {0.22, 0.42}, {0.65, 0.18}, {1, 0} },
+        t = { {0, 0.22}, {0.5, 0.52}, {1, 1} },
+        ct = { {0, 0.02}, {0.5, 0.32}, {1, 1} },
+    },
+    Blade = {
+        br = 3.2, coreBr = 5.6, wScale = 1.25, mode = Enum.TextureMode.Stretch,
+        w = { {0, 0.40}, {0.12, 1.0}, {0.48, 0.52}, {1, 0} },
+        cw = { {0, 0.18}, {0.12, 0.46}, {0.48, 0.20}, {1, 0} },
+        t = { {0, 0.22}, {0.32, 0.45}, {0.72, 0.78}, {1, 1} },
+        ct = { {0, 0}, {0.28, 0.16}, {0.72, 0.68}, {1, 1} },
+    },
+    ["Neon Core"] = {
+        br = 3.6, coreBr = 6.0, wScale = 1.10, mode = Enum.TextureMode.Stretch,
+        w = { {0, 0.90}, {0.2, 1.0}, {0.72, 0.64}, {1, 0} },
+        cw = { {0, 0.42}, {0.25, 0.48}, {0.72, 0.26}, {1, 0} },
+        t = { {0, 0.30}, {0.55, 0.54}, {1, 1} },
+        ct = { {0, 0}, {0.6, 0.16}, {1, 1} },
+    },
+    Chakra = {
+        br = 3.5, coreBr = 5.8, wScale = 1.32, mode = Enum.TextureMode.Stretch,
+        w = { {0, 0.78}, {0.16, 1.0}, {0.42, 0.68}, {0.68, 0.82}, {1, 0} },
+        cw = { {0, 0.34}, {0.16, 0.46}, {0.42, 0.28}, {0.68, 0.34}, {1, 0} },
+        t = { {0, 0.24}, {0.45, 0.48}, {0.8, 0.78}, {1, 1} },
+        ct = { {0, 0}, {0.48, 0.22}, {0.82, 0.68}, {1, 1} },
+    },
+    ["Slash Arc"] = {
+        br = 3.8, coreBr = 6.2, wScale = 1.45, mode = Enum.TextureMode.Stretch,
+        w = { {0, 0.32}, {0.14, 1.0}, {0.42, 0.62}, {0.75, 0.24}, {1, 0} },
+        cw = { {0, 0.14}, {0.14, 0.46}, {0.45, 0.22}, {1, 0} },
+        t = { {0, 0.20}, {0.28, 0.42}, {0.68, 0.75}, {1, 1} },
+        ct = { {0, 0}, {0.22, 0.12}, {0.65, 0.64}, {1, 1} },
+    },
 }
 local TRAIL_SPARK_DEF = {
-    Name = "GlupostTrailSparks", Rate = 14, LifeMin = 0.22, LifeMax = 0.52, SpdMin = 0.5, SpdMax = 1.9,
-    Drag = 2.0, Size = { {0, 0.14}, {0.4, 0.1}, {1, 0} }, Tr = { {0, 0.1}, {1, 1} },
+    Name = "GlupostTrailSparks", Rate = 18, LifeMin = 0.26, LifeMax = 0.58, SpdMin = 0.4, SpdMax = 1.6,
+    Drag = 2.4, Size = { {0, 0}, {0.2, 0.16}, {1, 0} }, Tr = { {0, 0.12}, {1, 1} },
 }
 
 local function makeRibbonPair(parentPart, posA, posB, lifetime, pattern, withSparks)
@@ -901,27 +950,43 @@ local function makeRibbonPair(parentPart, posA, posB, lifetime, pattern, withSpa
     local a1 = Instance.new("Attachment")
     a1.Name, a1.Position, a1.Parent = "GlupostTrailB", posB, parentPart
     local pat = TRAIL_PATTERNS[pattern] or TRAIL_PATTERNS.Smooth
-    local tr = Instance.new("Trail")
-    tr.Name, tr.Enabled = "GlupostEnergyRibbon", false
-    tr.Attachment0, tr.Attachment1 = a0, a1
-    tr.FaceCamera, tr.LightEmission, tr.MinLength, tr.Lifetime = true, 1, 0.03, lifetime
-    tr.Brightness, tr.TextureMode = pat.br, pat.mode
-    if pat.tex then tr.Texture, tr.TextureLength = pat.tex, pat.tlen end
-    tr.WidthScale, tr.Transparency = numSeq(pat.w), numSeq(pat.t)
-    tr.Parent = parentPart
+
+    -- Soft outer bloom ribbon
+    local trOuter = Instance.new("Trail")
+    trOuter.Name, trOuter.Enabled = "GlupostEnergyRibbon", false
+    trOuter.Attachment0, trOuter.Attachment1 = a0, a1
+    trOuter.FaceCamera, trOuter.LightEmission, trOuter.LightInfluence = true, 1, 0
+    trOuter.MinLength, trOuter.Lifetime = 0.02, lifetime
+    trOuter.Brightness, trOuter.TextureMode = pat.br, pat.mode
+    if pat.tex then trOuter.Texture, trOuter.TextureLength = pat.tex, pat.tlen end
+    trOuter.WidthScale, trOuter.Transparency = numSeq(pat.w), numSeq(pat.t)
+    trOuter.Parent = parentPart
+
+    -- Bright inner laser core ribbon sharing attachments
+    local trCore = Instance.new("Trail")
+    trCore.Name, trCore.Enabled = "GlupostEnergyCore", false
+    trCore.Attachment0, trCore.Attachment1 = a0, a1
+    trCore.FaceCamera, trCore.LightEmission, trCore.LightInfluence = true, 1, 0
+    trCore.MinLength, trCore.Lifetime = 0.02, lifetime * 0.88
+    trCore.Brightness, trCore.TextureMode = pat.coreBr, Enum.TextureMode.Stretch
+    trCore.WidthScale, trCore.Transparency = numSeq(pat.cw), numSeq(pat.ct)
+    trCore.Parent = parentPart
+
     if withSparks then
         tinsert(trailEmitters, makeEmitter(a0, TRAIL_SPARK_DEF))
     end
     tinsert(trailAttachments, a0)
     tinsert(trailAttachments, a1)
-    tinsert(trailObjects, tr)
+    tinsert(trailObjects, trOuter)
+    tinsert(trailCoreObjects, trCore)
     return a0, a1
 end
 
-local function trailLimb(char, root, n1, n2, fbOff, limbOff, hw, lifetime, pattern, withSparks)
+local function trailLimb(char, root, n1, n2, fbOff, limbOff, hw, lifetime, pattern, withSparks, kind)
     local p = char:FindFirstChild(n1) or char:FindFirstChild(n2) or root
     local off = (p == root) and fbOff or limbOff
-    makeRibbonPair(p, off + v3(0, hw, 0), off - v3(0, hw, 0), lifetime, pattern, withSparks)
+    local a0, a1 = makeRibbonPair(p, off + v3(0, hw, 0), off - v3(0, hw, 0), lifetime, pattern, withSparks)
+    return a0, a1, off, p
 end
 
 local function ensureTrail(char, root, mode, pattern, width, lifetime, withSparks)
@@ -935,63 +1000,81 @@ local function ensureTrail(char, root, mode, pattern, width, lifetime, withSpark
     end
     clearTrail()
     trailModeCur, trailPatternCur, trailSparksCur, trailWidthCur = mode, pattern, withSparks, width
-    local hw = clamp(width or 0.16, 0.05, 0.6) * 0.5
+    local pat = TRAIL_PATTERNS[pattern] or TRAIL_PATTERNS.Smooth
+    local hw = clamp(width or 0.16, 0.05, 0.6) * 0.68 * (pat.wScale or 1)
     if mode == "Hands" or mode == "Full" then
-        trailLimb(char, root, "LeftHand", "Left Arm", v3(-1.3, 0.2, 0), v3(0, -0.25, 0), hw, lifetime, pattern, withSparks)
-        trailLimb(char, root, "RightHand", "Right Arm", v3(1.3, 0.2, 0), v3(0, -0.25, 0), hw, lifetime, pattern, withSparks)
+        local a0, a1, base = trailLimb(char, root, "LeftHand", "Left Arm", v3(-1.35, 0.15, 0), v3(0, -0.22, 0), hw, lifetime, pattern, withSparks)
+        trailOrbitPairs[#trailOrbitPairs + 1] = { a0 = a0, a1 = a1, phase = 0, hw = hw, kind = "LimbWisp", base = base, rad = 0.22 }
+        local b0, b1, base2 = trailLimb(char, root, "RightHand", "Right Arm", v3(1.35, 0.15, 0), v3(0, -0.22, 0), hw, lifetime, pattern, withSparks)
+        trailOrbitPairs[#trailOrbitPairs + 1] = { a0 = b0, a1 = b1, phase = math.pi, hw = hw, kind = "LimbWisp", base = base2, rad = 0.22 }
     end
     if mode == "Feet" or mode == "Full" then
-        trailLimb(char, root, "LeftFoot", "Left Leg", v3(-0.55, -2.5, 0), v3(0, -0.15, 0), hw, lifetime, pattern, withSparks)
-        trailLimb(char, root, "RightFoot", "Right Leg", v3(0.55, -2.5, 0), v3(0, -0.15, 0), hw, lifetime, pattern, withSparks)
+        local a0, a1, base = trailLimb(char, root, "LeftFoot", "Left Leg", v3(-0.55, -2.5, 0), v3(0, -0.12, 0), hw * 0.9, lifetime, pattern, withSparks)
+        trailOrbitPairs[#trailOrbitPairs + 1] = { a0 = a0, a1 = a1, phase = 0.6, hw = hw * 0.9, kind = "LimbWisp", base = base, rad = 0.16 }
+        local b0, b1, base2 = trailLimb(char, root, "RightFoot", "Right Leg", v3(0.55, -2.5, 0), v3(0, -0.12, 0), hw * 0.9, lifetime, pattern, withSparks)
+        trailOrbitPairs[#trailOrbitPairs + 1] = { a0 = b0, a1 = b1, phase = 0.6 + math.pi, hw = hw * 0.9, kind = "LimbWisp", base = base2, rad = 0.16 }
+    end
+    if mode == "Full" then
+        for k = 1, 2 do
+            local a0, a1 = makeRibbonPair(root, v3(1.8, 0, 0), v3(1.8, hw * 2, 0), lifetime, pattern, withSparks)
+            trailOrbitPairs[#trailOrbitPairs + 1] = { a0 = a0, a1 = a1, phase = (k - 1) * math.pi, hw = hw, kind = "WaistAura" }
+        end
     end
     if mode == "Hands" or mode == "Feet" or mode == "Full" then return end
     if mode == "Void Slash" then
-        for _, p in ipairs({ v3(-1.75, 1.35, 0.65), v3(1.75, 1.35, 0.65), v3(-1.1, -0.4, 0.85), v3(1.1, -0.4, 0.85) }) do
-            makeRibbonPair(root, p + v3(0, hw, 0), p - v3(0, hw, 0), lifetime, pattern, withSparks)
+        for k = 1, 3 do
+            local a0, a1 = makeRibbonPair(root, v3(2.2, 0, 0), v3(2.2, hw * 2, 0), lifetime, pattern, withSparks)
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * ((math.pi * 2) / 3), hw = hw * 1.1, kind = "VoidSlash", tier = k }
         end
     elseif mode == "Orbit" or mode == "Helix" or mode == "Spiral Halo" then
-        local cnt = (mode == "Orbit") and 3 or 2
-        local defPos = (mode == "Orbit") and v3(2.2, 0, 0) or (mode == "Helix" and v3(1.5, 0, 0) or v3(1.2, 2.2, 0))
+        local cnt = (mode == "Orbit") and 3 or (mode == "Spiral Halo" and 3 or 2)
+        local defPos = (mode == "Orbit") and v3(2.1, 0, 0) or (mode == "Helix" and v3(1.5, 0, 0) or v3(1.25, 2.35, 0))
         local kind = (mode == "Spiral Halo") and "Halo" or mode
         for k = 1, cnt do
             local a0, a1 = makeRibbonPair(root, defPos, defPos + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
-            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * ((math.pi * 2) / cnt), hw = hw, kind = kind }
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * ((math.pi * 2) / cnt), hw = hw, kind = kind, tier = k }
         end
     elseif mode == "Kagune" then
         local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
         for k = 1, 4 do
             local side = (k <= 2) and -1 or 1
-            local tier = (k % 2 == 1) and 0.65 or -0.15
-            local base = v3(side * 0.55, tier, 1.35)
+            local tier = (k % 2 == 1) and 0.55 or -0.25
+            local base = v3(side * 1.1, tier, 1.35)
             local a0, a1 = makeRibbonPair(torso, base, base + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
-            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * 1.1, hw = hw, kind = "Kagune", side = side, tier = tier }
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * 1.25, hw = hw * 1.08, kind = "Kagune", side = side, tier = tier }
         end
     elseif mode == "Bankai" then
         for k = 1, 2 do
-            local defPos = v3(2.0, 0, 0)
+            local defPos = v3(2.15, 0, 0)
             local a0, a1 = makeRibbonPair(root, defPos, defPos + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
-            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * math.pi, hw = hw, kind = "Bankai" }
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * math.pi, hw = hw * 1.15, kind = "Bankai", tier = k }
         end
     elseif mode == "Nine-Tails" then
         local torso = char:FindFirstChild("LowerTorso") or char:FindFirstChild("Torso") or root
-        for k = 1, 7 do
-            local spread = (k - 4) * 0.34
-            local base = v3(sin(spread) * 1.9, -0.25 + abs(k - 4) * 0.25, 1.6)
+        for k = 1, 9 do
+            local spread = (k - 5) * 0.28
+            local base = v3(sin(spread) * 2.2, -0.25 + abs(k - 5) * 0.16, 1.95)
             local a0, a1 = makeRibbonPair(torso, base, base + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
-            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = k * 0.72, hw = hw, kind = "NineTails", spread = spread, rank = k - 4 }
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = (k - 1) * 0.52, hw = hw * 0.95, kind = "NineTails", spread = spread, rank = k - 5 }
         end
     elseif mode == "Angel Wings" then
         local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
         for k = 1, 4 do
             local side = (k <= 2) and -1 or 1
             local upper = (k % 2 == 1)
-            local base = v3(side * 1.6, upper and 0.8 or 0.1, 0.9)
+            local base = v3(side * 1.9, upper and 0.85 or 0.05, 0.95)
             local a0, a1 = makeRibbonPair(torso, base, base + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
-            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = upper and 0 or 0.8, hw = hw, kind = "WingTip", side = side, upper = upper }
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = upper and 0 or 0.9, hw = hw * 1.05, kind = "WingTip", side = side, upper = upper }
         end
-    else
-        makeRibbonPair(root, v3(-1.45, 0.55 + hw, 0.35), v3(-1.45, 0.55 - hw, 0.35), lifetime, pattern, withSparks)
-        makeRibbonPair(root, v3(1.45, 0.55 + hw, 0.35), v3(1.45, 0.55 - hw, 0.35), lifetime, pattern, withSparks)
+    else -- "Wings" -> 6 graceful feathered shoulder arcs
+        local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
+        for k = 1, 6 do
+            local side = (k <= 3) and -1 or 1
+            local tier = ((k - 1) % 3) + 1
+            local base = v3(side * (1.5 + tier * 0.35), 1.0 - tier * 0.38, 0.85)
+            local a0, a1 = makeRibbonPair(torso, base, base + v3(0, hw * 2, 0), lifetime, pattern, withSparks)
+            trailOrbitPairs[k] = { a0 = a0, a1 = a1, phase = tier * 0.55 + (side < 0 and 0 or 0.25), hw = hw * 0.92, kind = "FeatheredWing", side = side, tier = tier }
+        end
     end
 end
 
@@ -2494,52 +2577,85 @@ local function updateLocalEffects(dt)
         if seqChanged then
             trailSeqC1, trailSeqC2 = c1, c2
             trailSeq = ColorSequence.new(c1, c2)
+            trailCoreSeq = ColorSequence.new(WHITE:Lerp(c1, 0.28), WHITE:Lerp(c2, 0.38))
         end
         if #trailOrbitPairs > 0 then
-            local tNow = clock() * 3.4 * spd
+            local tNow = clock() * 3.1 * spd
             for k, pair in ipairs(trailOrbitPairs) do
                 if pair.a0 and pair.a0.Parent and pair.a1 and pair.a1.Parent then
                     local ang, pos
                     if pair.kind == "Helix" then
-                        ang = tNow * 1.35 + pair.phase
-                        local rad = 1.45
-                        local y = sin(tNow * 0.75 + pair.phase) * 2.2
+                        ang = tNow * 1.45 + pair.phase
+                        local rad = 1.50
+                        local y = sin(tNow * 0.65 + pair.phase * 0.5) * 2.05
                         pos = v3(cos(ang) * rad, y, sin(ang) * rad)
                     elseif pair.kind == "Halo" then
-                        ang = tNow * 1.6 + pair.phase
-                        local rad = 1.18
-                        local y = 2.25 + sin(tNow * 1.2 + k) * 0.22
+                        ang = tNow * 1.55 + pair.phase
+                        local rad = 1.25 + sin(tNow * 1.8 + k) * 0.10
+                        local y = 2.40 + sin(tNow * 2.1 + pair.phase) * 0.18
                         pos = v3(cos(ang) * rad, y, sin(ang) * rad)
+                    elseif pair.kind == "VoidSlash" then
+                        ang = tNow * 1.75 + pair.phase + sin(tNow * 1.15 + pair.phase) * 0.45
+                        local rad = 2.25
+                        local px, pz = cos(ang) * rad, sin(ang) * rad
+                        local tilt = (pair.tier == 1) and 0.62 or ((pair.tier == 2) and -0.62 or 0.14)
+                        pos = v3(px, sin(ang) * sin(tilt) * rad + 0.15, cos(tilt) * pz)
                     elseif pair.kind == "Kagune" then
-                        ang = tNow * 1.15 + pair.phase
-                        local swayX = pair.side * (0.95 + sin(ang) * 0.65)
-                        local swayY = pair.tier + cos(ang * 0.85) * 0.75
-                        local swayZ = 1.55 + sin(ang * 0.7) * 0.45
+                        ang = tNow * 1.35 + pair.phase
+                        local arch = sin(ang)
+                        local swayX = pair.side * (1.15 + (0.65 + arch * 0.65) + cos(ang * 0.5) * 0.25)
+                        local swayY = pair.tier + sin(ang * 1.4) * 0.95 + cos(ang * 0.7) * 0.32
+                        local swayZ = 1.55 + cos(ang) * 0.65
                         pos = v3(swayX, swayY, swayZ)
                     elseif pair.kind == "Bankai" then
-                        ang = tNow * 1.85 + pair.phase
-                        local rad = 1.85 + sin(ang * 2) * 0.45
-                        local y = sin(ang * 2) * 1.45
-                        pos = v3(cos(ang) * rad, y, sin(ang) * rad)
+                        ang = tNow * 1.9 + pair.phase + sin(tNow * 1.4) * 0.35
+                        local rad = 2.15 + cos(ang) * 0.35
+                        local tilt = (pair.tier == 1) and 0.58 or -0.58
+                        pos = v3(cos(ang) * rad, sin(ang) * sin(tilt) * rad, sin(ang) * cos(tilt) * rad)
                     elseif pair.kind == "NineTails" then
-                        ang = tNow * 1.1 + pair.phase
-                        local swayX = sin(pair.spread) * 2.2 + sin(ang) * 0.55
-                        local swayY = -0.1 + abs(pair.rank) * 0.28 + cos(ang * 0.9) * 0.45
-                        local swayZ = 1.85 + cos(pair.spread) * 0.65
+                        ang = tNow * 1.25 - abs(pair.rank) * 0.28 + pair.phase
+                        local whip = sin(ang) * 0.92 + sin(ang * 2.0) * 0.26
+                        local reach = 2.65 + cos(ang * 0.9) * 0.45
+                        local swayX = sin(pair.spread) * reach + whip * cos(pair.spread)
+                        local swayY = -0.18 + (4 - abs(pair.rank)) * 0.16 + sin(ang * 1.3) * 0.55
+                        local swayZ = 1.15 + cos(pair.spread) * reach * 0.78 - abs(whip) * 0.22
                         pos = v3(swayX, swayY, swayZ)
                     elseif pair.kind == "WingTip" then
-                        ang = tNow * 1.25 + pair.phase
-                        local flapY = sin(ang) * 0.75 + (pair.upper and 0.95 or -0.05)
-                        local spanX = pair.side * (1.85 + cos(ang) * 0.38)
-                        pos = v3(spanX, flapY, 1.05 + sin(ang * 0.5) * 0.25)
+                        ang = tNow * 1.35 + pair.phase
+                        local sweep = sin(ang)
+                        local flapY = (pair.upper and 0.95 or 0.05) + sweep * 0.82
+                        local spanX = pair.side * (2.05 + cos(ang) * 0.45)
+                        local zOff = 1.05 + sin(ang * 2) * 0.28
+                        pos = v3(spanX, flapY, zOff)
+                    elseif pair.kind == "FeatheredWing" then
+                        ang = tNow * 1.2 + pair.phase
+                        local flapY = (1.1 - pair.tier * 0.38) + sin(ang) * 0.58
+                        local spanX = pair.side * (1.75 + pair.tier * 0.32 + cos(ang) * 0.28)
+                        local zOff = 0.95 + (3 - pair.tier) * 0.14 + sin(ang * 2) * 0.18
+                        pos = v3(spanX, flapY, zOff)
+                    elseif pair.kind == "LimbWisp" then
+                        ang = tNow * 1.9 + pair.phase
+                        pos = pair.base + v3(cos(ang) * pair.rad, sin(ang * 1.5) * (pair.rad * 0.45), sin(ang) * pair.rad)
+                    elseif pair.kind == "WaistAura" then
+                        ang = tNow * 1.4 + pair.phase
+                        pos = v3(cos(ang) * 1.85, -0.35 + sin(ang * 2) * 0.25, sin(ang) * 1.85)
                     else
-                        ang = tNow + pair.phase
-                        local rad = 2.15 + sin(tNow * 0.7 + k) * 0.3
-                        local tilt = (k == 1) and 0.45 or ((k == 2) and -0.45 or 0.15)
-                        local y = sin(ang) * sin(tilt) * rad + cos(tNow * 0.8 + k) * 0.55
-                        pos = v3(cos(ang) * rad, y, sin(ang) * rad)
+                        ang = tNow * 1.25 + pair.phase
+                        local rad = 2.08 + sin(tNow * 0.65 + k) * 0.22
+                        local tilt = (k == 1) and 0.48 or ((k == 2) and -0.48 or 0.14)
+                        local y = sin(ang) * sin(tilt) * rad + cos(tNow * 0.75 + k) * 0.35
+                        pos = v3(cos(ang) * rad, y, sin(ang) * cos(tilt * 0.5) * rad)
                     end
-                    local wOff = v3(-cos(ang) * pair.hw * 0.4, pair.hw, -sin(ang) * pair.hw * 0.4)
+                    local vel = pair.prevPos and (pos - pair.prevPos) or v3(0.01, 0, 0.01)
+                    pair.prevPos = pos
+                    local wOff
+                    if vel.Magnitude > 1e-4 then
+                        local perp = vel:Cross(v3(0, 1, 0))
+                        if perp.Magnitude < 1e-4 then perp = vel:Cross(v3(1, 0, 0)) end
+                        wOff = perp.Unit * pair.hw
+                    else
+                        wOff = v3(0, pair.hw, 0)
+                    end
                     pair.a0.Position = pos + wOff
                     pair.a1.Position = pos - wOff
                 end
@@ -2550,8 +2666,13 @@ local function updateLocalEffects(dt)
             if seqChanged or not tr.Enabled then tr.Color = trailSeq end
             if not tr.Enabled then tr.Enabled = true end
         end
+        for _, tr in ipairs(trailCoreObjects) do
+            if tr.Lifetime ~= life * 0.88 then tr.Lifetime = life * 0.88 end
+            if seqChanged or not tr.Enabled then tr.Color = trailCoreSeq end
+            if not tr.Enabled then tr.Enabled = true end
+        end
         for _, em in ipairs(trailEmitters) do
-            if seqChanged or not em.Enabled then em.Color = trailSeq end
+            if seqChanged or not em.Enabled then em.Color = trailCoreSeq end
             if not em.Enabled then em.Enabled = true end
         end
     elseif #trailObjects > 0 then
@@ -2909,22 +3030,73 @@ local function updateLocalEffects(dt)
                     end
                 end
             elseif wShape == "Kagune" then
+                local chains = {}
+                local segCount = 12
                 for k = 1, 4 do
                     local side = (k <= 2) and -1 or 1
                     local tier = (k % 2 == 1) and 1 or -1
-                    for s = 1, 5 do
-                        local w = (0.28 - (s - 1) * 0.042) * wSz
-                        addWSeg(v3(w, w, 0.72 * wSz), "sphere", (s >= 4) and 2 or 1, { side = side, tier = tier, seg = s, idx = k })
+                    local chain = { side = side, tier = tier, idx = k, segs = {}, pts = {} }
+                    for s = 1, segCount do
+                        local f = (s - 0.5) / segCount
+                        local rad = (0.15 + sin(f * math.pi * 0.72) * 0.13) * (1 - f * 0.72) * wSz
+                        if s == segCount then rad = 0.045 * wSz end
+                        addWSeg(v3(rad * 1.85, rad * 1.75, 0.52 * wSz), "sphere", (s >= segCount - 2) and 2 or 1, { chain = true })
+                        local entry = wingItems[#wingItems]
+                        entry.f = f
+                        entry.rad = rad
+                        chain.segs[s] = entry
+                        if s == segCount then
+                            local ta0 = Instance.new("Attachment")
+                            ta0.Position, ta0.Parent = v3(0, 0.07 * wSz, 0), entry.part
+                            local ta1 = Instance.new("Attachment")
+                            ta1.Position, ta1.Parent = v3(0, -0.07 * wSz, 0), entry.part
+                            local tr = Instance.new("Trail")
+                            tr.Name, tr.Attachment0, tr.Attachment1 = "GlupostWingTipTrail", ta0, ta1
+                            tr.FaceCamera, tr.LightEmission, tr.LightInfluence = true, 1, 0
+                            tr.Lifetime, tr.MinLength, tr.Brightness = 0.30, 0.02, 4.2
+                            tr.WidthScale = numSeq({ {0, 1}, {0.5, 0.45}, {1, 0} })
+                            tr.Transparency = numSeq({ {0, 0.25}, {1, 1} })
+                            tr.Parent = entry.part
+                            chain.trail = tr
+                        end
                     end
+                    chains[k] = chain
                 end
+                wingItems._chains = chains
             elseif wShape == "Nine Tails" then
-                for k = 1, 7 do
-                    local rank = k - 4
-                    for s = 1, 5 do
-                        local w = (0.42 - abs(s - 2) * 0.065) * wSz
-                        addWSeg(v3(w, w, 0.76 * wSz), "sphere", (s >= 4) and 2 or 1, { rank = rank, seg = s, idx = k })
+                local chains = {}
+                local segCount = 11
+                for k = 1, 9 do
+                    local rank = k - 5
+                    local chain = { rank = rank, idx = k, segs = {}, pts = {} }
+                    for s = 1, segCount do
+                        local f = (s - 0.5) / segCount
+                        -- Lush fox-tail silhouette: slim root -> plush mid belly -> crisp tapered point
+                        local profile = 0.11 + (sin((f ^ 0.85) * math.pi) ^ 1.15) * 0.30 + (1 - f) * 0.06
+                        local rad = profile * wSz
+                        addWSeg(v3(rad * 1.9, rad * 1.78, 0.48 * wSz), "sphere", (s >= segCount - 2) and 2 or 1, { chain = true })
+                        local entry = wingItems[#wingItems]
+                        entry.f = f
+                        entry.rad = rad
+                        chain.segs[s] = entry
+                        if s == segCount then
+                            local ta0 = Instance.new("Attachment")
+                            ta0.Position, ta0.Parent = v3(0, 0.08 * wSz, 0), entry.part
+                            local ta1 = Instance.new("Attachment")
+                            ta1.Position, ta1.Parent = v3(0, -0.08 * wSz, 0), entry.part
+                            local tr = Instance.new("Trail")
+                            tr.Name, tr.Attachment0, tr.Attachment1 = "GlupostTailTipTrail", ta0, ta1
+                            tr.FaceCamera, tr.LightEmission, tr.LightInfluence = true, 1, 0
+                            tr.Lifetime, tr.MinLength, tr.Brightness = 0.32, 0.02, 4.0
+                            tr.WidthScale = numSeq({ {0, 1}, {0.45, 0.45}, {1, 0} })
+                            tr.Transparency = numSeq({ {0, 0.32}, {1, 1} })
+                            tr.Parent = entry.part
+                            chain.trail = tr
+                        end
                     end
+                    chains[k] = chain
                 end
+                wingItems._chains = chains
             else -- Cyber Mecha
                 for side = -1, 1, 2 do
                     for b = 1, 4 do
@@ -2940,48 +3112,98 @@ local function updateLocalEffects(dt)
         local baseTr = clamp(aw.Transparency or 0.18, 0.02, 0.9)
         local tCF = torsoPart.CFrame
         local c1, c2 = styleColors(aw.Style, aw.Color, fSpd)
-        local cCore = c2:Lerp(WHITE, 0.45)
+        local cCore = c2:Lerp(WHITE, 0.48)
+        local chains = wingItems._chains
 
-        for _, seg in ipairs(wingItems) do
-            local col = (seg.mode == 2) and c2 or (seg.core and cCore or c1)
-            seg.part.Color = col
-            seg.part.Transparency = clamp(baseTr + (seg.mode == 2 and 0.06 or 0), 0.02, 0.96)
-            if wShape == "Seraph" then
-                local flap = sin(tNow * 2.8 * fSpd - seg.tier * 0.45 - seg.seg * 0.18) * 0.28
-                local pitch = (2 - seg.tier) * 0.38 - (seg.seg - 1) * 0.16
-                local anchor = tCF * cfNew(seg.side * 0.45, 0.55 - (seg.tier - 1) * 0.42, 0.52)
-                seg.part.CFrame = anchor * cfAng(0, seg.side * (-0.38 - flap), seg.side * pitch) * cfNew(seg.side * (seg.len * 0.5 + seg.seg * 0.12 * wSz), -seg.seg * 0.12 * wSz, 0)
-            elseif wShape == "Demon" then
-                local flap = sin(tNow * 2.6 * fSpd) * 0.24
-                if seg.role == "arm" then
-                    seg.part.CFrame = tCF * cfNew(seg.side * 0.35, 0.45, 0.52) * cfAng(0.18, seg.side * (-0.42 - flap), seg.side * 0.48) * cfNew(seg.side * 1.1 * wSz, 0, 0)
-                else
-                    local fan = -0.35 + (seg.rib - 1) * 0.34
-                    local rootArm = tCF * cfNew(seg.side * 0.35, 0.45, 0.52) * cfAng(0.18, seg.side * (-0.42 - flap), seg.side * 0.48) * cfNew(seg.side * (0.65 + seg.rib * 0.35) * wSz, 0, 0)
-                    seg.part.CFrame = rootArm * cfAng(0, 0, seg.side * fan) * cfNew(0, -seg.len * 0.48, 0)
+        if (wShape == "Nine Tails" or wShape == "Kagune") and chains then
+            local tipCol = c2:Lerp(WHITE, 0.46)
+            local trailSeq = ColorSequence.new(c1, tipCol)
+            local baseRoot = char:FindFirstChild("LowerTorso") or torsoPart
+            local anchorCF = (wShape == "Nine Tails" and isPartValid(baseRoot)) and baseRoot.CFrame or tCF
+
+            for _, ch in ipairs(chains) do
+                local pts = ch.pts
+                local n = #ch.segs
+                if wShape == "Nine Tails" then
+                    local rank = ch.rank
+                    local fanYaw = rank * 0.27
+                    local fanPitch = 0.14 + (4 - abs(rank)) * 0.07
+                    local segStep = 0.34 * wSz
+                    local rootLocal = v3(sin(fanYaw) * 0.12, -0.32 + abs(rank) * 0.03, 0.34)
+                    local p = anchorCF:PointToWorldSpace(rootLocal)
+                    pts[0] = p
+                    for s = 1, n do
+                        local f = s / n
+                        local swayWave = sin(tNow * 2.35 * fSpd - f * 3.8 + ch.idx * 0.72) * (0.14 + f * 0.42)
+                        local bobWave = cos(tNow * 1.85 * fSpd - f * 3.2 + ch.idx * 0.55) * (0.06 + f * 0.24)
+                        local yaw = fanYaw * (0.55 + f * 0.55) + swayWave
+                        -- Arcs outward, lifts gracefully, and curls forward slightly near tip
+                        local pitch = fanPitch + sin(f * math.pi * 0.85) * 0.55 - (f > 0.72 and (f - 0.72) * 1.45 or 0) + bobWave
+                        local dirLocal = v3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
+                        p = p + anchorCF:VectorToWorldSpace(dirLocal * segStep)
+                        pts[s] = p
+                    end
+                else -- Kagune
+                    local side, tier = ch.side, ch.tier
+                    local segStep = 0.38 * wSz
+                    local rootLocal = v3(side * 0.16, tier > 0 and 0.22 or -0.22, 0.42)
+                    local p = anchorCF:PointToWorldSpace(rootLocal)
+                    pts[0] = p
+                    for s = 1, n do
+                        local f = s / n
+                        local writheA = sin(tNow * 2.9 * fSpd - f * 4.4 + ch.idx * 1.15) * (0.16 + f * 0.36)
+                        local writheB = cos(tNow * 2.3 * fSpd - f * 3.9 + ch.idx * 0.85) * (0.12 + f * 0.28)
+                        local yaw = side * (0.68 - f * 0.36 + (f > 0.65 and (f - 0.65) * -1.4 or 0)) + writheA
+                        local pitch = (tier > 0 and 0.62 or -0.18) - f * 0.75 + writheB
+                        local dirLocal = v3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch))
+                        p = p + anchorCF:VectorToWorldSpace(dirLocal * segStep)
+                        pts[s] = p
+                    end
                 end
-            elseif wShape == "Kagune" then
-                local s = seg.seg
-                local waveA = sin(tNow * 3.4 * fSpd - s * 0.65 + seg.idx * 1.1)
-                local waveB = cos(tNow * 2.7 * fSpd - s * 0.55 + seg.idx * 0.8)
-                local px = seg.side * (0.42 + s * 0.44 * wSz + waveA * 0.22 * s * 0.25)
-                local py = seg.tier * 0.45 + (s - 1) * (seg.tier > 0 and 0.28 or -0.08) * wSz + waveB * 0.24 * (s * 0.25)
-                local pz = 0.52 + s * 0.52 * wSz
-                seg.part.CFrame = tCF * cfNew(px, py, pz) * cfAng(waveB * 0.35, seg.side * (0.45 + waveA * 0.3), 0)
-            elseif wShape == "Nine Tails" then
-                local s = seg.seg
-                local wave = sin(tNow * 2.5 * fSpd - s * 0.55 + seg.idx * 0.7) * 0.22 * (s * 0.28)
-                local spread = seg.rank * 0.34
-                local lift = (0.18 + s * 0.24) * wSz + abs(seg.rank) * 0.08 * wSz
-                local reach = 0.52 + s * 0.56 * wSz
-                local px = sin(spread) * reach + wave
-                local pz = 0.45 + cos(spread) * reach
-                seg.part.CFrame = tCF * cfNew(px, -0.35 + lift, pz) * cfAng(-(0.28 + s * 0.07), spread, wave * 0.5)
-            else -- Cyber Mecha
-                local pulse = sin(tNow * 3.2 * fSpd + seg.seg * 0.5) * 0.14
-                local angleZ = -seg.side * (0.28 + seg.seg * 0.24 + pulse)
-                local anchor = tCF * cfNew(seg.side * (0.55 + seg.seg * 0.28 * wSz), 0.72 - seg.seg * 0.14 * wSz, 0.58 + seg.seg * 0.08)
-                seg.part.CFrame = anchor * cfAng(-0.22, seg.side * -0.25, angleZ) * cfNew(0, 0.55 * wSz, 0)
+
+                for s = 1, n do
+                    local entry = ch.segs[s]
+                    local p0, p1 = pts[s - 1], pts[s]
+                    local span = p1 - p0
+                    local dist = max(0.05, span.Magnitude)
+                    local mid = (p0 + p1) * 0.5
+                    local r = entry.rad
+                    entry.part.Size = v3(r * 1.88, r * 1.76, dist * 1.48)
+                    entry.part.CFrame = cfNew(mid, p1)
+                    local f = entry.f
+                    local colSeg = (f < 0.65) and c1:Lerp(c2, f / 0.65) or c2:Lerp(tipCol, (f - 0.65) / 0.35)
+                    entry.part.Color = colSeg
+                    entry.part.Transparency = clamp(baseTr + (1 - sin(clamp(f, 0.05, 0.95) * math.pi)) * 0.08, 0.02, 0.94)
+                end
+                if ch.trail and ch.trail.Parent then
+                    ch.trail.Color = trailSeq
+                end
+            end
+        else
+            for _, seg in ipairs(wingItems) do
+                local col = (seg.mode == 2) and c2 or (seg.core and cCore or c1)
+                seg.part.Color = col
+                seg.part.Transparency = clamp(baseTr + (seg.mode == 2 and 0.06 or 0), 0.02, 0.96)
+                if wShape == "Seraph" then
+                    local flap = sin(tNow * 2.8 * fSpd - seg.tier * 0.45 - seg.seg * 0.18) * 0.28
+                    local pitch = (2 - seg.tier) * 0.38 - (seg.seg - 1) * 0.16
+                    local anchor = tCF * cfNew(seg.side * 0.45, 0.55 - (seg.tier - 1) * 0.42, 0.52)
+                    seg.part.CFrame = anchor * cfAng(0, seg.side * (-0.38 - flap), seg.side * pitch) * cfNew(seg.side * (seg.len * 0.5 + seg.seg * 0.12 * wSz), -seg.seg * 0.12 * wSz, 0)
+                elseif wShape == "Demon" then
+                    local flap = sin(tNow * 2.6 * fSpd) * 0.24
+                    if seg.role == "arm" then
+                        seg.part.CFrame = tCF * cfNew(seg.side * 0.35, 0.45, 0.52) * cfAng(0.18, seg.side * (-0.42 - flap), seg.side * 0.48) * cfNew(seg.side * 1.1 * wSz, 0, 0)
+                    else
+                        local fan = -0.35 + (seg.rib - 1) * 0.34
+                        local rootArm = tCF * cfNew(seg.side * 0.35, 0.45, 0.52) * cfAng(0.18, seg.side * (-0.42 - flap), seg.side * 0.48) * cfNew(seg.side * (0.65 + seg.rib * 0.35) * wSz, 0, 0)
+                        seg.part.CFrame = rootArm * cfAng(0, 0, seg.side * fan) * cfNew(0, -seg.len * 0.48, 0)
+                    end
+                else -- Cyber Mecha
+                    local pulse = sin(tNow * 3.2 * fSpd + seg.seg * 0.5) * 0.14
+                    local angleZ = -seg.side * (0.28 + seg.seg * 0.24 + pulse)
+                    local anchor = tCF * cfNew(seg.side * (0.55 + seg.seg * 0.28 * wSz), 0.72 - seg.seg * 0.14 * wSz, 0.58 + seg.seg * 0.08)
+                    seg.part.CFrame = anchor * cfAng(-0.22, seg.side * -0.25, angleZ) * cfNew(0, 0.55 * wSz, 0)
+                end
             end
         end
     elseif #wingItems > 0 then
@@ -7601,6 +7823,7 @@ end
 local SaveManager
 Library, SaveManager = (function()
     local TweenSvc = game:GetService("TweenService")
+    local GuiSvc = game:GetService("GuiService")
 
     local function pickFont(primary, fallback)
         local ok, f = pcall(function() return Enum.Font[primary] end)
@@ -7799,7 +8022,14 @@ Library, SaveManager = (function()
             return
         end
         if clock() - openedPopupAt < 0.05 then return end
-        local mp = UIS:GetMouseLocation()
+        local mp
+        if inp.UserInputType == Enum.UserInputType.Touch then
+            local okI, ins = pcall(GuiSvc.GetGuiInset, GuiSvc)
+            local iv = okI and ins or v2(0, 0)
+            mp = v2(inp.Position.X + iv.X, inp.Position.Y + iv.Y)
+        else
+            mp = UIS:GetMouseLocation()
+        end
         if pointInGui(activePopup, mp) or pointInGui(activePopupTrigger, mp) then return end
         closeActivePopup()
     end)
@@ -8016,10 +8246,27 @@ Library, SaveManager = (function()
             ClipsDescendants = true,
             ZIndex = 2,
         }, sg)
-        corner(main, 8)
+        corner(main, 9)
         stroke(main, TH.BorderStrong, 1, 0)
-        local mainScale = mk("UIScale", { Scale = 0.97 }, main)
-        twS(mainScale, 0.18, Enum.EasingStyle.Quart, { Scale = 1 })
+        local mainScale = mk("UIScale", { Scale = 0.93 }, main)
+        twS(mainScale, 0.24, Enum.EasingStyle.Back, { Scale = 1 })
+
+        -- Subtle animated accent shimmer bar at top of MainWindow
+        local mainTopAccent = mk("Frame", {
+            Name = "NoPanelBg",
+            Size = UDim2.new(1, 0, 0, 2),
+            BackgroundColor3 = TH.Accent,
+            BorderSizePixel = 0,
+            ZIndex = 10,
+        }, main)
+        regAccent(mainTopAccent, "BackgroundColor3", "solid")
+        local mainTopGrad = mk("UIGradient", {
+            Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.65),
+                NumberSequenceKeypoint.new(0.5, 0),
+                NumberSequenceKeypoint.new(1, 0.65),
+            }),
+        }, mainTopAccent)
 
         local previewWin = mk("Frame", {
             Name = "PreviewWindow",
@@ -8032,10 +8279,18 @@ Library, SaveManager = (function()
             ClipsDescendants = true,
             ZIndex = 2,
         }, sg)
-        corner(previewWin, 8)
+        corner(previewWin, 9)
         stroke(previewWin, TH.BorderStrong, 1, 0)
-        local previewScale = mk("UIScale", { Scale = showPrev and 0.97 or 1 }, previewWin)
-        if showPrev then twS(previewScale, 0.20, Enum.EasingStyle.Quart, { Scale = 1 }) end
+        local previewScale = mk("UIScale", { Scale = showPrev and 0.93 or 1 }, previewWin)
+        if showPrev then twS(previewScale, 0.26, Enum.EasingStyle.Back, { Scale = 1 }) end
+        local prevTopAccent = mk("Frame", {
+            Name = "NoPanelBg",
+            Size = UDim2.new(1, 0, 0, 2),
+            BackgroundColor3 = TH.Accent,
+            BorderSizePixel = 0,
+            ZIndex = 10,
+        }, previewWin)
+        regAccent(prevTopAccent, "BackgroundColor3", "solid")
 
         local function syncPreviewPos()
             local mx, my = main.Position.X.Offset, main.Position.Y.Offset
@@ -8046,10 +8301,10 @@ Library, SaveManager = (function()
 
         local sideW = 166
         local sidebar = mk("Frame", {
-            Name = "Sidebar",
+            Name = "PanelBg",
             Size = UDim2.new(0, sideW, 1, 0),
             BackgroundColor3 = TH.SideBg,
-            BackgroundTransparency = 0.02,
+            BackgroundTransparency = 0.04,
             ZIndex = 4,
         }, main)
         mk("Frame", {
@@ -8059,6 +8314,20 @@ Library, SaveManager = (function()
             BorderSizePixel = 0,
             ZIndex = 5,
         }, sidebar)
+
+        -- Sliding active tab bar synced across sidebar switches
+        local sideActiveBar = mk("Frame", {
+            Name = "NoPanelBg",
+            AnchorPoint = v2(0, 0.5),
+            Position = UDim2.fromOffset(9, 64),
+            Size = UDim2.fromOffset(3, 16),
+            BackgroundColor3 = TH.Accent,
+            BorderSizePixel = 0,
+            Visible = false,
+            ZIndex = 9,
+        }, sidebar)
+        corner(sideActiveBar, 99)
+        regAccent(sideActiveBar, "BackgroundColor3", "solid")
 
         -- Clean Flat Brand Header (42px matching topbar)
         local brandHdr = mk("Frame", {
@@ -8074,15 +8343,16 @@ Library, SaveManager = (function()
             ZIndex = 5,
         }, brandHdr)
         local brandDot = mk("Frame", {
-            AnchorPoint = v2(0, 0.5),
-            Position = UDim2.new(0, 12, 0.5, 0),
-            Size = UDim2.fromOffset(7, 7),
+            AnchorPoint = v2(0.5, 0.5),
+            Position = UDim2.new(0, 15, 0.5, 0),
+            Size = UDim2.fromOffset(8, 8),
             BackgroundColor3 = TH.Accent,
             BorderSizePixel = 0,
             ZIndex = 6,
         }, brandHdr)
-        corner(brandDot, 2)
+        corner(brandDot, 3)
         regAccent(brandDot, "BackgroundColor3", "solid")
+        local brandDotScale = mk("UIScale", { Scale = 1 }, brandDot)
         mk("TextLabel", {
             Position = UDim2.fromOffset(25, 0),
             Size = UDim2.new(1, -76, 1, 0),
@@ -8134,17 +8404,34 @@ Library, SaveManager = (function()
             BorderSizePixel = 0,
             ZIndex = 5,
         }, profBar)
-        local avatarImg = mk("ImageLabel", {
+        local avatarRing = mk("Frame", {
+            Name = "NoPanelBg",
             AnchorPoint = v2(0, 0.5),
-            Position = UDim2.new(0, 12, 0.5, 0),
-            Size = UDim2.fromOffset(26, 26),
+            Position = UDim2.new(0, 10, 0.5, 0),
+            Size = UDim2.fromOffset(30, 30),
+            BackgroundTransparency = 1,
+            ZIndex = 6,
+        }, profBar)
+        corner(avatarRing, 99)
+        local avatarRingSt = stroke(avatarRing, TH.Accent, 1.5, 0.25)
+        regAccent(avatarRingSt, "Color", "solid")
+        local avatarRingGrad = mk("UIGradient", {
+            Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(0.55, 0.55),
+                NumberSequenceKeypoint.new(1, 0),
+            }),
+        }, avatarRingSt)
+        local avatarImg = mk("ImageLabel", {
+            AnchorPoint = v2(0.5, 0.5),
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(25, 25),
             BackgroundColor3 = TH.CtrlBg,
             BorderSizePixel = 0,
             Image = "",
-            ZIndex = 6,
-        }, profBar)
+            ZIndex = 7,
+        }, avatarRing)
         corner(avatarImg, 99)
-        stroke(avatarImg, TH.Border, 1, 0)
         task.spawn(function()
             if LP and LP.UserId then
                 local ok, imgUrl = pcall(Players.GetUserThumbnailAsync, Players, LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
@@ -8197,7 +8484,7 @@ Library, SaveManager = (function()
         }, contentWrap)
 
         local topbar = mk("Frame", {
-            Name = "Topbar",
+            Name = "PanelBg",
             Size = UDim2.new(1, 0, 0, 42),
             BackgroundColor3 = TH.TopBg,
             BackgroundTransparency = 0.04,
@@ -8377,9 +8664,9 @@ Library, SaveManager = (function()
             local want = win._visible and cfg().UI.ShowPreview
             if want then
                 syncPreviewPos()
-                previewScale.Scale = 0.96
+                previewScale.Scale = 0.93
                 previewWin.Visible = true
-                twS(previewScale, 0.16, Enum.EasingStyle.Quart, { Scale = 1 })
+                twS(previewScale, 0.22, Enum.EasingStyle.Back, { Scale = 1 })
             else
                 previewWin.Visible = false
             end
@@ -8399,23 +8686,23 @@ Library, SaveManager = (function()
             visToken += 1
             local tok = visToken
             if win._visible then
-                mainScale.Scale = 0.97
+                mainScale.Scale = 0.93
                 main.Visible = true
-                twS(mainScale, 0.16, Enum.EasingStyle.Quart, { Scale = 1 })
+                twS(mainScale, 0.24, Enum.EasingStyle.Back, { Scale = 1 })
                 if cfg().UI.ShowPreview ~= false then
                     syncPreviewPos()
-                    previewScale.Scale = 0.97
+                    previewScale.Scale = 0.93
                     previewWin.Visible = true
-                    twS(previewScale, 0.18, Enum.EasingStyle.Quart, { Scale = 1 })
+                    twS(previewScale, 0.26, Enum.EasingStyle.Back, { Scale = 1 })
                 else
                     previewWin.Visible = false
                 end
             else
                 closeActivePopup()
                 hideTip()
-                tw(mainScale, 0.12, { Scale = 0.97 })
-                tw(previewScale, 0.12, { Scale = 0.97 })
-                task.delay(0.12, function()
+                tw(mainScale, 0.13, { Scale = 0.94 })
+                tw(previewScale, 0.13, { Scale = 0.94 })
+                task.delay(0.13, function()
                     if visToken == tok and not win._visible then
                         main.Visible = false
                         previewWin.Visible = false
@@ -8455,6 +8742,43 @@ Library, SaveManager = (function()
             end
         end)
 
+        local function syncSideBarPos(tabObj, instant)
+            if not (tabObj and tabObj.btn and tabObj.btn.Parent) then return end
+            local relY = (tabObj.btn.AbsolutePosition.Y - sidebar.AbsolutePosition.Y) + (tabObj.btn.AbsoluteSize.Y * 0.5)
+            if relY > 42 and relY < sidebar.AbsoluteSize.Y - 44 then
+                sideActiveBar.Visible = true
+                if instant then
+                    sideActiveBar.Position = UDim2.fromOffset(9, relY)
+                else
+                    sideActiveBar.Size = UDim2.fromOffset(3, 8)
+                    twS(sideActiveBar, 0.22, Enum.EasingStyle.Back, { Position = UDim2.fromOffset(9, relY), Size = UDim2.fromOffset(3, 16) })
+                end
+            else
+                sideActiveBar.Visible = false
+            end
+        end
+        conn(tabScroll:GetPropertyChangedSignal("CanvasPosition"), function()
+            if win._activeTab then syncSideBarPos(win._activeTab, true) end
+        end)
+
+        local function cascadeColumn(col)
+            if not col then return end
+            local idx = 0
+            for _, ch in ipairs(col:GetChildren()) do
+                if ch:IsA("Frame") and ch._cardScale then
+                    idx += 1
+                    local sc = ch._cardScale
+                    sc.Scale = 0.96
+                    local d = min(idx - 1, 5) * 0.025
+                    task.delay(d, function()
+                        if sc and sc.Parent then
+                            twS(sc, 0.20, Enum.EasingStyle.Quart, { Scale = 1 })
+                        end
+                    end)
+                end
+            end
+        end
+
         local function selectTab(tabObj)
             if win._activeTab == tabObj then return end
             closeActivePopup()
@@ -8463,23 +8787,28 @@ Library, SaveManager = (function()
                 local on = (t == tabObj)
                 t.page.Visible = on
                 if on then
-                    t.bar.Size = UDim2.fromOffset(2, 4)
-                    t.bar.Visible = true
-                    twS(t.bar, 0.16, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(2, 16) })
+                    t.bar.Visible = false
                     if t.leftCol then
-                        t.leftCol.Position = UDim2.fromOffset(0, 8)
-                        twS(t.leftCol, 0.16, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(0, 0) })
+                        t.leftCol.Position = UDim2.fromOffset(0, 10)
+                        twS(t.leftCol, 0.20, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(0, 0) })
+                        cascadeColumn(t.leftCol)
                     end
                     if t.rightCol then
-                        t.rightCol.Position = UDim2.new(0.5, 5, 0, 12)
-                        twS(t.rightCol, 0.20, Enum.EasingStyle.Quart, { Position = UDim2.new(0.5, 5, 0, 0) })
+                        t.rightCol.Position = UDim2.new(0.5, 5, 0, 14)
+                        twS(t.rightCol, 0.24, Enum.EasingStyle.Quart, { Position = UDim2.new(0.5, 5, 0, 0) })
+                        cascadeColumn(t.rightCol)
                     end
+                    if t.iconScale then
+                        t.iconScale.Scale = 1.20
+                        twS(t.iconScale, 0.22, Enum.EasingStyle.Back, { Scale = 1 })
+                    end
+                    task.defer(function() syncSideBarPos(t, false) end)
                 else
                     t.bar.Visible = false
                 end
-                tw(t.btn, 0.14, {
-                    BackgroundColor3 = on and TH.CtrlBg or TH.SideBg,
-                    BackgroundTransparency = on and 0 or 1,
+                tw(t.btn, 0.16, {
+                    BackgroundColor3 = on and TH.AccentSoft or TH.SideBg,
+                    BackgroundTransparency = on and 0.28 or 1,
                 })
                 t.lbl.TextColor3 = on and TH.Text or TH.SubText
                 t.lbl.Font = on and F_BOLD or F_MED
@@ -8488,7 +8817,10 @@ Library, SaveManager = (function()
                 end
             end
             win._activeTab = tabObj
+            topTitle.Position = UDim2.fromOffset(22, 0)
+            topTitle.TextTransparency = 0.55
             topTitle.Text = tabObj.name
+            twS(topTitle, 0.18, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(14, 0), TextTransparency = 0 })
         end
         tinsert(lib._accentRefs, {
             fn = function()
@@ -8640,7 +8972,13 @@ Library, SaveManager = (function()
                 }, plexusLayer)
             end
             conn(RunService.RenderStepped, function(dt)
-                local on = win._visible and (cfg().UI.Plexus ~= false) and not (cfg().UI.BgEnabled and cfg().UI.BgId ~= "")
+                if win._visible then
+                    local tUi = clock()
+                    mainTopGrad.Offset = v2(sin(tUi * 1.15) * 0.45, 0)
+                    avatarRingGrad.Rotation = (tUi * 52) % 360
+                    brandDotScale.Scale = 0.92 + (sin(tUi * 2.8) + 1) * 0.08
+                end
+                local on = win._visible and (cfg().UI.Plexus ~= false)
                 if plexusLayer.Visible ~= on then plexusLayer.Visible = on end
                 if not on then return end
                 local sz, ap = plexusLayer.AbsoluteSize, plexusLayer.AbsolutePosition
@@ -8697,6 +9035,7 @@ Library, SaveManager = (function()
         -- Live Interactive 3D Skin & ESP Preview Panel
         do
             local pHead = mk("Frame", {
+                Name = "PanelBg",
                 Size = UDim2.new(1, 0, 0, 42),
                 BackgroundColor3 = TH.TopBg,
                 BackgroundTransparency = 0.04,
@@ -8789,43 +9128,73 @@ Library, SaveManager = (function()
                 Name = "NoPanelBg",
                 Position = UDim2.fromOffset(10, 52),
                 Size = UDim2.new(1, -20, 1, -88),
-                BackgroundColor3 = rgb(232, 236, 244),
+                BackgroundColor3 = rgb(224, 230, 242),
                 BackgroundTransparency = 0,
                 Active = true,
                 ClipsDescendants = true,
                 ZIndex = 4,
             }, previewWin)
-            corner(stage, 6)
+            corner(stage, 7)
             stroke(stage, TH.Border, 1, 0)
             mk("UIGradient", {
                 Rotation = 90,
-                Color = ColorSequence.new(rgb(241, 244, 250), rgb(222, 228, 239)),
+                Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, rgb(242, 245, 252)),
+                    ColorSequenceKeypoint.new(0.65, rgb(228, 234, 246)),
+                    ColorSequenceKeypoint.new(1, rgb(212, 220, 236)),
+                }),
             }, stage)
+
+            -- Soft studio radial glow behind character
+            local stageAuraGlow = mk("Frame", {
+                Name = "NoPanelBg",
+                AnchorPoint = v2(0.5, 0.5),
+                Position = UDim2.fromScale(0.5, 0.48),
+                Size = UDim2.fromOffset(170, 170),
+                BackgroundColor3 = TH.AccentSoft,
+                BackgroundTransparency = 0.45,
+                BorderSizePixel = 0,
+                ZIndex = 4,
+            }, stage)
+            corner(stageAuraGlow, 99)
+            regAccent(stageAuraGlow, "BackgroundColor3", "soft")
 
             local vpFrame = mk("ViewportFrame", {
                 Name = "NoPanelBg",
                 Size = UDim2.fromScale(1, 1),
                 BackgroundTransparency = 1,
-                Ambient = rgb(198, 204, 216),
-                LightColor = rgb(255, 252, 246),
-                LightDirection = v3(0.45, -0.75, 0.65),
+                Ambient = rgb(184, 192, 210),
+                LightColor = rgb(255, 250, 244),
+                LightDirection = v3(0.55, -0.72, 0.72),
                 ZIndex = 5,
             }, stage)
             local vpWorld = mk("WorldModel", {}, vpFrame)
-            local vpCam = mk("Camera", { FieldOfView = 36 }, vpFrame)
+            local vpCam = mk("Camera", { FieldOfView = 35 }, vpFrame)
             vpFrame.CurrentCamera = vpCam
 
-            -- Subtle 3D pedestal disc under avatar feet
+            -- Two-layer studio pedestal under avatar feet
             local stageDisc = mk("Part", {
                 Shape = Enum.PartType.Cylinder,
-                Size = v3(0.05, 3.6, 3.6),
+                Size = v3(0.06, 3.8, 3.8),
                 CFrame = cfNew(0, -0.04, 0) * cfAng(0, 0, math.rad(90)),
                 Anchored = true,
                 CanCollide = false,
                 Material = Enum.Material.SmoothPlastic,
                 Color = rgb(206, 213, 226),
-                Transparency = 0.45,
+                Transparency = 0.35,
             }, vpWorld)
+            local stageRingParts = {}
+            for i = 1, 16 do
+                local rp = mk("Part", {
+                    Size = v3(0.42, 0.03, 0.06),
+                    Anchored = true,
+                    CanCollide = false,
+                    Material = Enum.Material.Neon,
+                    Color = TH.Accent,
+                    Transparency = 0.25,
+                }, vpWorld)
+                stageRingParts[i] = rp
+            end
 
             local fxFolder = mk("Folder", { Name = "Preview3DFx" }, vpWorld)
             local ov2d = mk("Frame", {
@@ -8927,6 +9296,20 @@ Library, SaveManager = (function()
                 rigHead = nil
                 chamsApplied = false
 
+                local partGroup = {}
+                for _, d in ipairs(mdl:GetDescendants()) do
+                    if d:IsA("Weld") or d:IsA("Motor6D") or d:IsA("WeldConstraint") then
+                        local p0, p1 = d.Part0, d.Part1
+                        if p0 and p1 then
+                            if p0.Name == "Head" then partGroup[p1] = "head"
+                            elseif p1.Name == "Head" then partGroup[p0] = "head"
+                            elseif p0.Name == "UpperTorso" or p0.Name == "Torso" then partGroup[p1] = "upper"
+                            elseif p1.Name == "UpperTorso" or p1.Name == "Torso" then partGroup[p0] = "upper"
+                            end
+                        end
+                    end
+                end
+
                 for _, d in ipairs(mdl:GetDescendants()) do
                     if d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("BillboardGui") or d:IsA("ScreenGui")
                         or d:IsA("SurfaceGui") or d:IsA("ForceField") or d:IsA("Highlight")
@@ -8985,8 +9368,22 @@ Library, SaveManager = (function()
                 local shiftY = -minY
                 for _, d in ipairs(allParts) do
                     d.CFrame = d.CFrame + v3(0, shiftY, 0)
+                    local grp = partGroup[d]
+                    if not grp then
+                        if d.Name == "Head" then
+                            grp = "head"
+                        elseif d.Name == "UpperTorso" or d.Name == "Torso" or d.Name == "LeftUpperArm" or d.Name == "LeftLowerArm" or d.Name == "LeftHand"
+                            or d.Name == "RightUpperArm" or d.Name == "RightLowerArm" or d.Name == "RightHand" or d.Name == "Left Arm" or d.Name == "Right Arm" then
+                            grp = "upper"
+                        elseif d:FindFirstAncestorWhichIsA("Accessory") then
+                            grp = (d.Position.Y > (minY + shiftY + (maxY - minY) * 0.72)) and "head" or "upper"
+                        else
+                            grp = "lower"
+                        end
+                    end
                     rigParts[#rigParts + 1] = {
                         part = d, col = d.Color, mat = d.Material, tr = d.Transparency, refl = d.Reflectance,
+                        baseCF = d.CFrame, group = grp,
                     }
                     if d.Name == "Head" then rigHead = d end
                     if CORE_BODY[d.Name] and d.Name ~= "HumanoidRootPart" then
@@ -9005,7 +9402,7 @@ Library, SaveManager = (function()
                 local fullH = max(3.5, (maxY - minY))
                 local fullW = max(2.2, (maxX - minX))
                 rigCenterY = (rigBMin.Y + rigBMax.Y) * 0.52
-                rigBaseDist = clamp(max(fullH * 1.48, fullW * 1.85), 5.8, 12.5)
+                rigBaseDist = clamp(max(fullH * 1.46, fullW * 1.85), 5.8, 12.5)
                 rigEdges = rigJoints.UpperTorso and R15_EDGES or R6_EDGES
                 mdl.Parent = vpWorld
                 rigModel = mdl
@@ -9054,8 +9451,9 @@ Library, SaveManager = (function()
                 clonePlayerRig()
             end)
 
-            -- 3D Camera Orbit & Zoom Interaction
-            local yaw, pitch, zoomMult = 0.28, 0.08, 1.0
+            -- 3D Camera Orbit & Zoom Interaction with smooth inertia + touch support
+            local yaw, pitch, zoomMult = 0.34, 0.08, 1.0
+            local targetYaw, targetPitch, targetZoom = 0.34, 0.08, 1.0
             local orbitDragging, lastMX, lastMY = false, 0, 0
             conn(pOrbit.MouseButton1Click, function()
                 autoSpin = not autoSpin
@@ -9065,33 +9463,33 @@ Library, SaveManager = (function()
                 pOrbitSt.Transparency = autoSpin and 0.6 or 0
             end)
             conn(stage.InputBegan, function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                     orbitDragging = true
                     lastMX, lastMY = inp.Position.X, inp.Position.Y
                 end
             end)
             conn(stage.InputChanged, function(inp)
                 if inp.UserInputType == Enum.UserInputType.MouseWheel then
-                    zoomMult = clamp(zoomMult - inp.Position.Z * 0.09, 0.58, 1.70)
+                    targetZoom = clamp(targetZoom - inp.Position.Z * 0.09, 0.56, 1.75)
                 end
             end)
             conn(UIS.InputChanged, function(inp)
-                if orbitDragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+                if orbitDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                     local dx, dy = inp.Position.X - lastMX, inp.Position.Y - lastMY
                     lastMX, lastMY = inp.Position.X, inp.Position.Y
-                    yaw -= dx * 0.012
-                    pitch = clamp(pitch + dy * 0.009, -0.45, 0.62)
+                    targetYaw -= dx * 0.013
+                    targetPitch = clamp(targetPitch + dy * 0.009, -0.45, 0.62)
                 end
             end)
             conn(UIS.InputEnded, function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                     orbitDragging = false
                 end
             end)
 
             -- Reusable 3D SelfFX Preview Parts inside WorldModel
-            local fxHatParts, fxAuraParts, fxWingParts = {}, {}, {}
-            local fxBuiltMode = { hat = "", aura = false, wing = "" }
+            local fxHatParts, fxAuraParts, fxWingParts, fxTrailParts, fxSatParts = {}, {}, {}, {}, {}
+            local fxBuiltMode = { hat = "", aura = "", wing = "", trail = "", sat = "" }
 
             local function clearArr(arr)
                 for i = #arr, 1, -1 do
@@ -9183,8 +9581,29 @@ Library, SaveManager = (function()
             conn(RunService.RenderStepped, function(dt)
                 if not (win._visible and previewWin.Visible) then return end
                 local tNow = clock()
+                local fDt = min(dt or 0.016, 0.05)
                 if autoSpin and not orbitDragging then
-                    yaw += min(dt or 0.016, 0.05) * 0.55
+                    targetYaw += fDt * 0.52
+                end
+                local smooth = clamp(fDt * 11, 0, 1)
+                yaw += (targetYaw - yaw) * smooth
+                pitch += (targetPitch - pitch) * smooth
+                zoomMult += (targetZoom - zoomMult) * smooth
+
+                -- Subtle studio idle breathing on avatar rig (accessories stay welded to group)
+                local breath = sin(tNow * 2.1)
+                local headSway = sin(tNow * 1.15) * 0.045
+                local upperOff = v3(0, breath * 0.028, 0)
+                local headPivot = rigHead and (rigHead.Position * v3(1, 1, 1)) or v3(0, rigCenterY + 1.4, 0)
+                local headCFShift = cfNew(0, breath * 0.036, 0) * cfAng(breath * 0.018, headSway, 0)
+                for _, rp in ipairs(rigParts) do
+                    if rp.part and rp.part.Parent and rp.baseCF then
+                        if rp.group == "head" then
+                            rp.part.CFrame = (rp.baseCF + v3(0, breath * 0.036, 0)) * cfAng(breath * 0.015, headSway * 0.45, 0)
+                        elseif rp.group == "upper" then
+                            rp.part.CFrame = rp.baseCF + upperOff
+                        end
+                    end
                 end
 
                 local target = v3(0, rigCenterY, 0)
@@ -9193,13 +9612,21 @@ Library, SaveManager = (function()
                 local camPos = target + rotCF:VectorToWorldSpace(v3(0, 0, -dist))
                 local camCF = cfNew(camPos, target)
                 vpCam.CFrame = camCF
-                stageDisc.Color = TH.Border:Lerp(TH.WinBg, 0.35)
+                stageDisc.Color = TH.Border:Lerp(TH.WinBg, 0.25)
+                for i = 1, 16 do
+                    local rp = stageRingParts[i]
+                    local a = (i / 16) * math.pi * 2 + tNow * 0.38
+                    rp.CFrame = cfNew(cos(a) * 1.98, 0.01, sin(a) * 1.98) * cfAng(0, -a + math.pi * 0.5, 0)
+                    rp.Color = TH.Accent
+                    rp.Transparency = 0.25 + (i % 2) * 0.35
+                end
 
                 local e = cfg().ESP
                 local sc = cfg().SelfChams
                 local ch = cfg().ChinaHat
                 local pa = cfg().PlayerAura
                 local aw = cfg().AnimeWings
+                local sat = cfg().Satellites
                 local espOn = e.Enabled
 
                 pToggle.Text = "ВХ"
@@ -9239,23 +9666,36 @@ Library, SaveManager = (function()
                 if fxBuiltMode.hat ~= wantHat then
                     clearArr(fxHatParts)
                     fxBuiltMode.hat = wantHat
-                    if wantHat == "Cone" or wantHat == "Oni Crown" then
-                        for i = 1, 12 do
-                            fxHatParts[i] = mkFxPart(v3(0.42, 0.08, 1.05), WHITE, Enum.Material.Neon)
+                    if wantHat == "Cone" then
+                        for i = 1, 14 do
+                            fxHatParts[i] = mkFxPart(v3(0.40, 0.08, 1.05), WHITE, Enum.Material.Neon)
                         end
-                        if wantHat == "Oni Crown" then
-                            fxHatParts[13] = mkFxPart(v3(0.14, 0.55, 0.14), WHITE, Enum.Material.Neon)
-                            fxHatParts[14] = mkFxPart(v3(0.14, 0.55, 0.14), WHITE, Enum.Material.Neon)
+                    elseif wantHat == "Oni Crown" then
+                        for i = 1, 12 do
+                            fxHatParts[i] = mkFxPart(v3(0.36, 0.10, 0.12), WHITE, Enum.Material.Neon)
+                        end
+                        for i = 13, 18 do
+                            fxHatParts[i] = mkFxPart(v3(0.16, 0.16, 0.16), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
                         end
                     elseif wantHat == "Crown" then
                         for i = 1, 10 do
                             fxHatParts[i] = mkFxPart(v3(0.16, 0.36, 0.16), WHITE, Enum.Material.Neon)
                         end
                     elseif wantHat == "Crystal" then
-                        fxHatParts[1] = mkFxPart(v3(0.48, 0.72, 0.48), WHITE, Enum.Material.Neon)
-                    elseif wantHat == "Cat Ears" or wantHat == "Horns" then
-                        fxHatParts[1] = mkFxPart(v3(0.24, 0.54, 0.24), WHITE, Enum.Material.Neon)
-                        fxHatParts[2] = mkFxPart(v3(0.24, 0.54, 0.24), WHITE, Enum.Material.Neon)
+                        fxHatParts[1] = mkFxPart(v3(0.46, 0.78, 0.46), WHITE, Enum.Material.Neon)
+                    elseif wantHat == "Kitsune Ears" or wantHat == "Demon Horns" then
+                        fxHatParts[1] = mkFxPart(v3(0.24, 0.58, 0.24), WHITE, Enum.Material.Neon)
+                        fxHatParts[2] = mkFxPart(v3(0.24, 0.58, 0.24), WHITE, Enum.Material.Neon)
+                    elseif wantHat == "CyberRing" then
+                        for i = 1, 12 do
+                            fxHatParts[i] = mkFxPart(v3(0.48, 0.08, 0.10), WHITE, Enum.Material.Neon)
+                        end
+                    elseif wantHat == "Angel Halo" then
+                        for i = 1, 14 do
+                            fxHatParts[i] = mkFxPart(v3(0.40, 0.08, 0.09), WHITE, Enum.Material.Neon)
+                        end
+                        fxHatParts[15] = mkFxPart(v3(0.65, 0.16, 0.08), WHITE, Enum.Material.Neon)
+                        fxHatParts[16] = mkFxPart(v3(0.65, 0.16, 0.08), WHITE, Enum.Material.Neon)
                     elseif wantHat ~= "" then
                         for i = 1, 14 do
                             fxHatParts[i] = mkFxPart(v3(0.44, 0.09, 0.10), WHITE, Enum.Material.Neon)
@@ -9267,27 +9707,62 @@ Library, SaveManager = (function()
                     local hBase = rigHead.Position + v3(0, 0.65 + (ch.Height or 0.55) * 0.4 + sin(tNow * 2.4) * 0.05, 0)
                     local r = clamp(ch.Size or 1.45, 0.7, 2.2) * 0.72
                     local tr = 1 - clamp(ch.Opacity or 0.65, 0.2, 0.95)
-                    if wantHat == "Cone" or wantHat == "Oni Crown" then
-                        for i = 1, 12 do
-                            local a = (i / 12) * math.pi * 2 + tNow * 0.5
+                    if wantHat == "Cone" then
+                        for i = 1, 14 do
+                            local a = (i / 14) * math.pi * 2 + tNow * 0.5
                             local cf = cfNew(hBase) * cfAng(0, a, 0) * cfNew(0, 0, -r * 0.48) * cfAng(math.rad(-26), 0, 0)
                             fxHatParts[i].CFrame = cf
                             fxHatParts[i].Color = (i % 2 == 0) and hCol or hCol2
                             fxHatParts[i].Transparency = tr
                         end
-                        if wantHat == "Oni Crown" and fxHatParts[13] then
-                            fxHatParts[13].CFrame = cfNew(hBase + v3(-0.48, 0.24, -0.25)) * cfAng(math.rad(-18), 0, math.rad(22))
-                            fxHatParts[14].CFrame = cfNew(hBase + v3(0.48, 0.24, -0.25)) * cfAng(math.rad(-18), 0, math.rad(-22))
-                            fxHatParts[13].Color = hCol2; fxHatParts[14].Color = hCol2
+                    elseif wantHat == "Oni Crown" then
+                        local wCenter = rigHead.Position + v3(0, 0.35 + (ch.Height or 0.55) * 0.25, 0.75)
+                        for i = 1, 12 do
+                            local a = (i / 12) * math.pi * 2 + tNow * 0.9
+                            fxHatParts[i].CFrame = cfNew(wCenter + v3(cos(a) * r, sin(a) * r, 0)) * cfAng(0, 0, a + math.pi * 0.5)
+                            fxHatParts[i].Color = (i % 2 == 0) and hCol or hCol2
+                            fxHatParts[i].Transparency = tr
+                        end
+                        for i = 13, 18 do
+                            local a = ((i - 12) / 6) * math.pi * 2 + tNow * 0.9
+                            fxHatParts[i].CFrame = cfNew(wCenter + v3(cos(a) * (r * 1.08), sin(a) * (r * 1.08), 0))
+                            fxHatParts[i].Color = hCol2
+                            fxHatParts[i].Transparency = tr * 0.6
                         end
                     elseif wantHat == "Crystal" and fxHatParts[1] then
                         fxHatParts[1].CFrame = cfNew(hBase + v3(0, 0.25, 0)) * cfAng(math.rad(45), tNow * 1.8, math.rad(35))
                         fxHatParts[1].Color = hCol; fxHatParts[1].Transparency = tr
-                    elseif (wantHat == "Cat Ears" or wantHat == "Horns") and fxHatParts[1] then
-                        local tilt = wantHat == "Horns" and 0.35 or 0.2
-                        fxHatParts[1].CFrame = cfNew(rigHead.Position + v3(-0.46, 0.62, 0)) * cfAng(0, 0, tilt)
-                        fxHatParts[2].CFrame = cfNew(rigHead.Position + v3(0.46, 0.62, 0)) * cfAng(0, 0, -tilt)
+                    elseif (wantHat == "Kitsune Ears" or wantHat == "Demon Horns") and fxHatParts[1] then
+                        local tilt = (wantHat == "Demon Horns") and 0.42 or 0.22
+                        local dx = (wantHat == "Demon Horns") and 0.48 or 0.42
+                        fxHatParts[1].CFrame = cfNew(rigHead.Position + v3(-dx, 0.66, 0)) * cfAng(0, 0, tilt)
+                        fxHatParts[2].CFrame = cfNew(rigHead.Position + v3(dx, 0.66, 0)) * cfAng(0, 0, -tilt)
                         fxHatParts[1].Color = hCol; fxHatParts[2].Color = hCol2
+                        fxHatParts[1].Transparency = tr; fxHatParts[2].Transparency = tr
+                    elseif wantHat == "CyberRing" then
+                        for i = 1, 6 do
+                            local a = (i / 6) * math.pi * 2 + tNow * 0.8
+                            fxHatParts[i].CFrame = cfNew(hBase + v3(cos(a) * r, 0, sin(a) * r)) * cfAng(0, -a + math.pi * 0.5, 0)
+                            fxHatParts[i].Color = hCol; fxHatParts[i].Transparency = tr
+                        end
+                        for i = 7, 12 do
+                            local a = ((i - 6) / 6) * math.pi * 2 - tNow * 1.15
+                            fxHatParts[i].CFrame = cfNew(hBase + v3(cos(a) * r * 0.66, 0.12, sin(a) * r * 0.66)) * cfAng(0, -a + math.pi * 0.5, 0)
+                            fxHatParts[i].Color = hCol2; fxHatParts[i].Transparency = tr
+                        end
+                    elseif wantHat == "Angel Halo" then
+                        for i = 1, 14 do
+                            local a = (i / 14) * math.pi * 2 + tNow * 0.6
+                            fxHatParts[i].CFrame = cfNew(hBase + v3(cos(a) * r * 0.86, 0, sin(a) * r * 0.86)) * cfAng(0, -a + math.pi * 0.5, 0)
+                            fxHatParts[i].Color = (i % 2 == 0) and hCol or hCol2; fxHatParts[i].Transparency = tr
+                        end
+                        if fxHatParts[15] then
+                            local fl = sin(tNow * 3.2) * 0.18
+                            fxHatParts[15].CFrame = cfNew(hBase + v3(-r * 1.18, 0.08 + fl, 0)) * cfAng(0, 0, 0.35 + fl)
+                            fxHatParts[16].CFrame = cfNew(hBase + v3(r * 1.18, 0.08 + fl, 0)) * cfAng(0, 0, -(0.35 + fl))
+                            fxHatParts[15].Color = hCol2; fxHatParts[16].Color = hCol2
+                            fxHatParts[15].Transparency = tr; fxHatParts[16].Transparency = tr
+                        end
                     elseif wantHat == "Crown" then
                         for i = 1, #fxHatParts do
                             local a = (i / #fxHatParts) * math.pi * 2 + tNow * 0.45
@@ -9305,68 +9780,300 @@ Library, SaveManager = (function()
                     end
                 end
 
-                -- 3) Live 3D PlayerAura Preview
-                local wantAura = pa.Enabled and true or false
+                -- 3) Live 3D PlayerAura Preview (shape-accurate)
+                local wantAura = pa.Enabled and (pa.Shape or "Orbitals") or ""
                 if fxBuiltMode.aura ~= wantAura then
                     clearArr(fxAuraParts)
                     fxBuiltMode.aura = wantAura
-                    if wantAura then
+                    if wantAura == "Orbitals" or wantAura == "Atom" or wantAura == "Domain Sphere" or wantAura == "Galaxy" then
+                        for i = 1, 24 do
+                            fxAuraParts[i] = mkFxPart(v3(0.42, 0.05, 0.06), WHITE, Enum.Material.Neon)
+                        end
+                        for i = 25, 28 do
+                            fxAuraParts[i] = mkFxPart(v3(0.20, 0.20, 0.20), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    elseif wantAura == "Helix" or wantAura == "Vortex" or wantAura == "Sakura Storm" then
+                        for i = 1, 18 do
+                            fxAuraParts[i] = mkFxPart(v3(0.18, 0.18, 0.18), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    elseif wantAura == "Ki Burst" or wantAura == "Crown" then
+                        for i = 1, 12 do
+                            fxAuraParts[i] = mkFxPart(v3(0.46, 0.06, 0.08), WHITE, Enum.Material.Neon)
+                        end
+                        for i = 13, 20 do
+                            fxAuraParts[i] = mkFxPart(v3(0.10, 1.35, 0.10), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    elseif wantAura ~= "" then
                         for i = 1, 14 do
                             fxAuraParts[i] = mkFxPart(v3(0.48, 0.06, 0.08), WHITE, Enum.Material.Neon)
                         end
-                        for i = 15, 17 do
-                            fxAuraParts[i] = mkFxPart(v3(0.24, 0.24, 0.24), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        for i = 15, 18 do
+                            fxAuraParts[i] = mkFxPart(v3(0.20, 0.20, 0.20), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
                         end
                     end
                 end
-                if wantAura then
+                if wantAura ~= "" then
                     local aCol, aCol2 = styleColors(pa.Style, pa.Color, 1.3)
                     local ar = clamp(pa.Size or 2.6, 1.4, 3.8) * 0.68
-                    local ay = rigBMin.Y + 0.35
-                    for i = 1, 14 do
-                        local a = (i / 14) * math.pi * 2 + tNow * 0.8
-                        fxAuraParts[i].CFrame = cfNew(cos(a) * ar, ay, sin(a) * ar) * cfAng(0, -a + math.pi * 0.5, 0)
-                        fxAuraParts[i].Color = aCol
-                        fxAuraParts[i].Transparency = 0.25
-                    end
-                    for i = 15, 17 do
-                        local idx = i - 14
-                        local a = (idx / 3) * math.pi * 2 + tNow * 1.9
-                        fxAuraParts[i].CFrame = cfNew(cos(a) * (ar * 0.92), rigCenterY + sin(tNow * 2.2 + idx * 2) * 0.95, sin(a) * (ar * 0.92))
-                        fxAuraParts[i].Color = aCol2
-                        fxAuraParts[i].Transparency = 0.15
+                    local ay = rigBMin.Y + 0.30
+                    if wantAura == "Orbitals" or wantAura == "Atom" or wantAura == "Domain Sphere" or wantAura == "Galaxy" then
+                        for rIdx = 0, 2 do
+                            local rCF = cfNew(0, rigCenterY, 0) * cfAng((rIdx == 0 and 0.62 or (rIdx == 1 and -0.62 or 0.14)), tNow * (0.9 + rIdx * 0.35) * (rIdx == 1 and -1 or 1), rIdx * 0.5)
+                            for s = 1, 8 do
+                                local a = (s / 8) * math.pi * 2
+                                local p = fxAuraParts[rIdx * 8 + s]
+                                p.CFrame = rCF * cfNew(cos(a) * ar, 0, sin(a) * ar) * cfAng(0, -a + math.pi * 0.5, 0)
+                                p.Color = (rIdx % 2 == 0) and aCol or aCol2
+                                p.Transparency = 0.22
+                            end
+                        end
+                        for i = 25, 28 do
+                            local idx = i - 24
+                            local a = (idx / 4) * math.pi * 2 + tNow * 2.1
+                            fxAuraParts[i].CFrame = cfNew(cos(a) * ar, rigCenterY + sin(tNow * 2.4 + idx) * 0.6, sin(a) * ar)
+                            fxAuraParts[i].Color = WHITE:Lerp(aCol2, 0.35); fxAuraParts[i].Transparency = 0.12
+                        end
+                    elseif wantAura == "Helix" or wantAura == "Vortex" or wantAura == "Sakura Storm" then
+                        for i = 1, 18 do
+                            local f = ((i - 1) / 17)
+                            local strand = (i % 2) * math.pi
+                            local a = tNow * 2.4 + f * math.pi * 3.6 + strand
+                            local rAt = (wantAura == "Vortex") and ar * (0.45 + f * 0.65) or ar * 0.85
+                            fxAuraParts[i].CFrame = cfNew(cos(a) * rAt, rigBMin.Y + 0.35 + f * 3.8, sin(a) * rAt)
+                            fxAuraParts[i].Color = aCol:Lerp(aCol2, f); fxAuraParts[i].Transparency = 0.16
+                        end
+                    elseif wantAura == "Ki Burst" or wantAura == "Crown" then
+                        for i = 1, 12 do
+                            local a = (i / 12) * math.pi * 2 + tNow * 0.8
+                            fxAuraParts[i].CFrame = cfNew(cos(a) * ar, ay, sin(a) * ar) * cfAng(0, -a + math.pi * 0.5, 0)
+                            fxAuraParts[i].Color = aCol; fxAuraParts[i].Transparency = 0.22
+                        end
+                        for i = 13, 20 do
+                            local idx = i - 12
+                            local a = (idx / 8) * math.pi * 2 + tNow * 0.9
+                            local fl = ((tNow * 1.4 + idx * 0.3) % 1)
+                            fxAuraParts[i].CFrame = cfNew(cos(a) * (ar * 0.85), rigBMin.Y + 0.8 + (wantAura == "Ki Burst" and fl * 2.4 or 1.4), sin(a) * (ar * 0.85))
+                            fxAuraParts[i].Color = (idx % 2 == 0) and aCol or aCol2
+                            fxAuraParts[i].Transparency = (wantAura == "Ki Burst") and (0.15 + fl * 0.65) or 0.18
+                        end
+                    else
+                        for i = 1, 14 do
+                            local a = (i / 14) * math.pi * 2 + tNow * 0.8
+                            fxAuraParts[i].CFrame = cfNew(cos(a) * ar, ay, sin(a) * ar) * cfAng(0, -a + math.pi * 0.5, 0)
+                            fxAuraParts[i].Color = aCol; fxAuraParts[i].Transparency = 0.25
+                        end
+                        for i = 15, 18 do
+                            local idx = i - 14
+                            local a = (idx / 4) * math.pi * 2 + tNow * 1.9
+                            fxAuraParts[i].CFrame = cfNew(cos(a) * (ar * 0.92), rigCenterY + sin(tNow * 2.2 + idx * 2) * 0.95, sin(a) * (ar * 0.92))
+                            fxAuraParts[i].Color = aCol2; fxAuraParts[i].Transparency = 0.15
+                        end
                     end
                 end
 
-                -- 4) Live 3D AnimeWings Preview
+                -- 4) Live 3D AnimeWings / Nine Tails / Kagune Preview (shape-accurate!)
                 local wantWing = aw.Enabled and (aw.Shape or "Seraph") or ""
                 if fxBuiltMode.wing ~= wantWing then
                     clearArr(fxWingParts)
                     fxBuiltMode.wing = wantWing
-                    if wantWing ~= "" then
+                    if wantWing == "Nine Tails" then
+                        for i = 1, 54 do
+                            fxWingParts[i] = mkFxPart(v3(0.24, 0.22, 0.42), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    elseif wantWing == "Kagune" then
+                        for i = 1, 24 do
+                            fxWingParts[i] = mkFxPart(v3(0.18, 0.18, 0.44), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    elseif wantWing == "Demon" then
+                        for i = 1, 10 do
+                            fxWingParts[i] = mkFxPart(v3(0.12, 1.35, 0.12), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    elseif wantWing == "Cyber Mecha" then
                         for i = 1, 8 do
-                            fxWingParts[i] = mkFxPart(v3(0.14, 1.45, 0.34), WHITE, Enum.Material.Neon)
+                            fxWingParts[i] = mkFxPart(v3(0.14, 1.45, 0.28), WHITE, Enum.Material.Neon)
+                        end
+                    elseif wantWing ~= "" then
+                        for i = 1, 12 do
+                            fxWingParts[i] = mkFxPart(v3(0.12, 1.35, 0.26), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
                         end
                     end
                 end
                 if wantWing ~= "" then
                     local wCol, wCol2 = styleColors(aw.Style, aw.Color, 1.4)
-                    local flap = sin(tNow * (aw.FlapSpeed or 1.4) * 2.2) * 0.26
-                    local scW = clamp(aw.Size or 1.15, 0.7, 1.6)
-                    local baseY = (rigBMin.Y + rigBMax.Y) * 0.60
-                    for side = 0, 1 do
-                        local dir = (side == 0) and -1 or 1
-                        for f = 1, 4 do
-                            local p = fxWingParts[side * 4 + f]
-                            local fan = (f - 2.5) * 0.26
-                            p.Size = v3(0.10, (1.55 - (f - 1) * 0.18) * scW, 0.28 * scW)
-                            local cf = cfNew(dir * 0.45, baseY + (2.5 - f) * 0.18, 0.58)
-                                * cfAng(0, dir * (0.35 + flap), dir * (0.55 + fan))
-                                * cfNew(dir * (0.55 * scW), 0.35 * scW, 0)
-                            p.CFrame = cf
-                            p.Color = (f % 2 == 1) and wCol or wCol2
-                            p.Transparency = clamp(aw.Transparency or 0.18, 0.05, 0.75)
+                    local wTip = wCol2:Lerp(WHITE, 0.46)
+                    local scW = clamp(aw.Size or 1.15, 0.6, 1.5)
+                    local fSpd = clamp(aw.FlapSpeed or 1.4, 0.3, 3.0)
+                    local baseY = (rigBMin.Y + rigBMax.Y) * 0.56
+                    local trW = clamp(aw.Transparency or 0.18, 0.05, 0.72)
+
+                    if wantWing == "Nine Tails" then
+                        local segsPerTail = 6
+                        for k = 1, 9 do
+                            local rank = k - 5
+                            local fanYaw = rank * 0.27
+                            local fanPitch = 0.14 + (4 - abs(rank)) * 0.07
+                            local p = v3(sin(fanYaw) * 0.12, rigBMin.Y + 1.85, 0.35)
+                            for s = 1, segsPerTail do
+                                local f = s / segsPerTail
+                                local sway = sin(tNow * 2.35 * fSpd - f * 3.8 + k * 0.72) * (0.12 + f * 0.38)
+                                local yawT = fanYaw * (0.55 + f * 0.55) + sway
+                                local pitchT = fanPitch + sin(f * math.pi * 0.85) * 0.55 - (f > 0.72 and (f - 0.72) * 1.4 or 0)
+                                local np = p + v3(sin(yawT) * cos(pitchT), sin(pitchT), cos(yawT) * cos(pitchT)) * (0.42 * scW)
+                                local part = fxWingParts[(k - 1) * segsPerTail + s]
+                                local prof = (0.11 + (sin((f ^ 0.85) * math.pi) ^ 1.15) * 0.28 + (1 - f) * 0.05) * scW
+                                part.Size = v3(prof * 1.85, prof * 1.75, (np - p).Magnitude * 1.48)
+                                part.CFrame = cfNew((p + np) * 0.5, np)
+                                part.Color = (f < 0.65) and wCol:Lerp(wCol2, f / 0.65) or wCol2:Lerp(wTip, (f - 0.65) / 0.35)
+                                part.Transparency = trW
+                                p = np
+                            end
                         end
+                    elseif wantWing == "Kagune" then
+                        local segsPerK = 6
+                        for k = 1, 4 do
+                            local side = (k <= 2) and -1 or 1
+                            local tier = (k % 2 == 1) and 1 or -1
+                            local p = v3(side * 0.18, baseY + (tier > 0 and 0.20 or -0.22), 0.40)
+                            for s = 1, segsPerK do
+                                local f = s / segsPerK
+                                local wA = sin(tNow * 2.9 * fSpd - f * 4.4 + k * 1.15) * (0.14 + f * 0.32)
+                                local wB = cos(tNow * 2.3 * fSpd - f * 3.9 + k * 0.85) * (0.10 + f * 0.24)
+                                local yawK = side * (0.68 - f * 0.36 + (f > 0.65 and (f - 0.65) * -1.4 or 0)) + wA
+                                local pitchK = (tier > 0 and 0.62 or -0.18) - f * 0.75 + wB
+                                local np = p + v3(sin(yawK) * cos(pitchK), sin(pitchK), cos(yawK) * cos(pitchK)) * (0.46 * scW)
+                                local part = fxWingParts[(k - 1) * segsPerK + s]
+                                local rad = (0.14 + sin(f * math.pi * 0.72) * 0.12) * (1 - f * 0.70) * scW
+                                part.Size = v3(rad * 1.85, rad * 1.75, (np - p).Magnitude * 1.45)
+                                part.CFrame = cfNew((p + np) * 0.5, np)
+                                part.Color = (f < 0.65) and wCol:Lerp(wCol2, f / 0.65) or wCol2:Lerp(wTip, (f - 0.65) / 0.35)
+                                part.Transparency = trW
+                                p = np
+                            end
+                        end
+                    elseif wantWing == "Demon" then
+                        local flap = sin(tNow * fSpd * 2.2) * 0.24
+                        for side = 0, 1 do
+                            local dir = (side == 0) and -1 or 1
+                            local arm = fxWingParts[side * 5 + 1]
+                            arm.Size = v3(0.12 * scW, 1.75 * scW, 0.12 * scW)
+                            arm.CFrame = cfNew(dir * 0.35, baseY + 0.35, 0.48) * cfAng(0.18, dir * (-0.42 - flap), dir * 0.55) * cfNew(0, 0.75 * scW, 0)
+                            arm.Color = wCol; arm.Transparency = trW
+                            for r = 1, 4 do
+                                local p = fxWingParts[side * 5 + 1 + r]
+                                local fan = -0.35 + (r - 1) * 0.34
+                                p.Size = v3(0.08 * scW, (1.5 - (r - 1) * 0.20) * scW, 0.08 * scW)
+                                p.CFrame = cfNew(dir * (0.65 + r * 0.28) * scW, baseY + 0.45, 0.58) * cfAng(0, dir * (-0.35 - flap), dir * fan) * cfNew(0, -0.55 * scW, 0)
+                                p.Color = (r == 1) and wCol or wCol2; p.Transparency = trW
+                            end
+                        end
+                    elseif wantWing == "Cyber Mecha" then
+                        local pulse = sin(tNow * fSpd * 2.8) * 0.14
+                        for side = 0, 1 do
+                            local dir = (side == 0) and -1 or 1
+                            for b = 1, 4 do
+                                local p = fxWingParts[side * 4 + b]
+                                p.Size = v3(0.12 * scW, (1.55 - b * 0.16) * scW, 0.28 * scW)
+                                p.CFrame = cfNew(dir * (0.45 + b * 0.22 * scW), baseY + 0.45 - b * 0.12 * scW, 0.55)
+                                    * cfAng(-0.20, dir * -0.25, -dir * (0.28 + b * 0.22 + pulse))
+                                    * cfNew(0, 0.45 * scW, 0)
+                                p.Color = (b % 2 == 1) and wCol or wCol2; p.Transparency = trW
+                            end
+                        end
+                    else -- Seraph (6 wings: 3 tiers per side, 2 feathers each)
+                        local flap = sin(tNow * fSpd * 2.2) * 0.24
+                        for side = 0, 1 do
+                            local dir = (side == 0) and -1 or 1
+                            for f = 1, 6 do
+                                local p = fxWingParts[side * 6 + f]
+                                local tier = math.ceil(f / 2)
+                                local fan = (f - 3.5) * 0.22
+                                p.Size = v3((1.38 - tier * 0.18) * scW, 0.11 * scW, 0.24 * scW)
+                                p.CFrame = cfNew(dir * 0.42, baseY + 0.48 - (tier - 1) * 0.36, 0.50)
+                                    * cfAng(0, dir * (-0.38 - flap), dir * (0.35 + fan))
+                                    * cfNew(dir * (0.62 * scW), 0.15 * scW, 0)
+                                p.Color = (f % 2 == 1) and wCol or wCol2; p.Transparency = trW
+                            end
+                        end
+                    end
+                end
+
+                -- 4b) Live 3D ParticleTrail Preview inside WorldModel (smooth tangential arcs)
+                local pt = cfg().ParticleTrail
+                local wantTrail = pt.Enabled and (pt.Mode or "Orbit") or ""
+                if fxBuiltMode.trail ~= wantTrail then
+                    clearArr(fxTrailParts)
+                    fxBuiltMode.trail = wantTrail
+                    if wantTrail ~= "" then
+                        for i = 1, 21 do
+                            fxTrailParts[i] = mkFxPart(v3(0.28, 0.08, 0.08), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    end
+                end
+                if wantTrail ~= "" then
+                    local tCol, tCol2 = styleColors(pt.Style, pt.Color, pt.Speed or 1.0)
+                    local tCore = WHITE:Lerp(tCol, 0.28)
+                    local spd = clamp(pt.Speed or 1.0, 0.3, 2.5)
+                    local wThick = clamp((pt.Width or 0.16) * 0.62, 0.06, 0.22)
+                    local function trailPosAt(strand, ph)
+                        if wantTrail == "Helix" then
+                            return v3(cos(ph) * 1.35, rigCenterY + sin(ph * 0.5) * 1.65, sin(ph) * 1.35)
+                        elseif wantTrail == "Spiral Halo" then
+                            return v3(cos(ph) * 1.15, rigBMax.Y + 0.55 + sin(ph * 2) * 0.12, sin(ph) * 1.15)
+                        elseif wantTrail == "Nine-Tails" or wantTrail == "Kagune" then
+                            local sp = (strand - 2) * 0.58
+                            return v3(sin(sp) * 1.45 + sin(ph) * 0.45, rigCenterY - 0.15 + sin(ph * 0.8) * 0.55, 1.05 + cos(sp) * 0.55)
+                        elseif wantTrail == "Void Slash" or wantTrail == "Bankai" then
+                            local tilt = (strand == 1) and 0.62 or ((strand == 2) and -0.62 or 0.14)
+                            return v3(cos(ph) * 1.85, rigCenterY + sin(ph) * sin(tilt) * 1.85, sin(ph) * cos(tilt) * 1.85)
+                        elseif wantTrail == "Angel Wings" or wantTrail == "Wings" then
+                            local dir = (strand == 1) and -1 or 1
+                            return v3(dir * (1.25 + sin(ph) * 0.35), rigCenterY + 0.35 + cos(ph) * 0.55, 0.95)
+                        else
+                            local tilt = (strand == 1) and 0.45 or ((strand == 2) and -0.45 or 0.12)
+                            return v3(cos(ph) * 1.65, rigCenterY + sin(ph) * sin(tilt) * 1.65, sin(ph) * 1.65)
+                        end
+                    end
+                    for i = 1, 21 do
+                        local strand = ((i - 1) % 3) + 1
+                        local seg = floor((i - 1) / 3)
+                        local ph = tNow * 2.8 * spd - seg * 0.22 + (strand - 1) * ((math.pi * 2) / 3)
+                        local pPos = trailPosAt(strand, ph)
+                        local pNext = trailPosAt(strand, ph + 0.14)
+                        local fade = seg / 6
+                        local sz = wThick * (1.10 - fade * 0.76)
+                        local segLen = max(0.24, (pNext - pPos).Magnitude * 1.45)
+                        fxTrailParts[i].Size = v3(sz, sz, segLen)
+                        fxTrailParts[i].CFrame = cfNew(pPos, pNext)
+                        fxTrailParts[i].Color = (seg == 0) and tCore or tCol:Lerp(tCol2, fade)
+                        fxTrailParts[i].Transparency = 0.06 + fade * 0.72
+                    end
+                end
+
+                -- 4c) Live 3D Satellites Preview
+                local wantSat = sat.Enabled and (tostring(clamp(floor(sat.Count or 3), 1, 6)) .. "_" .. (sat.Shape or "Star")) or ""
+                if fxBuiltMode.sat ~= wantSat then
+                    clearArr(fxSatParts)
+                    fxBuiltMode.sat = wantSat
+                    if wantSat ~= "" then
+                        local cnt = clamp(floor(sat.Count or 3), 1, 6)
+                        for i = 1, cnt do
+                            fxSatParts[i] = mkFxPart(v3(0.32, 0.32, 0.32), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    end
+                end
+                if wantSat ~= "" then
+                    local sCol, sCol2 = styleColors(sat.Style, sat.Color, sat.Speed or 1.4)
+                    local cnt = #fxSatParts
+                    local sr = clamp(sat.Radius or 3.2, 1.5, 5.0) * 0.65
+                    local sSpd = clamp(sat.Speed or 1.4, 0.3, 3.5)
+                    local sSz = clamp(sat.Size or 0.45, 0.2, 0.9) * 0.75
+                    for i = 1, cnt do
+                        local ang = tNow * sSpd * 1.85 + (i - 1) * ((math.pi * 2) / cnt)
+                        local p = fxSatParts[i]
+                        p.Size = v3(sSz, sSz, sSz)
+                        p.CFrame = cfNew(cos(ang) * sr, rigCenterY + (sat.Height or 0.8) * 0.45 + sin(ang * 2 + i) * 0.28, sin(ang) * sr) * cfAng(tNow * 2, ang, 0)
+                        p.Color = (i % 2 == 1) and sCol or sCol2
+                        p.Transparency = 0.10
                     end
                 end
 
@@ -9376,7 +10083,9 @@ Library, SaveManager = (function()
                 if espOn and e.Skeleton then tinsert(modeTags, "Скелет") end
                 if sc.Enabled or (espOn and e.Chams) then tinsert(modeTags, "Чамсы") end
                 if ch.Enabled then tinsert(modeTags, "Шляпа") end
+                if pt.Enabled then tinsert(modeTags, "Ленты") end
                 if aw.Enabled then tinsert(modeTags, "Крылья") end
+                if sat.Enabled then tinsert(modeTags, "Спутники") end
                 pvFooter.Text = (#modeTags > 0) and (table.concat(modeTags, " · ") .. string.format("  %.1fx", 1 / zoomMult)) or "ЛКМ: вращать · Колесо: зум"
 
                 -- 5) 2D ESP Overlay Projected From Real 3D Rig
@@ -9624,10 +10333,16 @@ Library, SaveManager = (function()
                 corner(knob, 99)
 
                 local obj = { Value = val, _cbs = {} }
-                local function refresh()
-                    tw(sw, 0.14, { BackgroundColor3 = obj.Value and TH.Accent or TH.BorderStrong })
-                    tw(knob, 0.14, { Position = UDim2.new(0, obj.Value and 16 or 2, 0.5, 0) })
-                    lbl.TextColor3 = obj.Value and TH.Text or TH.SubText
+                local function refresh(animate)
+                    tw(sw, 0.16, { BackgroundColor3 = obj.Value and TH.Accent or TH.BorderStrong })
+                    if animate then
+                        knob.Size = UDim2.fromOffset(15, 11)
+                        twS(knob, 0.22, Enum.EasingStyle.Back, { Position = UDim2.new(0, obj.Value and 16 or 2, 0.5, 0), Size = UDim2.fromOffset(12, 12) })
+                    else
+                        knob.Position = UDim2.new(0, obj.Value and 16 or 2, 0.5, 0)
+                        knob.Size = UDim2.fromOffset(12, 12)
+                    end
+                    tw(lbl, 0.14, { TextColor3 = obj.Value and TH.Text or TH.SubText })
                 end
                 tinsert(lib._accentRefs, {
                     inst = sw, prop = "BackgroundColor3", kind = "custom",
@@ -9646,15 +10361,21 @@ Library, SaveManager = (function()
                     nv = nv and true or false
                     if obj.Value == nv then return end
                     obj.Value = nv
-                    refresh()
+                    refresh(true)
                     if o.Callback then o.Callback(nv) end
                     for _, fn in ipairs(obj._cbs) do pcall(fn, nv) end
                 end
-                conn(row.MouseEnter, function() tw(row, 0.10, { BackgroundTransparency = 0.45 }) end)
-                conn(row.MouseLeave, function() tw(row, 0.10, { BackgroundTransparency = 1 }) end)
+                conn(row.MouseEnter, function()
+                    tw(row, 0.12, { BackgroundTransparency = 0.42 })
+                    tw(lbl, 0.12, { Position = UDim2.fromOffset(3, 0) })
+                end)
+                conn(row.MouseLeave, function()
+                    tw(row, 0.12, { BackgroundTransparency = 1 })
+                    tw(lbl, 0.12, { Position = UDim2.fromOffset(0, 0) })
+                end)
                 conn(row.MouseButton1Click, function() obj:SetValue(not obj.Value) end)
                 bindTooltip(row, o.Tooltip)
-                refresh()
+                refresh(false)
                 lib.Toggles[idx] = obj
                 regS(o.Text, o.Tooltip)
                 return obj
@@ -9702,7 +10423,7 @@ Library, SaveManager = (function()
                     ZIndex = 7,
                 }, wrap)
                 corner(valBox, 4)
-                stroke(valBox, TH.Border, 1, 0)
+                local valBoxStroke = stroke(valBox, TH.Border, 1, 0)
 
                 local hit = mk("TextButton", {
                     Position = UDim2.fromOffset(2, 18),
@@ -9746,8 +10467,8 @@ Library, SaveManager = (function()
                 local obj = { Value = val, Min = mn, Max = mx, _cbs = {} }
                 local function refresh()
                     local p = (mx > mn) and clamp((obj.Value - mn) / (mx - mn), 0, 1) or 0
-                    tw(fill, 0.06, { Size = UDim2.fromScale(p, 1) })
-                    tw(knob, 0.06, { Position = UDim2.fromScale(p, 0.5) })
+                    tw(fill, 0.08, { Size = UDim2.fromScale(p, 1) })
+                    tw(knob, 0.08, { Position = UDim2.fromScale(p, 0.5) })
                     valBox.Text = fmtVal(obj.Value)
                 end
                 function obj:OnChanged(fn) tinsert(obj._cbs, fn) end
@@ -9768,24 +10489,26 @@ Library, SaveManager = (function()
                     local p = clamp((px - ax) / aw, 0, 1)
                     obj:SetValue(mn + (mx - mn) * p)
                 end
-                conn(hit.MouseEnter, function() tw(knob, 0.12, { Size = UDim2.fromOffset(12, 12) }) end)
-                conn(hit.MouseLeave, function() if not dragging then tw(knob, 0.12, { Size = UDim2.fromOffset(10, 10) }) end end)
+                conn(hit.MouseEnter, function() twS(knob, 0.16, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(13, 13) }) end)
+                conn(hit.MouseLeave, function() if not dragging then tw(knob, 0.14, { Size = UDim2.fromOffset(10, 10) }) end end)
                 conn(hit.InputBegan, function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
                         dragging = true
-                        tw(knob, 0.10, { Size = UDim2.fromOffset(12, 12) })
+                        twS(knob, 0.14, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(13, 13) })
+                        tw(valBoxStroke, 0.12, { Color = TH.Accent })
                         updateFromX(inp.Position.X)
                     end
                 end)
                 conn(UIS.InputChanged, function(inp)
-                    if dragging and hit.Parent and win._visible and inp.UserInputType == Enum.UserInputType.MouseMovement then
+                    if dragging and hit.Parent and win._visible and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
                         updateFromX(inp.Position.X)
                     end
                 end)
                 conn(UIS.InputEnded, function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+                    if (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) and dragging then
                         dragging = false
-                        tw(knob, 0.12, { Size = UDim2.fromOffset(10, 10) })
+                        tw(knob, 0.14, { Size = UDim2.fromOffset(10, 10) })
+                        tw(valBoxStroke, 0.14, { Color = TH.Border })
                     end
                 end)
                 conn(valBox.FocusLost, function()
@@ -9876,39 +10599,52 @@ Library, SaveManager = (function()
                     local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
                     local curCam = workspace.CurrentCamera
                     local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
-                    local itemH = 23
-                    local listH = clamp(#obj.Values * (itemH + 2) + 8, 30, 196)
+                    local itemH, gap, padY = 23, 2, 8
+                    local cnt = #obj.Values
+                    local totalCanvasH = max(itemH + padY, cnt * itemH + max(0, cnt - 1) * gap + padY)
+                    local maxListH = clamp(floor(cvp.Y * 0.44), 160, 290)
+                    local listH = clamp(totalCanvasH, 32, maxListH)
                     local py = bp.Y + bs.Y + 4
-                    if py + listH > cvp.Y - 12 then py = max(8, bp.Y - listH - 4) end
+                    if py + listH > cvp.Y - 10 then
+                        local upY = bp.Y - listH - 4
+                        py = (upY >= 8) and upY or clamp(py, 8, max(8, cvp.Y - listH - 8))
+                    end
 
                     local pop = mk("ScrollingFrame", {
                         Name = "Drop_" .. idx,
                         Position = UDim2.fromOffset(bp.X, py),
-                        Size = UDim2.fromOffset(bs.X, 12),
+                        Size = UDim2.fromOffset(bs.X, listH),
                         BackgroundColor3 = TH.CardBg,
                         BackgroundTransparency = 0,
-                        ScrollBarThickness = 2,
+                        Active = true,
+                        ScrollingEnabled = true,
+                        ScrollingDirection = Enum.ScrollingDirection.Y,
+                        ElasticBehavior = Enum.ElasticBehavior.Never,
+                        ScrollBarThickness = 4,
                         ScrollBarImageColor3 = TH.BorderStrong,
-                        CanvasSize = UDim2.fromOffset(0, 0),
-                        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                        CanvasSize = UDim2.fromOffset(0, totalCanvasH),
+                        AutomaticCanvasSize = Enum.AutomaticSize.None,
                         ClipsDescendants = true,
-                        ZIndex = 72,
+                        ZIndex = 76,
                     }, overlay)
                     corner(pop, 6)
                     stroke(pop, TH.BorderStrong, 1, 0)
-                    pad(pop, 4, 4, 4, 4)
-                    mk("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, pop)
-                    twS(pop, 0.15, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(bs.X, listH) })
-                    tw(arrowLbl, 0.14, { Rotation = 180 })
+                    pad(pop, 4, 10, 4, 4)
+                    mk("UIListLayout", { Padding = UDim.new(0, gap), SortOrder = Enum.SortOrder.LayoutOrder }, pop)
+                    local popScale = mk("UIScale", { Scale = 0.94 }, pop)
+                    twS(popScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
+                    twS(arrowLbl, 0.18, Enum.EasingStyle.Back, { Rotation = 180 })
                     activePopup = pop
                     activePopupTrigger = btn
                     openedPopupAt = clock()
                     closePopupFn = function()
-                        if arrowLbl and arrowLbl.Parent then tw(arrowLbl, 0.12, { Rotation = 0 }) end
+                        if arrowLbl and arrowLbl.Parent then tw(arrowLbl, 0.14, { Rotation = 0 }) end
                     end
 
-                    for _, vItem in ipairs(obj.Values) do
+                    local curIdx = 1
+                    for iVal, vItem in ipairs(obj.Values) do
                         local isCur = (vItem == obj.Value)
+                        if isCur then curIdx = iVal end
                         local opt = mk("TextButton", {
                             Size = UDim2.new(1, 0, 0, itemH),
                             BackgroundColor3 = isCur and TH.AccentSoft or TH.CardBg,
@@ -9917,9 +10653,11 @@ Library, SaveManager = (function()
                             TextSize = 11,
                             TextColor3 = isCur and TH.Accent or TH.Text,
                             TextXAlignment = Enum.TextXAlignment.Left,
+                            TextTruncate = Enum.TextTruncate.AtEnd,
                             Text = "  " .. tostring(vItem),
                             AutoButtonColor = false,
-                            ZIndex = 73,
+                            LayoutOrder = iVal,
+                            ZIndex = 77,
                         }, pop)
                         corner(opt, 4)
                         conn(opt.MouseEnter, function()
@@ -9928,10 +10666,19 @@ Library, SaveManager = (function()
                         conn(opt.MouseLeave, function()
                             if vItem ~= obj.Value then tw(opt, 0.08, { BackgroundTransparency = 1 }) end
                         end)
-                        conn(opt.MouseButton1Click, function()
+                        local picked = false
+                        local function pickItem()
+                            if picked then return end
+                            picked = true
                             obj:SetValue(vItem)
                             closeActivePopup()
-                        end)
+                        end
+                        conn(opt.Activated, pickItem)
+                        conn(opt.MouseButton1Click, pickItem)
+                    end
+                    if totalCanvasH > listH and curIdx > 1 then
+                        local targetY = clamp((curIdx - 2) * (itemH + gap), 0, max(0, totalCanvasH - listH))
+                        pop.CanvasPosition = v2(0, targetY)
                     end
                 end)
                 bindTooltip(wrap, o.Tooltip)
@@ -10025,16 +10772,16 @@ Library, SaveManager = (function()
                 local st = stroke(btn, TH.Border, 1, 0)
                 local bScale = mk("UIScale", { Scale = 1 }, btn)
                 conn(btn.MouseEnter, function()
-                    tw(btn, 0.10, { BackgroundColor3 = TH.CtrlHover })
-                    tw(st, 0.10, { Color = TH.BorderStrong })
+                    tw(btn, 0.12, { BackgroundColor3 = TH.CtrlHover })
+                    tw(st, 0.12, { Color = TH.Accent })
                 end)
                 conn(btn.MouseLeave, function()
-                    tw(btn, 0.10, { BackgroundColor3 = TH.CtrlBg })
-                    tw(st, 0.10, { Color = TH.Border })
+                    tw(btn, 0.12, { BackgroundColor3 = TH.CtrlBg })
+                    tw(st, 0.12, { Color = TH.Border })
                 end)
                 conn(btn.MouseButton1Click, function()
-                    bScale.Scale = 0.98
-                    tw(bScale, 0.12, { Scale = 1 })
+                    bScale.Scale = 0.96
+                    twS(bScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
                     if o.Func then o.Func() end
                 end)
                 bindTooltip(btn, o.Tooltip)
@@ -10352,14 +11099,21 @@ Library, SaveManager = (function()
                     ZIndex = 6,
                 }, parentContainer)
                 mk("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, depFrame)
+                local depScale = mk("UIScale", { Scale = 1 }, depFrame)
                 local depBox = makeGroupControls(depFrame, tabObj, groupTitle, cardStroke)
                 function depBox:SetupDependencies(deps)
+                    local prevVis = depFrame.Visible
                     local function eval()
                         local okAll = true
                         for _, d in ipairs(deps or {}) do
                             if d[1] and d[1].Value ~= d[2] then okAll = false break end
                         end
                         depFrame.Visible = okAll
+                        if okAll and not prevVis then
+                            depScale.Scale = 0.96
+                            twS(depScale, 0.18, Enum.EasingStyle.Quart, { Scale = 1 })
+                        end
+                        prevVis = okAll
                     end
                     for _, d in ipairs(deps or {}) do
                         if d[1] and d[1].OnChanged then d[1]:OnChanged(eval) end
@@ -10414,6 +11168,7 @@ Library, SaveManager = (function()
 
             local ic = buildIcon(btn, iconKind, TH.SubText)
             ic.box.Position = UDim2.fromOffset(10, 7)
+            local iconScale = mk("UIScale", { Scale = 1 }, ic.box)
 
             local lbl = mk("TextLabel", {
                 Position = UDim2.fromOffset(30, 0),
@@ -10433,8 +11188,10 @@ Library, SaveManager = (function()
                 BackgroundTransparency = 1,
                 ScrollBarThickness = 3,
                 ScrollBarImageColor3 = TH.BorderStrong,
+                ElasticBehavior = Enum.ElasticBehavior.Never,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
                 CanvasSize = UDim2.fromOffset(0, 0),
-                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                AutomaticCanvasSize = Enum.AutomaticSize.None,
                 BorderSizePixel = 0,
                 Visible = false,
                 ZIndex = 4,
@@ -10460,36 +11217,64 @@ Library, SaveManager = (function()
             pad(rightCol, 0, 0, 0, 10)
             mk("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, rightCol)
 
-            local tabObj = { name = name, btn = btn, bar = bar, lbl = lbl, icon = ic, page = page, leftCol = leftCol, rightCol = rightCol }
+            local function syncPageCanvas()
+                if page and page.Parent then
+                    page.CanvasSize = UDim2.fromOffset(0, max(leftCol.AbsoluteSize.Y, rightCol.AbsoluteSize.Y) + 32)
+                end
+            end
+            conn(leftCol:GetPropertyChangedSignal("AbsoluteSize"), syncPageCanvas)
+            conn(rightCol:GetPropertyChangedSignal("AbsoluteSize"), syncPageCanvas)
+            task.defer(syncPageCanvas)
+
+            local tabObj = { name = name, btn = btn, bar = bar, lbl = lbl, icon = ic, iconScale = iconScale, page = page, leftCol = leftCol, rightCol = rightCol }
             tinsert(win._tabs, tabObj)
 
             conn(btn.MouseEnter, function()
                 if win._activeTab ~= tabObj then
-                    tw(btn, 0.10, { BackgroundColor3 = TH.CtrlBg, BackgroundTransparency = 0.45 })
+                    tw(btn, 0.12, { BackgroundColor3 = TH.CtrlBg, BackgroundTransparency = 0.42 })
+                    tw(lbl, 0.12, { Position = UDim2.fromOffset(33, 0) })
                 end
             end)
             conn(btn.MouseLeave, function()
                 if win._activeTab ~= tabObj then
-                    tw(btn, 0.10, { BackgroundTransparency = 1 })
+                    tw(btn, 0.12, { BackgroundTransparency = 1 })
+                    tw(lbl, 0.12, { Position = UDim2.fromOffset(30, 0) })
                 end
             end)
             conn(btn.MouseButton1Click, function() selectTab(tabObj) end)
 
             local function addGroupbox(colFrame, title)
                 local card = mk("Frame", {
+                    Name = "PanelBg",
                     Size = UDim2.new(1, 0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundColor3 = TH.CardBg,
                     BackgroundTransparency = 0.02,
                     ZIndex = 5,
                 }, colFrame)
-                corner(card, 6)
+                corner(card, 7)
                 local cst = stroke(card, TH.Border, 1, 0)
+                card._cardScale = mk("UIScale", { Scale = 1 }, card)
+                conn(card.MouseEnter, function() tw(cst, 0.14, { Color = TH.BorderStrong }) end)
+                conn(card.MouseLeave, function() tw(cst, 0.14, { Color = TH.Border }) end)
                 local hdr = mk("Frame", {
                     Size = UDim2.new(1, 0, 0, 28),
-                    BackgroundTransparency = 1,
+                    BackgroundColor3 = TH.CardHead,
+                    BackgroundTransparency = 0.45,
                     ZIndex = 6,
                 }, card)
+                corner(hdr, 7)
+                local hdrPill = mk("Frame", {
+                    Name = "NoPanelBg",
+                    AnchorPoint = v2(0, 0.5),
+                    Position = UDim2.new(0, 9, 0.5, 0),
+                    Size = UDim2.fromOffset(3, 11),
+                    BackgroundColor3 = TH.Accent,
+                    BorderSizePixel = 0,
+                    ZIndex = 7,
+                }, hdr)
+                corner(hdrPill, 99)
+                regAccent(hdrPill, "BackgroundColor3", "solid")
                 mk("Frame", {
                     Position = UDim2.new(0, 0, 1, -1),
                     Size = UDim2.new(1, 0, 0, 1),
@@ -10498,8 +11283,8 @@ Library, SaveManager = (function()
                     ZIndex = 7,
                 }, hdr)
                 mk("TextLabel", {
-                    Position = UDim2.fromOffset(10, 0),
-                    Size = UDim2.new(1, -20, 1, 0),
+                    Position = UDim2.fromOffset(17, 0),
+                    Size = UDim2.new(1, -24, 1, 0),
                     BackgroundTransparency = 1,
                     Font = F_BOLD,
                     TextSize = 11,
@@ -10730,9 +11515,13 @@ do
     local BG_DIR = "glupost_hub/backgrounds"
     local CACHE_EXTS = { ".png", ".jpg", ".jpeg", ".webp", ".gif" }
 
-    local screenGuiRef, mainFrameRef, bgLayer
+    local screenGuiRef, mainFrameRef, bgLayer, bgWash, bgWashGrad
+    local bgAnimConn
+    local lastShownAsset, lastTargetTransp = nil, nil
     local origTransp = {}
     local urlAssetCache, urlPending, urlFailed = {}, {}, {}
+    local erisUrls = {}
+    local erisFetchFailedAt = 0
 
     local function getCustomAssetFn()
         local g = getgenv_()
@@ -10781,17 +11570,17 @@ do
         return ".png"
     end
 
-    local function findCachedAsset(url)
-        if urlAssetCache[url] then return urlAssetCache[url] end
+    local function findCachedAsset(key)
+        if urlAssetCache[key] then return urlAssetCache[key] end
         local assetFn = getCustomAssetFn()
         if type(assetFn) ~= "function" or type(isfile) ~= "function" then return nil end
-        local h = hashUrl(url)
+        local h = hashUrl(key)
         for _, ext in ipairs(CACHE_EXTS) do
             local path = BG_DIR .. "/" .. h .. ext
             if isfile(path) then
                 local ok, id = pcall(assetFn, path)
                 if ok and type(id) == "string" and id ~= "" then
-                    urlAssetCache[url] = id
+                    urlAssetCache[key] = id
                     return id
                 end
             end
@@ -10799,13 +11588,17 @@ do
         return nil
     end
 
-    local function fetchUrlBytes(url)
+    local function fetchUrlBytes(url, headers)
         local req = getRequestFn()
         if type(req) == "function" then
+            local hdrs = { ["User-Agent"] = "Mozilla/5.0" }
+            if type(headers) == "table" then
+                for k, v in pairs(headers) do hdrs[k] = v end
+            end
             local ok, res = pcall(req, {
                 Url = url,
                 Method = "GET",
-                Headers = { ["User-Agent"] = "Mozilla/5.0" },
+                Headers = hdrs,
             })
             if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body > 0 then
                 if not res.StatusCode or (res.StatusCode >= 200 and res.StatusCode < 300) then
@@ -10818,59 +11611,187 @@ do
         return nil
     end
 
-    local function downloadUrlAsync(url)
-        local failAt = urlFailed[url]
-        if urlPending[url] or (failAt and clock() - failAt < 10) then return end
+    local function postJson(url, bodyStr)
+        local req = getRequestFn()
+        if type(req) ~= "function" then return nil end
+        local ok, res = pcall(req, {
+            Url = url,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Accept"] = "application/json",
+                ["User-Agent"] = "Mozilla/5.0",
+            },
+            Body = bodyStr,
+        })
+        if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body > 0 then
+            if not res.StatusCode or (res.StatusCode >= 200 and res.StatusCode < 300) then
+                return res.Body
+            end
+        end
+        return nil
+    end
+
+    local function normalizeNetUrl(u)
+        if type(u) ~= "string" or u == "" then return nil end
+        if u:sub(1, 2) == "//" then u = "https:" .. u end
+        if u:match("^https?://") then return u end
+        return nil
+    end
+
+    local function populateErisList()
+        if #erisUrls > 0 then return true end
+        if erisFetchFailedAt > 0 and clock() - erisFetchFailedAt < 12 then return false end
+        local seen = {}
+        local function addU(raw)
+            local u = normalizeNetUrl(raw)
+            if u and not seen[u] then
+                seen[u] = true
+                tinsert(erisUrls, u)
+            end
+        end
+
+        -- 1) Safebooru SFW solo / general artworks of Eris Greyrat
+        for _, q in ipairs({
+            "https://safebooru.org/index.php?page=dapi&s=post&q=index&tags=eris_greyrat+rating:general+solo&limit=24&json=1",
+            "https://safebooru.org/index.php?page=dapi&s=post&q=index&tags=eris_greyrat+rating:general&limit=24&json=1",
+        }) do
+            local raw = fetchUrlBytes(q, { ["Accept"] = "application/json" })
+            if raw then
+                local ok, data = pcall(HttpSvc.JSONDecode, HttpSvc, raw)
+                if ok and type(data) == "table" then
+                    for _, post in ipairs(data) do
+                        if type(post) == "table" then
+                            local w = tonumber(post.width) or 0
+                            local h = tonumber(post.height) or 0
+                            if w >= 500 or h >= 500 or w == 0 then
+                                addU(post.sample_url or post.file_url)
+                            end
+                        end
+                    end
+                end
+            end
+            if #erisUrls >= 4 then break end
+        end
+
+        -- 2) AniList Character 88349 (Eris Boreas Greyrat) official portrait fallback
+        if #erisUrls == 0 then
+            local rawAL = postJson("https://graphql.anilist.co", '{"query":"{Character(id:88349){image{large}}}"}')
+            if rawAL then
+                local ok, data = pcall(HttpSvc.JSONDecode, HttpSvc, rawAL)
+                local img = ok and type(data) == "table" and data.data and data.data.Character and data.data.Character.image
+                if img then addU(img.large or img.medium) end
+            end
+        end
+
+        -- 3) Jikan API (MAL) Eris Boreas Greyrat portrait fallback
+        if #erisUrls == 0 then
+            local rawJK = fetchUrlBytes("https://api.jikan.moe/v4/characters?q=Eris%20Boreas%20Greyrat&limit=3", { ["Accept"] = "application/json" })
+            if rawJK then
+                local ok, data = pcall(HttpSvc.JSONDecode, HttpSvc, rawJK)
+                if ok and type(data) == "table" and type(data.data) == "table" then
+                    for _, ch in ipairs(data.data) do
+                        local imgs = type(ch) == "table" and ch.images
+                        if imgs then
+                            addU(imgs.jpg and imgs.jpg.image_url)
+                            addU(imgs.webp and imgs.webp.image_url)
+                        end
+                    end
+                end
+            end
+        end
+
+        if #erisUrls == 0 then
+            erisFetchFailedAt = clock()
+            return false
+        end
+        erisFetchFailedAt = 0
+        return true
+    end
+
+    local function downloadSourceAsync(cacheKey, isEris, erisIdx)
+        local failAt = urlFailed[cacheKey]
+        if urlPending[cacheKey] or (failAt and clock() - failAt < 10) then return end
         local assetFn = getCustomAssetFn()
         if type(assetFn) ~= "function" or type(writefile) ~= "function" then
-            urlFailed[url] = clock()
-            pcall(function()
-                Library:Notify({
-                    Title = "Фон UI",
-                    Description = "Экзекутор не поддерживает getcustomasset/writefile для URL — используйте Roblox ID",
-                    Time = 4,
-                })
-            end)
-            return
-        end
-        urlPending[url] = true
-        task.spawn(function()
-            local body = fetchUrlBytes(url)
-            local ext = body and detectImageExt(body, url)
-            if not ext then
-                urlPending[url] = nil
-                urlFailed[url] = clock()
+            urlFailed[cacheKey] = clock()
+            if not isEris then
                 pcall(function()
                     Library:Notify({
                         Title = "Фон UI",
-                        Description = "Не удалось загрузить картинку: нужна прямая ссылка на PNG/JPG/WEBP",
+                        Description = "Экзекутор не поддерживает getcustomasset/writefile для URL — используйте Roblox ID",
                         Time = 4,
                     })
                 end)
+            end
+            return
+        end
+        urlPending[cacheKey] = true
+        task.spawn(function()
+            local body, ext, pickedUrl = nil, nil, nil
+            if isEris then
+                populateErisList()
+                local n = #erisUrls
+                if n > 0 then
+                    local tries = math.min(n, 4)
+                    for step = 0, tries - 1 do
+                        local idx = ((erisIdx - 1 + step) % n) + 1
+                        local cand = erisUrls[idx]
+                        local b = fetchUrlBytes(cand)
+                        local e = b and detectImageExt(b, cand)
+                        if e then
+                            body, ext, pickedUrl = b, e, cand
+                            break
+                        end
+                    end
+                end
+            else
+                pickedUrl = cacheKey
+                body = fetchUrlBytes(cacheKey)
+                ext = body and detectImageExt(body, cacheKey)
+            end
+
+            if not ext then
+                urlPending[cacheKey] = nil
+                urlFailed[cacheKey] = clock()
+                if not isEris then
+                    pcall(function()
+                        Library:Notify({
+                            Title = "Фон UI",
+                            Description = "Не удалось загрузить картинку: нужна прямая ссылка на PNG/JPG/WEBP",
+                            Time = 4,
+                        })
+                    end)
+                end
                 return
             end
+
             ensureBgDir()
-            local path = BG_DIR .. "/" .. hashUrl(url) .. ext
+            local path = BG_DIR .. "/" .. hashUrl(cacheKey) .. ext
             local okW = pcall(writefile, path, body)
             local okA, assetId = false, nil
             if okW then okA, assetId = pcall(assetFn, path) end
-            urlPending[url] = nil
+            urlPending[cacheKey] = nil
             if okA and type(assetId) == "string" and assetId ~= "" then
-                urlAssetCache[url] = assetId
-                urlFailed[url] = nil
+                urlAssetCache[cacheKey] = assetId
+                urlFailed[cacheKey] = nil
                 local cur = cfg().UI
-                local curTrim = type(cur.BgId) == "string" and (cur.BgId:match("^%s*(.-)%s*$") or "") or ""
-                if cur.BgEnabled and curTrim == url then
+                local curNorm = UiBg.normalizeId(cur.BgId)
+                if cur.BgEnabled and curNorm == cacheKey then
                     pcall(UiBg.apply)
-                    pcall(function()
-                        Library:Notify({ Title = "Фон UI", Description = "Картинка по ссылке загружена", Time = 3 })
-                    end)
+                    if not isEris then
+                        pcall(function()
+                            Library:Notify({ Title = "Фон UI", Description = "Картинка по ссылке загружена", Time = 3 })
+                        end)
+                    end
                 end
             else
-                urlFailed[url] = clock()
-                pcall(function()
-                    Library:Notify({ Title = "Фон UI", Description = "Ошибка создания custom asset из файла", Time = 4 })
-                end)
+                urlFailed[cacheKey] = clock()
+                if not isEris then
+                    pcall(function()
+                        Library:Notify({ Title = "Фон UI", Description = "Ошибка создания custom asset из файла", Time = 4 })
+                    end)
+                end
             end
         end)
     end
@@ -10879,8 +11800,19 @@ do
         if type(raw) ~= "string" then return nil, false end
         local s = raw:match("^%s*(.-)%s*$") or ""
         if s == "" then return nil, false end
+        local low = string.lower(s)
+        if low == "eris" or low == "eris:default" or low == "эрис" then
+            return "eris:1", true
+        end
+        local eIdx = low:match("^eris:(%d+)$")
+        if eIdx then
+            return "eris:" .. tostring(math.max(1, tonumber(eIdx) or 1)), true
+        end
+        if low:match("^eris:") then
+            return "eris:1", true
+        end
         if s:match("^rbxthumb://") or s:match("^rbxasset://") then return s, false end
-        local isRobloxHost = (not s:match("^https?://")) or (string.lower(s):match("^https?://[^/]*roblox%.com/") ~= nil)
+        local isRobloxHost = (not s:match("^https?://")) or (low:match("^https?://[^/]*roblox%.com/") ~= nil)
         local asset = s:match("^rbxassetid://(%d+)$") or s:match("^(%d+)$")
         if not asset and isRobloxHost then
             asset = s:match("[?&]id=(%d+)")
@@ -10963,7 +11895,7 @@ do
         if not inst:IsA("Frame") and not inst:IsA("CanvasGroup") and not inst:IsA("ScrollingFrame") then
             return false
         end
-        if inst == bgLayer or inst.Name == "NoPanelBg" then return false end
+        if inst == bgLayer or inst == bgWash or inst.Name == "NoPanelBg" then return false end
         if inst.Name == "PanelBg" then return true end
         local sz = inst.Size
         local abs = inst.AbsoluteSize
@@ -11027,13 +11959,72 @@ do
             c.CornerRadius = srcCorner.CornerRadius
             c.Parent = img
         end
+
+        -- Soft white frosted wash so text and white cards stay clean over vibrant anime art
+        local wash = Instance.new("Frame")
+        wash.Name = "NoPanelBg"
+        wash.Size = UDim2.fromScale(1, 1)
+        wash.BackgroundColor3 = Color3.new(1, 1, 1)
+        wash.BackgroundTransparency = 0
+        wash.BorderSizePixel = 0
+        wash.ZIndex = img.ZIndex + 1
+        if srcCorner then
+            local wc = Instance.new("UICorner")
+            wc.CornerRadius = srcCorner.CornerRadius
+            wc.Parent = wash
+        end
+        local wg = Instance.new("UIGradient")
+        wg.Rotation = 18
+        wg.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.28),
+            NumberSequenceKeypoint.new(0.45, 0.58),
+            NumberSequenceKeypoint.new(1, 0.80),
+        })
+        wg.Parent = wash
+        wash.Parent = img
+
         img.Parent = mf
-        bgLayer = img
+        bgLayer, bgWash, bgWashGrad = img, wash, wg
+
+        if not bgAnimConn then
+            bgAnimConn = RunService.RenderStepped:Connect(function()
+                if isUnloaded then return end
+                if not (bgLayer and bgLayer.Parent and bgLayer.Visible and mainFrameRef and mainFrameRef.Visible) then return end
+                if bgWashGrad and bgWashGrad.Parent then
+                    local tt = clock()
+                    bgWashGrad.Rotation = 16 + sin(tt * 0.45) * 14
+                    bgWashGrad.Offset = v2(sin(tt * 0.32) * 0.04, cos(tt * 0.28) * 0.03)
+                end
+            end)
+        end
         return img
     end
 
     function UiBg.clearFailures()
         table.clear(urlFailed)
+        erisFetchFailedAt = 0
+    end
+
+    function UiBg.nextErisArt()
+        local U = cfg().UI
+        local curNorm = UiBg.normalizeId(U.BgId)
+        local curIdx = tonumber(curNorm and curNorm:match("^eris:(%d+)$")) or 0
+        local maxCycle = math.max(#erisUrls, 10)
+        local nextIdx = (curIdx % maxCycle) + 1
+        local nextTok = "eris:" .. tostring(nextIdx)
+        U.BgEnabled = true
+        U.BgId = nextTok
+        urlFailed[nextTok] = nil
+        safeSet("UiBgOn", true)
+        safeSet("UiBgId", nextTok)
+        UiBg.apply()
+        pcall(function()
+            Library:Notify({
+                Title = "Фон Эрис Грейрат",
+                Description = "Загружаем арт #" .. tostring(nextIdx) .. "...",
+                Time = 2.5,
+            })
+        end)
     end
 
     function UiBg.apply()
@@ -11052,7 +12043,8 @@ do
             if isUrl then
                 asset = findCachedAsset(source)
                 if not asset then
-                    downloadUrlAsync(source)
+                    local erisNum = tonumber(source:match("^eris:(%d+)$"))
+                    downloadSourceAsync(source, erisNum ~= nil, erisNum or 1)
                 end
             else
                 asset = source
@@ -11061,6 +12053,7 @@ do
 
         if not asset then
             if bgLayer and bgLayer.Parent then bgLayer.Visible = false end
+            lastShownAsset = nil
             restorePanels()
             return
         end
@@ -11079,14 +12072,28 @@ do
         end
 
         local scale = SCALE_MODES[U.BgScale] or Enum.ScaleType.Crop
+        local targetTr = 1 - clamp(U.BgOpacity or 0.42, 0.05, 1)
+        local changedAsset = (lastShownAsset ~= asset) or (not img.Visible)
         img.Image = asset
         img.ImageColor3 = U.BgTint or Color3.new(1, 1, 1)
-        img.ImageTransparency = 1 - clamp(U.BgOpacity or 0.65, 0.05, 1)
         img.ScaleType = scale
         if scale == Enum.ScaleType.Tile then
             img.TileSize = UDim2.fromOffset(256, 256)
         end
         img.Visible = true
+        if changedAsset then
+            lastShownAsset = asset
+            lastTargetTransp = targetTr
+            img.ImageTransparency = 1
+            pcall(function()
+                TweenSvc:Create(img, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { ImageTransparency = targetTr }):Play()
+            end)
+        elseif lastTargetTransp ~= targetTr then
+            lastTargetTransp = targetTr
+            pcall(function()
+                TweenSvc:Create(img, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = targetTr }):Play()
+            end)
+        end
     end
 
     function UiBg.destroy()
@@ -11094,7 +12101,10 @@ do
         table.clear(origTransp)
         table.clear(urlPending)
         table.clear(urlFailed)
+        safeDestroy(bgAnimConn); bgAnimConn = nil
         if bgLayer then pcall(function() bgLayer:Destroy() end) bgLayer = nil end
+        bgWash, bgWashGrad = nil, nil
+        lastShownAsset, lastTargetTransp = nil, nil
         mainFrameRef, screenGuiRef = nil, nil
     end
 end
@@ -11504,7 +12514,7 @@ do
         "Рисует светящиеся ленты (Trail) и шлейфы с разными узорами вокруг тела, за головой, спиной или конечностями.")
     withDep(tr, "TrailOn", true, function(d)
         addDropdown(d, "TrailMode", "Форма лент", { "ParticleTrail", "Mode" }, { "Orbit", "Helix", "Void Slash", "Spiral Halo", "Kagune", "Bankai", "Nine-Tails", "Angel Wings", "Hands", "Feet", "Wings", "Full" },
-            "Orbit/Helix/Void Slash/Spiral Halo; аниме-режимы: Kagune (щупальца), Bankai (режущие дуги), Nine-Tails (7 хвостов), Angel Wings.")
+            "Orbit/Helix/Void Slash/Spiral Halo; аниме-режимы: Kagune (щупальца), Bankai (режущие дуги), Nine-Tails (9 хвостов), Angel Wings.")
         addDropdown(d, "TrailPattern", "Узор ленты", { "ParticleTrail", "Pattern" }, { "Smooth", "Pulse", "Starlight", "Blade", "Neon Core", "Chakra", "Slash Arc" },
             "Smooth, Pulse, Starlight, Blade, Neon Core, а также аниме-узоры: Chakra (волна чакры) и Slash Arc (лезвие катаны).")
         addDropdown(d, "TrailStyle", "Цветовой стиль", { "ParticleTrail", "Style" }, { "Holographic", "Aurora", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Super Saiyan", "Gojo Infinity", "Domain", "Ultra Instinct", "Custom" },
@@ -11524,10 +12534,10 @@ do
         CUR_GROUP = "Аниме крылья и хвосты"
         local awg = Tabs.SelfFX:AddLeftGroupbox("Аниме крылья и хвосты")
         addToggle(awg, "AwOn", "Включить крылья / хвосты", { "AnimeWings", "Enabled" },
-            "Добавляет за спину анимированные неоновые крылья, кагуне из Tokyo Ghoul, 7 хвостов кицунэ или крылья кибер-меха.")
+            "Добавляет за спину анимированные неоновые крылья, кагуне из Tokyo Ghoul, 9 плавных хвостов кицунэ или крылья кибер-меха.")
         withDep(awg, "AwOn", true, function(d)
             addDropdown(d, "AwShape", "Форма за спиной", { "AnimeWings", "Shape" }, { "Seraph", "Demon", "Kagune", "Nine Tails", "Cyber Mecha" },
-                "Seraph — 6 крыльев серафима; Demon — крылья демона; Kagune — 4 кагуне; Nine Tails — 7 хвостов кицунэ; Cyber Mecha — клинки.")
+                "Seraph — 6 крыльев серафима; Demon — крылья демона; Kagune — 4 кагуне; Nine Tails — 9 хвостов кицунэ; Cyber Mecha — клинки.")
             addDropdown(d, "AwStyle", "Цветовой стиль", { "AnimeWings", "Style" }, { "Gojo Infinity", "Super Saiyan", "Domain", "Ultra Instinct", "Aurora", "Holographic", "Rainbow", "Cyber", "Flame", "Void", "Frost", "Sakura", "Matrix", "Sunset", "Gold", "Custom" },
                 "Аниме и градиентные палитры свечения крыльев и хвостов.")
             addSlider(d, "AwSize", "Размер", { "AnimeWings", "Size" }, 0.5, 2.2, 2,
@@ -12090,7 +13100,7 @@ do
             "• Чамсы на себя (Liquid Glass): настраиваемое жидкое стекло с бликом и 18 пресетами (включая Super Saiyan, Gojo Infinity, Domain, Ultra Instinct).",
             "• Sandevistan (клоны): стили эха (включая аниме-палитры), материалы ForceField/Glass/Wireframe, 7 режимов исчезновения включая Shunpo + векторная нить.",
             "• Ленты / Шлейф (Ribbons): 12 форм (Orbit, Helix, Void Slash, Spiral Halo, Kagune, Bankai, Nine-Tails, Angel Wings и др.) + 7 узоров + искры.",
-            "• Аниме крылья и хвосты (AnimeWings): 5 анимированных форм за спиной — Seraph (6 крыльев), Demon, Kagune, Nine Tails (7 хвостов) и Cyber Mecha.",
+            "• Аниме крылья и хвосты (AnimeWings): 5 анимированных форм за спиной — Seraph (6 крыльев), Demon, Kagune, Nine Tails (9 хвостов) и Cyber Mecha.",
             "• Орбитальные спутники (Satellites): 13 форм — Star, Sakura, Lotus, Clover, Crescent, Snowflake, Butterfly, Planet + аниме (Kunai, Shuriken, Spirit Flame, Katana, Magic Card) и шлейф.",
             "• Аура персонажа: 12 форм, включая Ki Burst (всплеск Ки), Magic Circle, Sakura Storm и Domain Sphere + частицы и PointLight.",
             "• Шляпы и волны прыжка: Kitsune Ears, Angel Halo, Demon Horns, Oni Crown; формы прыжка Magic Seal, Shuriken и Sakura + зум колесом в 3-м лице.",
@@ -12482,7 +13492,7 @@ do
     })
     pr:AddButton({
         Text = "Девятихвостый (Kitsune / Ki Burst)",
-        Tooltip = "Аниме-сборка: 7 хвостов кицунэ, ушки Kitsune Ears, аура Ki Burst, огненные духи Spirit Flame, сакура-ленты и Super Saiyan.",
+        Tooltip = "Аниме-сборка: 9 хвостов кицунэ, ушки Kitsune Ears, аура Ki Burst, огненные духи Spirit Flame, сакура-ленты и Super Saiyan.",
         Func = function()
             applyStylePreset("Kitsune Ki Burst", {
                 ESP = { Enabled = true, BoxType = "Corner", BoxThickness = 1, BoxFill = true, FillOpacity = 0.08, DamageNumbers = true },
@@ -12503,14 +13513,14 @@ do
     CUR_GROUP = "Кастомный фон UI"
     local bg = Tabs.UI:AddRightGroupbox("Кастомный фон UI")
     addToggle(bg, "UiBgOn", "Включить фон UI", { "UI", "BgEnabled" },
-        "Ставит картинку по Roblox ID или ссылке из браузера на фон окна меню и делает панели полупрозрачными.",
+        "Ставит картинку на фон окна меню (по умолчанию Эрис Грейрат) и делает панели полупрозрачными.",
         function(v)
             if v and not isSyncingUI then UiBg.clearFailures() end
             UiBg.apply()
         end)
     withDep(bg, "UiBgOn", true, function(d)
-        addInput(d, "UiBgId", "ID или URL картинки", { "UI", "BgId" }, "ID, rbxassetid://... или https://...",
-            "Вставьте цифры Roblox ID, rbxassetid://... или прямую ссылку из браузера на PNG/JPG/WEBP (нажмите Enter).",
+        addInput(d, "UiBgId", "ID, URL или eris:default", { "UI", "BgId" }, "eris:default, ID или https://...",
+            "По умолчанию стоит eris:default (Эрис Грейрат). Можно ввести Roblox ID, rbxassetid://... или прямую ссылку на PNG/JPG/WEBP.",
             function(v)
                 if not isSyncingUI then UiBg.clearFailures() end
                 local norm = UiBg.normalizeId(v)
@@ -12530,6 +13540,13 @@ do
             "Crop — заполняет без искажения; Stretch — растягивает; Fit — целиком в окне; Tile — плиткой.",
             function() UiBg.apply() end)
         addColorPicker(d, "UiBgTint", "Оттенок фона", { "UI", "BgTint" }, function() UiBg.apply() end)
+        d:AddButton({
+            Text = "Следующий арт Эрис",
+            Tooltip = "Переключает фон на следующий арт Эрис Грейрат.",
+            Func = function()
+                UiBg.nextErisArt()
+            end,
+        })
         d:AddButton({
             Text = "Сбросить фон",
             Tooltip = "Выключает и очищает кастомную картинку фона.",
