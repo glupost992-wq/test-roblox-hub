@@ -7601,22 +7601,33 @@ end
 local SaveManager
 Library, SaveManager = (function()
     local TweenSvc = game:GetService("TweenService")
+
+    local function pickFont(primary, fallback)
+        local ok, f = pcall(function() return Enum.Font[primary] end)
+        if ok and typeof(f) == "EnumItem" then return f end
+        return Enum.Font[fallback]
+    end
+    local F_REG  = pickFont("BuilderSans", "SourceSans")
+    local F_MED  = pickFont("BuilderSansMedium", "SourceSansSemibold")
+    local F_BOLD = pickFont("BuilderSansBold", "SourceSansBold")
+    local F_MONO = pickFont("RobotoMono", "Code")
+
     local TH = {
-        WinBg = rgb(244, 246, 250),
-        SideBg = rgb(234, 238, 246),
-        TopBg = rgb(249, 250, 254),
-        CardBg = rgb(252, 253, 255),
-        CardHead = rgb(245, 247, 252),
-        CtrlBg = rgb(236, 240, 248),
-        CtrlHover = rgb(225, 231, 243),
-        Border = rgb(210, 217, 230),
-        BorderStrong = rgb(180, 190, 210),
-        Text = rgb(24, 28, 38),
-        SubText = rgb(95, 106, 126),
-        Muted = rgb(142, 152, 172),
+        WinBg = rgb(246, 247, 250),
+        SideBg = rgb(251, 252, 254),
+        TopBg = rgb(255, 255, 255),
+        CardBg = rgb(255, 255, 255),
+        CardHead = rgb(249, 250, 252),
+        CtrlBg = rgb(242, 244, 248),
+        CtrlHover = rgb(233, 237, 244),
+        Border = rgb(225, 229, 238),
+        BorderStrong = rgb(200, 208, 222),
+        Text = rgb(17, 24, 39),
+        SubText = rgb(88, 98, 118),
+        Muted = rgb(142, 152, 168),
         Accent = rgb(45, 118, 255),
-        AccentSoft = rgb(224, 236, 255),
-        Plexus = rgb(155, 170, 200),
+        AccentSoft = rgb(232, 240, 255),
+        Plexus = rgb(172, 182, 202),
     }
 
     local lib = {
@@ -7645,7 +7656,7 @@ Library, SaveManager = (function()
 
     local function twS(inst, dur, style, props)
         pcall(function()
-            TweenSvc:Create(inst, TweenInfo.new(dur, style or Enum.EasingStyle.Back, Enum.EasingDirection.Out), props):Play()
+            TweenSvc:Create(inst, TweenInfo.new(dur, style or Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
         end)
     end
 
@@ -7658,7 +7669,7 @@ Library, SaveManager = (function()
         return o
     end
 
-    local function corner(p, r) return mk("UICorner", { CornerRadius = UDim.new(0, r or 8) }, p) end
+    local function corner(p, r) return mk("UICorner", { CornerRadius = UDim.new(0, r or 6) }, p) end
     local function stroke(p, col, th, tr)
         return mk("UIStroke", { Color = col or TH.Border, Thickness = th or 1, Transparency = tr or 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, p)
     end
@@ -7696,7 +7707,7 @@ Library, SaveManager = (function()
         Name = "NotifHolder",
         AnchorPoint = v2(1, 1),
         Position = UDim2.new(1, -18, 1, -18),
-        Size = UDim2.fromOffset(290, 360),
+        Size = UDim2.fromOffset(284, 360),
         BackgroundTransparency = 1,
         ZIndex = 80,
     }, overlay)
@@ -7704,24 +7715,24 @@ Library, SaveManager = (function()
         SortOrder = Enum.SortOrder.LayoutOrder,
         VerticalAlignment = Enum.VerticalAlignment.Bottom,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
-        Padding = UDim.new(0, 8),
+        Padding = UDim.new(0, 6),
     }, notifHolder)
 
     local tipFrame = mk("Frame", {
         Visible = false,
         AutomaticSize = Enum.AutomaticSize.XY,
         BackgroundColor3 = TH.CardBg,
-        BackgroundTransparency = 0.04,
+        BackgroundTransparency = 0.02,
         ZIndex = 95,
     }, overlay)
-    corner(tipFrame, 7)
+    corner(tipFrame, 6)
     stroke(tipFrame, TH.BorderStrong, 1, 0)
     pad(tipFrame, 9, 9, 6, 6)
     local tipLbl = mk("TextLabel", {
         AutomaticSize = Enum.AutomaticSize.XY,
         Size = UDim2.fromOffset(0, 0),
         BackgroundTransparency = 1,
-        Font = Enum.Font.Gotham,
+        Font = F_REG,
         TextSize = 12,
         TextColor3 = TH.Text,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -7729,7 +7740,7 @@ Library, SaveManager = (function()
         Text = "",
         ZIndex = 96,
     }, tipFrame)
-    mk("UISizeConstraint", { MaxSize = v2(260, 180) }, tipLbl)
+    mk("UISizeConstraint", { MaxSize = v2(256, 180) }, tipLbl)
 
     local tipScale = mk("UIScale", { Scale = 1 }, tipFrame)
     local activeTipToken = 0
@@ -7744,13 +7755,13 @@ Library, SaveManager = (function()
             if not txt or txt == "" then return end
             activeTipToken += 1
             local tok = activeTipToken
-            task.delay(0.28, function()
+            task.delay(0.32, function()
                 if lib._unloaded or activeTipToken ~= tok or not guiObj.Parent then return end
                 local mp = UIS:GetMouseLocation()
                 local cam = workspace.CurrentCamera
                 local vp = cam and cam.ViewportSize or v2(1280, 720)
                 tipLbl.Text = txt
-                tipScale.Scale = 0.90
+                tipScale.Scale = 0.96
                 tipFrame.Visible = true
                 task.defer(function()
                     if activeTipToken ~= tok then return end
@@ -7758,7 +7769,7 @@ Library, SaveManager = (function()
                     local px = clamp(mp.X + 14, 8, max(8, vp.X - sz.X - 8))
                     local py = clamp(mp.Y + 14, 8, max(8, vp.Y - sz.Y - 8))
                     tipFrame.Position = UDim2.fromOffset(px, py)
-                    twS(tipScale, 0.16, Enum.EasingStyle.Back, { Scale = 1 })
+                    tw(tipScale, 0.12, { Scale = 1 })
                 end)
             end)
         end)
@@ -7797,16 +7808,15 @@ Library, SaveManager = (function()
         if lib._unloaded then return end
         opts = opts or {}
         local card = mk("Frame", {
-            Size = UDim2.fromOffset(276, 0),
+            Size = UDim2.fromOffset(274, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundColor3 = TH.CardBg,
             BackgroundTransparency = 0.25,
             ClipsDescendants = true,
             ZIndex = 82,
         }, notifHolder)
-        corner(card, 9)
+        corner(card, 7)
         local cStroke = stroke(card, TH.BorderStrong, 1, 0.4)
-        local cScale = mk("UIScale", { Scale = 0.88 }, card)
         local bar = mk("Frame", {
             Size = UDim2.new(0, 3, 1, 0),
             BackgroundColor3 = TH.Accent,
@@ -7818,13 +7828,13 @@ Library, SaveManager = (function()
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, 2),
             BackgroundColor3 = TH.Accent,
-            BackgroundTransparency = 0.3,
+            BackgroundTransparency = 0.25,
             BorderSizePixel = 0,
             ZIndex = 84,
         }, card)
         local inner = mk("Frame", {
-            Position = UDim2.fromOffset(40, 8),
-            Size = UDim2.new(1, -20, 0, 0),
+            Position = UDim2.fromOffset(24, 8),
+            Size = UDim2.new(1, -22, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
             ZIndex = 83,
@@ -7833,8 +7843,8 @@ Library, SaveManager = (function()
         mk("TextLabel", {
             Size = UDim2.new(1, 0, 0, 16),
             BackgroundTransparency = 1,
-            Font = Enum.Font.GothamBold,
-            TextSize = 13,
+            Font = F_BOLD,
+            TextSize = 12,
             TextColor3 = TH.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             Text = tostring(opts.Title or "glupost hub"),
@@ -7845,8 +7855,8 @@ Library, SaveManager = (function()
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
-            Font = Enum.Font.Gotham,
-            TextSize = 12,
+            Font = F_REG,
+            TextSize = 11,
             TextColor3 = TH.SubText,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextWrapped = true,
@@ -7858,20 +7868,18 @@ Library, SaveManager = (function()
         local dur = clamp(tonumber(opts.Time) or 3, 1, 10)
         bar.BackgroundColor3 = TH.Accent
         prog.BackgroundColor3 = TH.Accent
-        tw(card, 0.22, { BackgroundTransparency = 0.04 })
-        tw(cStroke, 0.22, { Transparency = 0 })
-        twS(cScale, 0.24, Enum.EasingStyle.Back, { Scale = 1 })
-        twS(inner, 0.24, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(12, 8) })
+        tw(card, 0.18, { BackgroundTransparency = 0.02 })
+        tw(cStroke, 0.18, { Transparency = 0 })
+        twS(inner, 0.20, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(12, 8) })
         pcall(function()
             TweenSvc:Create(prog, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) }):Play()
         end)
         task.delay(dur, function()
             if not card or not card.Parent then return end
-            tw(card, 0.22, { BackgroundTransparency = 1 })
-            tw(cStroke, 0.22, { Transparency = 1 })
-            tw(bar, 0.22, { BackgroundTransparency = 1 })
-            twS(cScale, 0.20, Enum.EasingStyle.Quad, { Scale = 0.90 })
-            task.delay(0.24, function()
+            tw(card, 0.18, { BackgroundTransparency = 1 })
+            tw(cStroke, 0.18, { Transparency = 1 })
+            tw(bar, 0.18, { BackgroundTransparency = 1 })
+            task.delay(0.20, function()
                 if card and card.Parent then card:Destroy() end
             end)
         end)
@@ -7902,7 +7910,7 @@ Library, SaveManager = (function()
     function lib:SetAccent(col)
         if typeof(col) ~= "Color3" then return end
         TH.Accent = col
-        TH.AccentSoft = col:Lerp(WHITE, 0.84)
+        TH.AccentSoft = col:Lerp(WHITE, 0.88)
         for i = #lib._accentRefs, 1, -1 do
             local r = lib._accentRefs[i]
             if r.fn then
@@ -7954,28 +7962,28 @@ Library, SaveManager = (function()
             return r
         end
         if kind == "eye" then
-            ring(1, 3, 12, 8, 5, 1.4)
-            part(5, 5, 4, 4, 4)
+            ring(1, 3, 12, 8, 5, 1.3)
+            part(5.5, 5.5, 3, 3, 99)
         elseif kind == "sparkles" then
-            part(6, 1, 2, 12, 1); part(1, 6, 12, 2, 1)
-            part(3, 3, 8, 8, 2, 45).BackgroundTransparency = 0.35
+            part(6, 1, 1.8, 12, 1); part(1, 6, 12, 1.8, 1)
+            part(3.5, 3.5, 7, 7, 1, 45).BackgroundTransparency = 0.45
         elseif kind == "layers" then
-            part(2, 2, 10, 2, 1); part(2, 6, 10, 2, 1); part(2, 10, 10, 2, 1)
+            part(2, 2.5, 10, 1.8, 1); part(2, 6, 10, 1.8, 1); part(2, 9.5, 10, 1.8, 1)
         elseif kind == "radar" then
             ring(1, 1, 12, 12, 99, 1.3)
-            part(6, 6, 2, 2, 99); part(7, 2, 1, 5, 0, 35)
+            part(6, 6, 2, 2, 99); part(7, 2, 1.2, 5, 0, 35)
         elseif kind == "globe" then
             ring(1, 1, 12, 12, 99, 1.3)
-            part(1, 6, 12, 1.2); part(6, 1, 1.2, 12)
+            part(1, 6.2, 12, 1.2); part(6.2, 1, 1.2, 12)
         elseif kind == "box" then
-            ring(2, 2, 10, 10, 2, 1.4)
-            part(4, 6, 6, 1.5)
+            ring(2, 2, 10, 10, 2, 1.3)
+            part(4, 6, 6, 1.4)
         elseif kind == "info" then
             ring(1, 1, 12, 12, 99, 1.3)
-            part(6, 3, 2, 2, 2); part(6, 6, 2, 5, 1)
+            part(6, 3.5, 2, 2, 99); part(6, 6.5, 2, 4.5, 1)
         else
-            part(1, 3, 12, 1.8, 1); part(8, 1.5, 3, 4.5, 1)
-            part(1, 9, 12, 1.8, 1); part(3, 7.5, 3, 4.5, 1)
+            part(1, 3.2, 12, 1.6, 1); part(8, 1.8, 2.8, 4.2, 1)
+            part(1, 9.2, 12, 1.6, 1); part(3, 7.8, 2.8, 4.2, 1)
         end
         return {
             box = box,
@@ -7992,9 +8000,9 @@ Library, SaveManager = (function()
         local vp = cam and cam.ViewportSize or v2(1280, 720)
         local winW = clamp(floor(vp.X * 0.58), 590, 760)
         local winH = clamp(floor(vp.Y * 0.72), 430, 535)
-        local prevW = 218
+        local prevW = 240
         local showPrev = cfg().UI.ShowPreview ~= false
-        local totalW = winW + (showPrev and (prevW + 10) or 0)
+        local totalW = winW + (showPrev and (prevW + 8) or 0)
         local startX = clamp(floor((vp.X - totalW) * 0.5), 10, max(10, vp.X - winW - 10))
         local startY = clamp(floor((vp.Y - winH) * 0.5), 10, max(10, vp.Y - winH - 10))
 
@@ -8003,43 +8011,45 @@ Library, SaveManager = (function()
             Position = UDim2.fromOffset(startX, startY),
             Size = UDim2.fromOffset(winW, winH),
             BackgroundColor3 = TH.WinBg,
-            BackgroundTransparency = 0.05,
+            BackgroundTransparency = 0.02,
+            Active = true,
             ClipsDescendants = true,
             ZIndex = 2,
         }, sg)
-        corner(main, 11)
+        corner(main, 8)
         stroke(main, TH.BorderStrong, 1, 0)
-        local mainScale = mk("UIScale", { Scale = 0.94 }, main)
-        twS(mainScale, 0.24, Enum.EasingStyle.Back, { Scale = 1 })
+        local mainScale = mk("UIScale", { Scale = 0.97 }, main)
+        twS(mainScale, 0.18, Enum.EasingStyle.Quart, { Scale = 1 })
 
         local previewWin = mk("Frame", {
             Name = "PreviewWindow",
-            Position = UDim2.fromOffset(startX + winW + 10, startY),
+            Position = UDim2.fromOffset(startX + winW + 8, startY),
             Size = UDim2.fromOffset(prevW, winH),
             BackgroundColor3 = TH.WinBg,
-            BackgroundTransparency = 0.05,
+            BackgroundTransparency = 0.02,
             Visible = showPrev,
+            Active = true,
             ClipsDescendants = true,
             ZIndex = 2,
         }, sg)
-        corner(previewWin, 11)
+        corner(previewWin, 8)
         stroke(previewWin, TH.BorderStrong, 1, 0)
-        local previewScale = mk("UIScale", { Scale = showPrev and 0.94 or 1 }, previewWin)
-        if showPrev then twS(previewScale, 0.26, Enum.EasingStyle.Back, { Scale = 1 }) end
+        local previewScale = mk("UIScale", { Scale = showPrev and 0.97 or 1 }, previewWin)
+        if showPrev then twS(previewScale, 0.20, Enum.EasingStyle.Quart, { Scale = 1 }) end
 
         local function syncPreviewPos()
             local mx, my = main.Position.X.Offset, main.Position.Y.Offset
             local mw, mh = main.Size.X.Offset, main.Size.Y.Offset
-            previewWin.Position = UDim2.fromOffset(mx + mw + 10, my)
+            previewWin.Position = UDim2.fromOffset(mx + mw + 8, my)
             previewWin.Size = UDim2.fromOffset(prevW, mh)
         end
 
-        local sideW = 176
+        local sideW = 166
         local sidebar = mk("Frame", {
             Name = "Sidebar",
             Size = UDim2.new(0, sideW, 1, 0),
             BackgroundColor3 = TH.SideBg,
-            BackgroundTransparency = 0.06,
+            BackgroundTransparency = 0.02,
             ZIndex = 4,
         }, main)
         mk("Frame", {
@@ -8050,85 +8060,57 @@ Library, SaveManager = (function()
             ZIndex = 5,
         }, sidebar)
 
-        -- Top Brand Card in Sidebar
-        local brandCard = mk("Frame", {
-            Position = UDim2.fromOffset(10, 10),
-            Size = UDim2.new(1, -20, 0, 74),
-            BackgroundColor3 = TH.CardBg,
-            BackgroundTransparency = 0.05,
+        -- Clean Flat Brand Header (42px matching topbar)
+        local brandHdr = mk("Frame", {
+            Size = UDim2.new(1, 0, 0, 42),
+            BackgroundTransparency = 1,
             ZIndex = 5,
         }, sidebar)
-        corner(brandCard, 9)
-        stroke(brandCard, TH.Border, 1, 0)
-
-        local avatarImg = mk("ImageLabel", {
-            Position = UDim2.fromOffset(10, 15),
-            Size = UDim2.fromOffset(44, 44),
-            BackgroundColor3 = TH.CtrlBg,
+        mk("Frame", {
+            Position = UDim2.new(0, 0, 1, -1),
+            Size = UDim2.new(1, 0, 0, 1),
+            BackgroundColor3 = TH.Border,
             BorderSizePixel = 0,
-            Image = "",
+            ZIndex = 5,
+        }, brandHdr)
+        local brandDot = mk("Frame", {
+            AnchorPoint = v2(0, 0.5),
+            Position = UDim2.new(0, 12, 0.5, 0),
+            Size = UDim2.fromOffset(7, 7),
+            BackgroundColor3 = TH.Accent,
+            BorderSizePixel = 0,
             ZIndex = 6,
-        }, brandCard)
-        corner(avatarImg, 99)
-        stroke(avatarImg, TH.BorderStrong, 1.2, 0)
-
-        task.spawn(function()
-            if LP and LP.UserId then
-                local ok, imgUrl = pcall(Players.GetUserThumbnailAsync, Players, LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-                if ok and type(imgUrl) == "string" and avatarImg and avatarImg.Parent then
-                    avatarImg.Image = imgUrl
-                end
-            end
-        end)
-
+        }, brandHdr)
+        corner(brandDot, 2)
+        regAccent(brandDot, "BackgroundColor3", "solid")
         mk("TextLabel", {
-            Position = UDim2.fromOffset(62, 16),
-            Size = UDim2.new(1, -68, 0, 18),
+            Position = UDim2.fromOffset(25, 0),
+            Size = UDim2.new(1, -76, 1, 0),
             BackgroundTransparency = 1,
-            Font = Enum.Font.GothamBold,
-            TextSize = 14,
+            Font = F_BOLD,
+            TextSize = 13,
             TextColor3 = TH.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
             Text = tostring(winOpts.Title or "glupost hub"),
             ZIndex = 6,
-        }, brandCard)
-        local verPill = mk("Frame", {
-            Position = UDim2.fromOffset(62, 37),
-            Size = UDim2.fromOffset(66, 18),
-            BackgroundColor3 = TH.AccentSoft,
-            BorderSizePixel = 0,
-            ClipsDescendants = true,
-            ZIndex = 6,
-        }, brandCard)
-        corner(verPill, 5)
-        regAccent(verPill, "BackgroundColor3", "soft")
-        local verSheen = mk("Frame", {
-            Name = "NoPanelBg",
-            Position = UDim2.fromScale(-0.6, 0),
-            Size = UDim2.fromScale(0.6, 1),
-            BackgroundColor3 = WHITE,
-            BackgroundTransparency = 0.35,
-            BorderSizePixel = 0,
-            ZIndex = 6,
-        }, verPill)
-        mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.15), NumberSequenceKeypoint.new(1, 1) }) }, verSheen)
-        pcall(function()
-            TweenSvc:Create(verSheen, TweenInfo.new(2.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, false, 1.4), { Position = UDim2.fromScale(1.2, 0) }):Play()
-        end)
-        local verTxt = mk("TextLabel", {
-            Size = UDim2.fromScale(1, 1),
+        }, brandHdr)
+        mk("TextLabel", {
+            AnchorPoint = v2(1, 0.5),
+            Position = UDim2.new(1, -10, 0.5, 0),
+            Size = UDim2.fromOffset(48, 16),
             BackgroundTransparency = 1,
-            Font = Enum.Font.GothamBold,
+            Font = F_MONO,
             TextSize = 10,
-            TextColor3 = TH.Accent,
+            TextColor3 = TH.Muted,
+            TextXAlignment = Enum.TextXAlignment.Right,
             Text = tostring(winOpts.Footer or VERSION),
-            ZIndex = 7,
-        }, verPill)
-        regAccent(verTxt, "TextColor3", "solid")
+            ZIndex = 6,
+        }, brandHdr)
 
         local tabScroll = mk("ScrollingFrame", {
-            Position = UDim2.fromOffset(8, 92),
-            Size = UDim2.new(1, -16, 1, -148),
+            Position = UDim2.fromOffset(8, 50),
+            Size = UDim2.new(1, -16, 1, -102),
             BackgroundTransparency = 1,
             ScrollBarThickness = 2,
             ScrollBarImageColor3 = TH.BorderStrong,
@@ -8137,35 +8119,45 @@ Library, SaveManager = (function()
             BorderSizePixel = 0,
             ZIndex = 5,
         }, sidebar)
-        mk("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, tabScroll)
+        mk("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, tabScroll)
 
-        -- Bottom Profile Card
+        -- Clean Flat User Footer (44px)
         local profBar = mk("Frame", {
-            Position = UDim2.new(0, 10, 1, -48),
-            Size = UDim2.new(1, -20, 0, 38),
-            BackgroundColor3 = TH.CardBg,
-            BackgroundTransparency = 0.05,
+            Position = UDim2.new(0, 0, 1, -44),
+            Size = UDim2.new(1, 0, 0, 44),
+            BackgroundTransparency = 1,
             ZIndex = 5,
         }, sidebar)
-        corner(profBar, 8)
-        stroke(profBar, TH.Border, 1, 0)
-        local dotLive = mk("Frame", {
-            AnchorPoint = v2(0.5, 0.5),
-            Position = UDim2.fromOffset(14, 19),
-            Size = UDim2.fromOffset(8, 8),
-            BackgroundColor3 = rgb(40, 195, 115),
+        mk("Frame", {
+            Size = UDim2.new(1, 0, 0, 1),
+            BackgroundColor3 = TH.Border,
             BorderSizePixel = 0,
+            ZIndex = 5,
+        }, profBar)
+        local avatarImg = mk("ImageLabel", {
+            AnchorPoint = v2(0, 0.5),
+            Position = UDim2.new(0, 12, 0.5, 0),
+            Size = UDim2.fromOffset(26, 26),
+            BackgroundColor3 = TH.CtrlBg,
+            BorderSizePixel = 0,
+            Image = "",
             ZIndex = 6,
         }, profBar)
-        corner(dotLive, 99)
-        pcall(function()
-            TweenSvc:Create(dotLive, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Size = UDim2.fromOffset(10, 10), BackgroundTransparency = 0.35 }):Play()
+        corner(avatarImg, 99)
+        stroke(avatarImg, TH.Border, 1, 0)
+        task.spawn(function()
+            if LP and LP.UserId then
+                local ok, imgUrl = pcall(Players.GetUserThumbnailAsync, Players, LP.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+                if ok and type(imgUrl) == "string" and avatarImg and avatarImg.Parent then
+                    avatarImg.Image = imgUrl
+                end
+            end
         end)
         mk("TextLabel", {
-            Position = UDim2.fromOffset(24, 5),
-            Size = UDim2.new(1, -30, 0, 15),
+            Position = UDim2.fromOffset(45, 8),
+            Size = UDim2.new(1, -54, 0, 15),
             BackgroundTransparency = 1,
-            Font = Enum.Font.GothamBold,
+            Font = F_BOLD,
             TextSize = 11,
             TextColor3 = TH.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -8174,12 +8166,12 @@ Library, SaveManager = (function()
             ZIndex = 6,
         }, profBar)
         mk("TextLabel", {
-            Position = UDim2.fromOffset(24, 20),
-            Size = UDim2.new(1, -30, 0, 13),
+            Position = UDim2.fromOffset(45, 23),
+            Size = UDim2.new(1, -54, 0, 13),
             BackgroundTransparency = 1,
-            Font = Enum.Font.Gotham,
+            Font = F_MONO,
             TextSize = 10,
-            TextColor3 = TH.SubText,
+            TextColor3 = TH.Muted,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextTruncate = Enum.TextTruncate.AtEnd,
             Text = "@" .. (LP and LP.Name or "user"),
@@ -8196,7 +8188,6 @@ Library, SaveManager = (function()
             ZIndex = 3,
         }, main)
 
-        -- Animated Plexus Constellation Layer (BackgroundTransparency = 1 so UiBg leaves it untouched)
         local plexusLayer = mk("Frame", {
             Name = "PlexusLayer",
             Size = UDim2.fromScale(1, 1),
@@ -8207,9 +8198,9 @@ Library, SaveManager = (function()
 
         local topbar = mk("Frame", {
             Name = "Topbar",
-            Size = UDim2.new(1, 0, 0, 44),
+            Size = UDim2.new(1, 0, 0, 42),
             BackgroundColor3 = TH.TopBg,
-            BackgroundTransparency = 0.08,
+            BackgroundTransparency = 0.04,
             ZIndex = 5,
         }, contentWrap)
         mk("Frame", {
@@ -8222,9 +8213,9 @@ Library, SaveManager = (function()
 
         local topTitle = mk("TextLabel", {
             Position = UDim2.fromOffset(14, 0),
-            Size = UDim2.new(1, -276, 1, 0),
+            Size = UDim2.new(1, -284, 1, 0),
             BackgroundTransparency = 1,
-            Font = Enum.Font.GothamBold,
+            Font = F_BOLD,
             TextSize = 14,
             TextColor3 = TH.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -8235,23 +8226,23 @@ Library, SaveManager = (function()
 
         local searchWrap = mk("Frame", {
             AnchorPoint = v2(1, 0.5),
-            Position = UDim2.new(1, -110, 0.5, 0),
-            Size = UDim2.fromOffset(148, 26),
+            Position = UDim2.new(1, -118, 0.5, 0),
+            Size = UDim2.fromOffset(150, 26),
             BackgroundColor3 = TH.CtrlBg,
-            BackgroundTransparency = 0.05,
+            BackgroundTransparency = 0,
             ZIndex = 6,
         }, topbar)
-        corner(searchWrap, 7)
+        corner(searchWrap, 5)
         local searchStroke = stroke(searchWrap, TH.Border, 1, 0)
         local searchBox = mk("TextBox", {
             Position = UDim2.fromOffset(9, 0),
-            Size = UDim2.new(1, -18, 1, 0),
+            Size = UDim2.new(1, -16, 1, 0),
             BackgroundTransparency = 1,
-            Font = Enum.Font.Gotham,
+            Font = F_REG,
             TextSize = 11,
             TextColor3 = TH.Text,
             PlaceholderColor3 = TH.Muted,
-            PlaceholderText = "Поиск настроек...",
+            PlaceholderText = "Поиск...",
             Text = "",
             ClearTextOnFocus = false,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -8261,23 +8252,25 @@ Library, SaveManager = (function()
         local prevBtn = mk("TextButton", {
             AnchorPoint = v2(1, 0.5),
             Position = UDim2.new(1, -40, 0.5, 0),
-            Size = UDim2.fromOffset(64, 26),
+            Size = UDim2.fromOffset(70, 26),
             BackgroundColor3 = showPrev and TH.AccentSoft or TH.CtrlBg,
             TextColor3 = showPrev and TH.Accent or TH.SubText,
-            Font = Enum.Font.GothamBold,
+            Font = F_MED,
             TextSize = 11,
-            Text = "Превью",
+            Text = "3D Превью",
             AutoButtonColor = false,
             ZIndex = 6,
         }, topbar)
-        corner(prevBtn, 7)
-        stroke(prevBtn, TH.Border, 1, 0)
+        corner(prevBtn, 5)
+        local prevBtnStroke = stroke(prevBtn, showPrev and TH.Accent or TH.Border, 1, showPrev and 0.65 or 0)
         tinsert(lib._accentRefs, {
             fn = function()
                 if prevBtn and prevBtn.Parent then
                     local on = cfg().UI.ShowPreview ~= false
                     prevBtn.BackgroundColor3 = on and TH.AccentSoft or TH.CtrlBg
                     prevBtn.TextColor3 = on and TH.Accent or TH.SubText
+                    prevBtnStroke.Color = on and TH.Accent or TH.Border
+                    prevBtnStroke.Transparency = on and 0.65 or 0
                 end
             end,
         })
@@ -8288,38 +8281,36 @@ Library, SaveManager = (function()
             Size = UDim2.fromOffset(24, 26),
             BackgroundColor3 = TH.CtrlBg,
             TextColor3 = TH.SubText,
-            Font = Enum.Font.GothamBold,
+            Font = F_BOLD,
             TextSize = 14,
             Text = "×",
             AutoButtonColor = false,
             ZIndex = 6,
         }, topbar)
-        corner(closeBtn, 7)
+        corner(closeBtn, 5)
         stroke(closeBtn, TH.Border, 1, 0)
 
         local pagesHolder = mk("Frame", {
             Name = "Pages",
-            Position = UDim2.fromOffset(0, 44),
-            Size = UDim2.new(1, 0, 1, -44),
+            Position = UDim2.fromOffset(0, 42),
+            Size = UDim2.new(1, 0, 1, -42),
             BackgroundTransparency = 1,
             ZIndex = 4,
         }, contentWrap)
 
-        -- Resize grip
         local resizeGrip = mk("TextButton", {
             AnchorPoint = v2(1, 1),
             Position = UDim2.new(1, -2, 1, -2),
             Size = UDim2.fromOffset(14, 14),
             BackgroundTransparency = 1,
             Text = "◢",
-            TextSize = 10,
-            Font = Enum.Font.Gotham,
+            TextSize = 9,
+            Font = F_MONO,
             TextColor3 = TH.Muted,
             AutoButtonColor = false,
             ZIndex = 8,
         }, main)
 
-        -- Dragging & Resizing
         do
             local dragging, resizing, dStart, pStart, sStart = false, false, nil, nil, nil
             local function beginDrag(input)
@@ -8337,7 +8328,7 @@ Library, SaveManager = (function()
                     beginDrag(inp)
                 end
             end)
-            conn(brandCard.InputBegan, beginDrag)
+            conn(brandHdr.InputBegan, beginDrag)
             conn(resizeGrip.InputBegan, function(inp)
                 if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                     resizing = true
@@ -8386,16 +8377,18 @@ Library, SaveManager = (function()
             local want = win._visible and cfg().UI.ShowPreview
             if want then
                 syncPreviewPos()
-                previewScale.Scale = 0.93
+                previewScale.Scale = 0.96
                 previewWin.Visible = true
-                twS(previewScale, 0.22, Enum.EasingStyle.Back, { Scale = 1 })
+                twS(previewScale, 0.16, Enum.EasingStyle.Quart, { Scale = 1 })
             else
                 previewWin.Visible = false
             end
-            tw(prevBtn, 0.16, {
+            tw(prevBtn, 0.14, {
                 BackgroundColor3 = cfg().UI.ShowPreview and TH.AccentSoft or TH.CtrlBg,
                 TextColor3 = cfg().UI.ShowPreview and TH.Accent or TH.SubText,
             })
+            prevBtnStroke.Color = cfg().UI.ShowPreview and TH.Accent or TH.Border
+            prevBtnStroke.Transparency = cfg().UI.ShowPreview and 0.65 or 0
             if lib.Toggles and lib.Toggles.UiPreviewOn and lib.Toggles.UiPreviewOn.Value ~= cfg().UI.ShowPreview then
                 pcall(function() lib.Toggles.UiPreviewOn:SetValue(cfg().UI.ShowPreview) end)
             end
@@ -8406,23 +8399,23 @@ Library, SaveManager = (function()
             visToken += 1
             local tok = visToken
             if win._visible then
-                mainScale.Scale = 0.94
+                mainScale.Scale = 0.97
                 main.Visible = true
-                twS(mainScale, 0.22, Enum.EasingStyle.Back, { Scale = 1 })
+                twS(mainScale, 0.16, Enum.EasingStyle.Quart, { Scale = 1 })
                 if cfg().UI.ShowPreview ~= false then
                     syncPreviewPos()
-                    previewScale.Scale = 0.93
+                    previewScale.Scale = 0.97
                     previewWin.Visible = true
-                    twS(previewScale, 0.25, Enum.EasingStyle.Back, { Scale = 1 })
+                    twS(previewScale, 0.18, Enum.EasingStyle.Quart, { Scale = 1 })
                 else
                     previewWin.Visible = false
                 end
             else
                 closeActivePopup()
                 hideTip()
-                twS(mainScale, 0.14, Enum.EasingStyle.Quad, { Scale = 0.95 })
-                twS(previewScale, 0.14, Enum.EasingStyle.Quad, { Scale = 0.95 })
-                task.delay(0.14, function()
+                tw(mainScale, 0.12, { Scale = 0.97 })
+                tw(previewScale, 0.12, { Scale = 0.97 })
+                task.delay(0.12, function()
                     if visToken == tok and not win._visible then
                         main.Visible = false
                         previewWin.Visible = false
@@ -8438,7 +8431,7 @@ Library, SaveManager = (function()
             tw(prevBtn, 0.12, { BackgroundColor3 = (cfg().UI.ShowPreview ~= false) and TH.AccentSoft or TH.CtrlBg })
         end)
         conn(closeBtn.MouseEnter, function()
-            tw(closeBtn, 0.12, { BackgroundColor3 = rgb(252, 228, 232), TextColor3 = rgb(210, 62, 82) })
+            tw(closeBtn, 0.12, { BackgroundColor3 = rgb(253, 232, 235), TextColor3 = rgb(208, 56, 74) })
         end)
         conn(closeBtn.MouseLeave, function()
             tw(closeBtn, 0.12, { BackgroundColor3 = TH.CtrlBg, TextColor3 = TH.SubText })
@@ -8450,7 +8443,6 @@ Library, SaveManager = (function()
             win:SetVisible(false)
         end)
 
-        -- Menu Toggle Keybind
         conn(UIS.InputBegan, function(inp, gp)
             if lib._unloaded or gp then return end
             if UIS:GetFocusedTextBox() then return end
@@ -8471,30 +8463,28 @@ Library, SaveManager = (function()
                 local on = (t == tabObj)
                 t.page.Visible = on
                 if on then
-                    t.bar.Size = UDim2.fromOffset(0, 4)
+                    t.bar.Size = UDim2.fromOffset(2, 4)
                     t.bar.Visible = true
-                    twS(t.bar, 0.22, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(3, 16) })
+                    twS(t.bar, 0.16, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(2, 16) })
                     if t.leftCol then
-                        t.leftCol.Position = UDim2.fromOffset(0, 12)
-                        twS(t.leftCol, 0.20, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(0, 0) })
+                        t.leftCol.Position = UDim2.fromOffset(0, 8)
+                        twS(t.leftCol, 0.16, Enum.EasingStyle.Quart, { Position = UDim2.fromOffset(0, 0) })
                     end
                     if t.rightCol then
-                        t.rightCol.Position = UDim2.new(0.5, 6, 0, 20)
-                        twS(t.rightCol, 0.25, Enum.EasingStyle.Quart, { Position = UDim2.new(0.5, 6, 0, 0) })
+                        t.rightCol.Position = UDim2.new(0.5, 5, 0, 12)
+                        twS(t.rightCol, 0.20, Enum.EasingStyle.Quart, { Position = UDim2.new(0.5, 5, 0, 0) })
                     end
                 else
                     t.bar.Visible = false
                 end
-                tw(t.btn, 0.16, {
-                    BackgroundColor3 = on and TH.CardBg or TH.SideBg,
-                    BackgroundTransparency = on and 0.04 or 1,
+                tw(t.btn, 0.14, {
+                    BackgroundColor3 = on and TH.CtrlBg or TH.SideBg,
+                    BackgroundTransparency = on and 0 or 1,
                 })
                 t.lbl.TextColor3 = on and TH.Text or TH.SubText
-                t.lbl.Font = on and Enum.Font.GothamBold or Enum.Font.GothamMedium
-                tw(t.lbl, 0.16, { Position = UDim2.fromOffset(on and 35 or 32, 0) })
+                t.lbl.Font = on and F_BOLD or F_MED
                 if t.icon then
                     t.icon.setColor(on and TH.Accent or TH.SubText)
-                    tw(t.icon.box, 0.16, { Position = UDim2.fromOffset(on and 14 or 12, 8) })
                 end
             end
             win._activeTab = tabObj
@@ -8508,7 +8498,6 @@ Library, SaveManager = (function()
             end,
         })
 
-        -- Topbar Live Search Popup
         do
             local searchPopup = nil
             local function closeSearchPopup()
@@ -8530,36 +8519,34 @@ Library, SaveManager = (function()
                 local ss = searchWrap.AbsoluteSize
                 local curCam = workspace.CurrentCamera
                 local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
-                local sx = clamp(sp.X - 80, 8, max(8, cvp.X - 268))
+                local sx = clamp(sp.X - 70, 8, max(8, cvp.X - 268))
                 searchPopup = mk("Frame", {
-                    Position = UDim2.fromOffset(sx, sp.Y + ss.Y + 6),
+                    Position = UDim2.fromOffset(sx, sp.Y + ss.Y + 5),
                     Size = UDim2.fromOffset(260, 0),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundColor3 = TH.CardBg,
-                    BackgroundTransparency = 0.02,
+                    BackgroundTransparency = 0,
                     ZIndex = 75,
                 }, overlay)
-                corner(searchPopup, 9)
+                corner(searchPopup, 6)
                 stroke(searchPopup, TH.BorderStrong, 1, 0)
-                pad(searchPopup, 6, 6, 6, 6)
-                mk("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, searchPopup)
-                local spScale = mk("UIScale", { Scale = 0.94 }, searchPopup)
-                twS(spScale, 0.16, Enum.EasingStyle.Back, { Scale = 1 })
+                pad(searchPopup, 5, 5, 5, 5)
+                mk("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, searchPopup)
                 for _, hItem in ipairs(hits) do
                     local row = mk("TextButton", {
-                        Size = UDim2.new(1, 0, 0, 34),
-                        BackgroundColor3 = TH.CardBg,
+                        Size = UDim2.new(1, 0, 0, 32),
+                        BackgroundColor3 = TH.CtrlBg,
                         BackgroundTransparency = 1,
                         Text = "",
                         AutoButtonColor = false,
                         ZIndex = 76,
                     }, searchPopup)
-                    corner(row, 6)
+                    corner(row, 4)
                     mk("TextLabel", {
-                        Position = UDim2.fromOffset(8, 3),
+                        Position = UDim2.fromOffset(8, 2),
                         Size = UDim2.new(1, -16, 0, 15),
                         BackgroundTransparency = 1,
-                        Font = Enum.Font.GothamBold,
+                        Font = F_BOLD,
                         TextSize = 11,
                         TextColor3 = TH.Text,
                         TextXAlignment = Enum.TextXAlignment.Left,
@@ -8568,19 +8555,19 @@ Library, SaveManager = (function()
                         ZIndex = 77,
                     }, row)
                     mk("TextLabel", {
-                        Position = UDim2.fromOffset(8, 18),
-                        Size = UDim2.new(1, -16, 0, 13),
+                        Position = UDim2.fromOffset(8, 17),
+                        Size = UDim2.new(1, -16, 0, 12),
                         BackgroundTransparency = 1,
-                        Font = Enum.Font.Gotham,
+                        Font = F_REG,
                         TextSize = 10,
                         TextColor3 = TH.SubText,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         TextTruncate = Enum.TextTruncate.AtEnd,
-                        Text = hItem.tab .. " → " .. hItem.group,
+                        Text = hItem.tab .. " · " .. hItem.group,
                         ZIndex = 77,
                     }, row)
-                    conn(row.MouseEnter, function() tw(row, 0.1, { BackgroundTransparency = 0, BackgroundColor3 = TH.CtrlBg }) end)
-                    conn(row.MouseLeave, function() tw(row, 0.1, { BackgroundTransparency = 1 }) end)
+                    conn(row.MouseEnter, function() tw(row, 0.08, { BackgroundTransparency = 0 }) end)
+                    conn(row.MouseLeave, function() tw(row, 0.08, { BackgroundTransparency = 1 }) end)
                     conn(row.MouseButton1Down, function()
                         selectTab(hItem.tabObj)
                         if hItem.cardStroke then
@@ -8589,15 +8576,15 @@ Library, SaveManager = (function()
                             if cardInst and pg then
                                 task.defer(function()
                                     if cardInst.Parent and pg.Parent then
-                                        local ty = pg.CanvasPosition.Y + (cardInst.AbsolutePosition.Y - pg.AbsolutePosition.Y) - 12
+                                        local ty = pg.CanvasPosition.Y + (cardInst.AbsolutePosition.Y - pg.AbsolutePosition.Y) - 10
                                         pg.CanvasPosition = v2(0, max(0, ty))
                                     end
                                 end)
                             end
                             hItem.cardStroke.Color = TH.Accent
-                            task.delay(1.0, function()
+                            task.delay(0.9, function()
                                 if hItem.cardStroke and hItem.cardStroke.Parent then
-                                    tw(hItem.cardStroke, 0.35, { Color = TH.Border })
+                                    tw(hItem.cardStroke, 0.30, { Color = TH.Border })
                                 end
                             end)
                         end
@@ -8606,40 +8593,40 @@ Library, SaveManager = (function()
                 end
             end
             conn(searchBox.Focused, function()
-                tw(searchStroke, 0.16, { Color = TH.Accent })
-                twS(searchWrap, 0.18, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(176, 26) })
+                tw(searchStroke, 0.14, { Color = TH.Accent })
+                twS(searchWrap, 0.16, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(182, 26) })
                 rebuildSearchPopup()
             end)
             conn(searchBox.FocusLost, function()
-                tw(searchStroke, 0.16, { Color = TH.Border })
-                tw(searchWrap, 0.18, { Size = UDim2.fromOffset(148, 26) })
-                task.delay(0.18, function()
+                tw(searchStroke, 0.14, { Color = TH.Border })
+                tw(searchWrap, 0.16, { Size = UDim2.fromOffset(150, 26) })
+                task.delay(0.16, function()
                     if not searchBox:IsFocused() then closeSearchPopup() end
                 end)
             end)
             conn(searchBox:GetPropertyChangedSignal("Text"), rebuildSearchPopup)
         end
 
-        -- Plexus Constellation Background Animation (runs only while MainWindow is visible & Plexus is enabled)
+        -- Subtle Plexus Layer
         do
             local nodes, plines = {}, {}
-            local N_COUNT, L_MAX = 14, 38
+            local N_COUNT, L_MAX = 11, 28
             for idx = 1, N_COUNT do
                 local ang = (idx / N_COUNT) * math.pi * 2
                 local f = mk("Frame", {
-                    Size = UDim2.fromOffset(3, 3),
+                    Size = UDim2.fromOffset(2, 2),
                     AnchorPoint = v2(0.5, 0.5),
                     BackgroundColor3 = TH.Plexus,
-                    BackgroundTransparency = 0.45,
+                    BackgroundTransparency = 0.65,
                     BorderSizePixel = 0,
                     ZIndex = 1,
                 }, plexusLayer)
                 corner(f, 99)
                 nodes[idx] = {
-                    x = (idx * 53) % 520,
-                    y = (idx * 79) % 420,
-                    vx = cos(ang) * (16 + (idx % 3) * 6),
-                    vy = sin(ang) * (16 + ((idx + 1) % 3) * 6),
+                    x = (idx * 57) % 520,
+                    y = (idx * 83) % 420,
+                    vx = cos(ang) * (13 + (idx % 3) * 5),
+                    vy = sin(ang) * (13 + ((idx + 1) % 3) * 5),
                     dot = f,
                 }
             end
@@ -8659,7 +8646,6 @@ Library, SaveManager = (function()
                 local sz, ap = plexusLayer.AbsoluteSize, plexusLayer.AbsolutePosition
                 local w, h = max(120, sz.X), max(120, sz.Y)
                 local step = min(dt or 0.016, 0.05)
-                local tNow = clock()
                 local mp = UIS:GetMouseLocation()
                 local mx, my = mp.X - ap.X, mp.Y - ap.Y
                 local mInside = mx >= 0 and mx <= w and my >= 0 and my <= h
@@ -8670,15 +8656,13 @@ Library, SaveManager = (function()
                     if nd.x < 8 then nd.x = 8; nd.vx = abs(nd.vx) elseif nd.x > w - 8 then nd.x = w - 8; nd.vx = -abs(nd.vx) end
                     if nd.y < 8 then nd.y = 8; nd.vy = abs(nd.vy) elseif nd.y > h - 8 then nd.y = h - 8; nd.vy = -abs(nd.vy) end
                     nd.dot.Position = UDim2.fromOffset(nd.x, nd.y)
-                    local pulse = 3 + sin(tNow * 2.4 + i) * 0.9
                     local nearCursor = false
                     if mInside then
                         local cdx, cdy = nd.x - mx, nd.y - my
-                        if cdx * cdx + cdy * cdy < 12100 then nearCursor = true end -- 110^2
+                        if cdx * cdx + cdy * cdy < 10000 then nearCursor = true end
                     end
-                    nd.dot.Size = UDim2.fromOffset(nearCursor and pulse + 1.4 or pulse, nearCursor and pulse + 1.4 or pulse)
                     nd.dot.BackgroundColor3 = nearCursor and TH.Accent or TH.Plexus
-                    nd.dot.BackgroundTransparency = nearCursor and 0.22 or 0.45
+                    nd.dot.BackgroundTransparency = nearCursor and 0.35 or 0.65
                 end
                 local li = 0
                 for i = 1, N_COUNT - 1 do
@@ -8687,11 +8671,10 @@ Library, SaveManager = (function()
                         local b = nodes[j]
                         local dx, dy = b.x - a.x, b.y - a.y
                         local d2 = dx * dx + dy * dy
-                        if d2 < 21025 then -- 145^2
+                        if d2 < 18225 then
                             li += 1
                             if li <= L_MAX then
-                                local d = sqrt(d2)
-                                drawLineFrame(plines[li], a.x, a.y, b.x, b.y, TH.Plexus, 1, 0.55 + (d / 145) * 0.40)
+                                drawLineFrame(plines[li], a.x, a.y, b.x, b.y, TH.Plexus, 1, 0.72 + (sqrt(d2) / 135) * 0.24)
                             end
                         end
                     end
@@ -8701,9 +8684,9 @@ Library, SaveManager = (function()
                         local a = nodes[i]
                         local dx, dy = mx - a.x, my - a.y
                         local d2 = dx * dx + dy * dy
-                        if d2 < 12100 and li < L_MAX then
+                        if d2 < 10000 and li < L_MAX then
                             li += 1
-                            drawLineFrame(plines[li], a.x, a.y, mx, my, TH.Accent, 1, 0.52 + (sqrt(d2) / 110) * 0.44)
+                            drawLineFrame(plines[li], a.x, a.y, mx, my, TH.Accent, 1, 0.65 + (sqrt(d2) / 100) * 0.30)
                         end
                     end
                 end
@@ -8711,12 +8694,12 @@ Library, SaveManager = (function()
             end)
         end
 
-        -- Live ESP Preview Panel (right docked window)
+        -- Live Interactive 3D Skin & ESP Preview Panel
         do
             local pHead = mk("Frame", {
-                Size = UDim2.new(1, 0, 0, 44),
+                Size = UDim2.new(1, 0, 0, 42),
                 BackgroundColor3 = TH.TopBg,
-                BackgroundTransparency = 0.06,
+                BackgroundTransparency = 0.04,
                 ZIndex = 4,
             }, previewWin)
             mk("Frame", {
@@ -8728,29 +8711,73 @@ Library, SaveManager = (function()
             }, pHead)
             mk("TextLabel", {
                 Position = UDim2.fromOffset(12, 0),
-                Size = UDim2.new(1, -82, 1, 0),
+                Size = UDim2.new(1, -112, 1, 0),
                 BackgroundTransparency = 1,
-                Font = Enum.Font.GothamBold,
+                Font = F_BOLD,
                 TextSize = 13,
                 TextColor3 = TH.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Text = "Превью ВХ",
+                Text = "3D Превью",
                 ZIndex = 5,
             }, pHead)
-            local pToggle = mk("TextButton", {
+
+            local autoSpin = true
+            local pRefresh = mk("TextButton", {
                 AnchorPoint = v2(1, 0.5),
-                Position = UDim2.new(1, -10, 0.5, 0),
-                Size = UDim2.fromOffset(54, 22),
+                Position = UDim2.new(1, -80, 0.5, 0),
+                Size = UDim2.fromOffset(22, 22),
                 BackgroundColor3 = TH.CtrlBg,
-                Font = Enum.Font.GothamBold,
-                TextSize = 10,
+                Font = F_BOLD,
+                TextSize = 12,
                 TextColor3 = TH.SubText,
-                Text = "ВЫКЛ",
+                Text = "↻",
                 AutoButtonColor = false,
                 ZIndex = 5,
             }, pHead)
-            corner(pToggle, 6)
-            stroke(pToggle, TH.Border, 1, 0)
+            corner(pRefresh, 5)
+            stroke(pRefresh, TH.Border, 1, 0)
+            bindTooltip(pRefresh, "Обновить 3D модель скина")
+
+            local pOrbit = mk("TextButton", {
+                AnchorPoint = v2(1, 0.5),
+                Position = UDim2.new(1, -54, 0.5, 0),
+                Size = UDim2.fromOffset(22, 22),
+                BackgroundColor3 = TH.AccentSoft,
+                Font = F_BOLD,
+                TextSize = 12,
+                TextColor3 = TH.Accent,
+                Text = "⟳",
+                AutoButtonColor = false,
+                ZIndex = 5,
+            }, pHead)
+            corner(pOrbit, 5)
+            local pOrbitSt = stroke(pOrbit, TH.Accent, 1, 0.6)
+            tinsert(lib._accentRefs, {
+                fn = function()
+                    if pOrbit and pOrbit.Parent then
+                        pOrbit.BackgroundColor3 = autoSpin and TH.AccentSoft or TH.CtrlBg
+                        pOrbit.TextColor3 = autoSpin and TH.Accent or TH.SubText
+                        pOrbitSt.Color = autoSpin and TH.Accent or TH.Border
+                        pOrbitSt.Transparency = autoSpin and 0.6 or 0
+                    end
+                end,
+            })
+            bindTooltip(pOrbit, "Автовращение 3D модели")
+
+            local pToggle = mk("TextButton", {
+                AnchorPoint = v2(1, 0.5),
+                Position = UDim2.new(1, -10, 0.5, 0),
+                Size = UDim2.fromOffset(40, 22),
+                BackgroundColor3 = TH.CtrlBg,
+                Font = F_BOLD,
+                TextSize = 10,
+                TextColor3 = TH.SubText,
+                Text = "ВХ",
+                AutoButtonColor = false,
+                ZIndex = 5,
+            }, pHead)
+            corner(pToggle, 5)
+            local pToggleSt = stroke(pToggle, TH.Border, 1, 0)
             conn(pToggle.MouseButton1Click, function()
                 cfg().ESP.Enabled = not cfg().ESP.Enabled
                 if lib.Toggles and lib.Toggles.EspOn then
@@ -8759,280 +8786,765 @@ Library, SaveManager = (function()
             end)
 
             local stage = mk("Frame", {
-                Position = UDim2.fromOffset(12, 56),
-                Size = UDim2.new(1, -24, 1, -100),
-                BackgroundColor3 = rgb(228, 234, 244),
-                BackgroundTransparency = 0.12,
+                Name = "NoPanelBg",
+                Position = UDim2.fromOffset(10, 52),
+                Size = UDim2.new(1, -20, 1, -88),
+                BackgroundColor3 = rgb(232, 236, 244),
+                BackgroundTransparency = 0,
+                Active = true,
                 ClipsDescendants = true,
                 ZIndex = 4,
             }, previewWin)
-            corner(stage, 9)
+            corner(stage, 6)
             stroke(stage, TH.Border, 1, 0)
+            mk("UIGradient", {
+                Rotation = 90,
+                Color = ColorSequence.new(rgb(241, 244, 250), rgb(222, 228, 239)),
+            }, stage)
+
+            local vpFrame = mk("ViewportFrame", {
+                Name = "NoPanelBg",
+                Size = UDim2.fromScale(1, 1),
+                BackgroundTransparency = 1,
+                Ambient = rgb(198, 204, 216),
+                LightColor = rgb(255, 252, 246),
+                LightDirection = v3(0.45, -0.75, 0.65),
+                ZIndex = 5,
+            }, stage)
+            local vpWorld = mk("WorldModel", {}, vpFrame)
+            local vpCam = mk("Camera", { FieldOfView = 36 }, vpFrame)
+            vpFrame.CurrentCamera = vpCam
+
+            -- Subtle 3D pedestal disc under avatar feet
+            local stageDisc = mk("Part", {
+                Shape = Enum.PartType.Cylinder,
+                Size = v3(0.05, 3.6, 3.6),
+                CFrame = cfNew(0, -0.04, 0) * cfAng(0, 0, math.rad(90)),
+                Anchored = true,
+                CanCollide = false,
+                Material = Enum.Material.SmoothPlastic,
+                Color = rgb(206, 213, 226),
+                Transparency = 0.45,
+            }, vpWorld)
+
+            local fxFolder = mk("Folder", { Name = "Preview3DFx" }, vpWorld)
+            local ov2d = mk("Frame", {
+                Name = "NoPanelBg",
+                Size = UDim2.fromScale(1, 1),
+                BackgroundTransparency = 1,
+                ZIndex = 8,
+            }, stage)
 
             local pvFooter = mk("TextLabel", {
-                Position = UDim2.new(0, 12, 1, -36),
-                Size = UDim2.new(1, -24, 0, 28),
+                Position = UDim2.new(0, 10, 1, -30),
+                Size = UDim2.new(1, -20, 0, 22),
                 BackgroundTransparency = 1,
-                Font = Enum.Font.Gotham,
+                Font = F_MONO,
                 TextSize = 10,
                 TextColor3 = TH.SubText,
-                TextWrapped = true,
-                Text = "Живой предпросмотр",
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                Text = "ЛКМ: вращать · Колесо: зум",
                 ZIndex = 5,
             }, previewWin)
 
-            -- Stylized humanoid dummy
-            local dummy = mk("Frame", {
-                AnchorPoint = v2(0.5, 0.5),
-                Position = UDim2.fromScale(0.5, 0.5),
-                Size = UDim2.fromOffset(92, 178),
-                BackgroundTransparency = 1,
-                ZIndex = 6,
-            }, stage)
-            local dummyParts = {}
-            local function makeDummyPart(px, py, pw, ph, rad)
-                local p = mk("Frame", {
-                    Position = UDim2.fromOffset(px, py),
-                    Size = UDim2.fromOffset(pw, ph),
-                    BackgroundColor3 = rgb(248, 250, 254),
-                    BackgroundTransparency = 0.08,
-                    ZIndex = 6,
-                }, dummy)
-                corner(p, rad or 5)
-                stroke(p, rgb(174, 184, 204), 1.2, 0)
-                tinsert(dummyParts, p)
-                return p
-            end
-            makeDummyPart(31, 6, 30, 30, 99)   -- Head
-            makeDummyPart(24, 40, 44, 60, 6)   -- Torso
-            makeDummyPart(6, 40, 14, 56, 5)    -- LeftArm
-            makeDummyPart(72, 40, 14, 56, 5)   -- RightArm
-            makeDummyPart(24, 104, 19, 64, 5)  -- LeftLeg
-            makeDummyPart(49, 104, 19, 64, 5)  -- RightLeg
+            -- 3D Character Clone & Rig State
+            local rigModel, rigParts, rigHead = nil, {}, nil
+            local rigCenterY, rigBaseDist = 2.6, 7.6
+            local rigBMin, rigBMax = v3(-1.5, 0, -0.8), v3(1.5, 5.2, 0.8)
+            local rigJoints = {}
+            local rigEdges = {}
+            local chamsApplied = false
+            local buildToken = 0
 
-            -- Preview ChinaHat Halo
-            local pvHalo = mk("Frame", {
-                AnchorPoint = v2(0.5, 0.5),
-                Position = UDim2.fromOffset(46, -2),
-                Size = UDim2.fromOffset(40, 10),
-                BackgroundTransparency = 1,
-                Visible = false,
-                ZIndex = 9,
-            }, dummy)
-            corner(pvHalo, 99)
-            local pvHaloSt = stroke(pvHalo, rgb(95, 200, 255), 2, 0)
-
-            -- Preview Box Fill + Glow + Lines
-            local pvFill = mk("Frame", { Size = UDim2.fromScale(1, 1), BorderSizePixel = 0, Visible = false, ZIndex = 5 }, dummy)
-            corner(pvFill, 4)
-            local pvFillGrad = mk("Frame", { Size = UDim2.new(1, 0, 0.45, 0), BorderSizePixel = 0, Visible = false, ZIndex = 5 }, dummy)
-            mk("UIGradient", { Rotation = 90, Transparency = NumberSequence.new(0.15, 1) }, pvFillGrad)
-            local pvFillBar = mk("Frame", { Position = UDim2.fromOffset(1, 1), Size = UDim2.new(1, -2, 0, 2), BorderSizePixel = 0, Visible = false, ZIndex = 7 }, dummy)
-            local pvGlowBox = mk("Frame", { Position = UDim2.fromOffset(-2, -2), Size = UDim2.new(1, 4, 1, 4), BackgroundTransparency = 1, Visible = false, ZIndex = 6 }, dummy)
-            corner(pvGlowBox, 4)
-            local pvGlowSt = stroke(pvGlowBox, TH.Accent, 4, 0.72)
-
-            local pvSegs = {}
-            for i = 1, 12 do
-                pvSegs[i] = mk("Frame", { AnchorPoint = v2(0.5, 0.5), BorderSizePixel = 0, Visible = false, ZIndex = 8 }, dummy)
-            end
-
-            -- Preview HP Bar
-            local pvHpBg = mk("Frame", { Position = UDim2.fromOffset(-10, 0), Size = UDim2.fromOffset(4, 178), BackgroundColor3 = rgb(20, 24, 34), Visible = false, ZIndex = 8 }, dummy)
-            corner(pvHpBg, 2)
-            local pvHpTrail = mk("Frame", { AnchorPoint = v2(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.fromScale(1, 0.85), BackgroundColor3 = rgb(255, 130, 140), BorderSizePixel = 0, ZIndex = 9 }, pvHpBg)
-            local pvHpFill = mk("Frame", { AnchorPoint = v2(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.fromScale(1, 0.78), BackgroundColor3 = HP_GREEN, BorderSizePixel = 0, ZIndex = 10 }, pvHpBg)
-
-            -- Preview HeadDot
-            local pvHeadDot = mk("Frame", { AnchorPoint = v2(0.5, 0.5), Position = UDim2.fromOffset(46, 21), Size = UDim2.fromOffset(8, 8), Visible = false, ZIndex = 11 }, dummy)
-            corner(pvHeadDot, 99)
-            local pvHeadSt = stroke(pvHeadDot, BLACK, 1.2, 0.2)
-
-            -- Preview Skeleton (9 bones + 9 joints)
-            local pvBones, pvJoints = {}, {}
-            local SK_PTS = {
-                { 46, 21 }, { 46, 44 }, { 46, 98 },
-                { 13, 46 }, { 13, 90 }, { 79, 46 }, { 79, 90 },
-                { 33, 108 }, { 33, 162 }, { 59, 108 }, { 59, 162 },
+            local CORE_BODY = {
+                Head = true, Torso = true, UpperTorso = true, LowerTorso = true, HumanoidRootPart = true,
+                ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true,
+                LeftUpperArm = true, LeftLowerArm = true, LeftHand = true,
+                RightUpperArm = true, RightLowerArm = true, RightHand = true,
+                LeftUpperLeg = true, LeftLowerLeg = true, LeftFoot = true,
+                RightUpperLeg = true, RightLowerLeg = true, RightFoot = true,
             }
-            local SK_ED = { {1,2},{2,3},{2,4},{4,5},{2,6},{6,7},{3,8},{8,9},{3,10},{10,11} }
-            for i = 1, #SK_ED do
-                pvBones[i] = mk("Frame", { AnchorPoint = v2(0.5, 0.5), BorderSizePixel = 0, Visible = false, ZIndex = 9 }, dummy)
+
+            local R15_EDGES = {
+                { "Head", "UpperTorso" }, { "UpperTorso", "LowerTorso" },
+                { "UpperTorso", "LeftUpperArm" }, { "LeftUpperArm", "LeftLowerArm" },
+                { "UpperTorso", "RightUpperArm" }, { "RightUpperArm", "RightLowerArm" },
+                { "LowerTorso", "LeftUpperLeg" }, { "LeftUpperLeg", "LeftLowerLeg" },
+                { "LowerTorso", "RightUpperLeg" }, { "RightUpperLeg", "RightLowerLeg" },
+            }
+            local R6_EDGES = {
+                { "Head", "Torso" },
+                { "Torso", "Left Arm" }, { "Torso", "Right Arm" },
+                { "Torso", "Left Leg" }, { "Torso", "Right Leg" },
+            }
+
+            local function makeFallbackR15()
+                local m = Instance.new("Model")
+                m.Name = "PreviewRig"
+                local skin = rgb(238, 241, 247)
+                local limb = rgb(222, 227, 238)
+                local function bp(name, sz, pos, col, isHead)
+                    local p = Instance.new("Part")
+                    p.Name = name
+                    p.Size = sz
+                    p.CFrame = cfNew(pos)
+                    p.Color = col
+                    p.Material = Enum.Material.SmoothPlastic
+                    p.TopSurface = Enum.SurfaceType.Smooth
+                    p.BottomSurface = Enum.SurfaceType.Smooth
+                    p.Anchored = true
+                    p.CanCollide = false
+                    if isHead then
+                        local sm = Instance.new("SpecialMesh", p)
+                        sm.MeshType = Enum.MeshType.Head
+                        sm.Scale = v3(1.25, 1.25, 1.25)
+                    end
+                    p.Parent = m
+                    return p
+                end
+                bp("HumanoidRootPart", v3(2, 2, 1), v3(0, 3, 0), skin).Transparency = 1
+                bp("LowerTorso", v3(1.9, 0.7, 1.0), v3(0, 2.35, 0), limb)
+                bp("UpperTorso", v3(2.0, 1.4, 1.05), v3(0, 3.4, 0), skin)
+                bp("Head", v3(1.15, 1.15, 1.15), v3(0, 4.7, 0), skin, true)
+                bp("LeftUpperArm", v3(0.75, 1.0, 0.75), v3(-1.45, 3.55, 0), skin)
+                bp("LeftLowerArm", v3(0.7, 1.0, 0.7), v3(-1.45, 2.55, 0), limb)
+                bp("RightUpperArm", v3(0.75, 1.0, 0.75), v3(1.45, 3.55, 0), skin)
+                bp("RightLowerArm", v3(0.7, 1.0, 0.7), v3(1.45, 2.55, 0), limb)
+                bp("LeftUpperLeg", v3(0.85, 1.0, 0.85), v3(-0.5, 1.5, 0), limb)
+                bp("LeftLowerLeg", v3(0.8, 1.0, 0.8), v3(-0.5, 0.5, 0), skin)
+                bp("RightUpperLeg", v3(0.85, 1.0, 0.85), v3(0.5, 1.5, 0), limb)
+                bp("RightLowerLeg", v3(0.8, 1.0, 0.8), v3(0.5, 0.5, 0), skin)
+                return m
             end
-            for i = 1, #SK_PTS do
-                local j = mk("Frame", {
-                    AnchorPoint = v2(0.5, 0.5),
-                    Position = UDim2.fromOffset(SK_PTS[i][1], SK_PTS[i][2]),
-                    Size = UDim2.fromOffset(5, 5),
-                    BorderSizePixel = 0,
-                    Visible = false,
-                    ZIndex = 10,
-                }, dummy)
-                corner(j, 99)
-                pvJoints[i] = j
-            end
 
-            -- Preview NamePlate + Labels
-            local pvNameBg = mk("Frame", {
-                AnchorPoint = v2(0.5, 1),
-                Position = UDim2.fromOffset(46, -8),
-                Size = UDim2.fromOffset(82, 18),
-                BackgroundColor3 = rgb(16, 18, 26),
-                BackgroundTransparency = 0.22,
-                Visible = false,
-                ZIndex = 10,
-            }, dummy)
-            corner(pvNameBg, 4)
-            local pvNameBar = mk("Frame", { Position = UDim2.new(0, 1, 1, -2), Size = UDim2.new(1, -2, 0, 2), BorderSizePixel = 0, ZIndex = 11 }, pvNameBg)
-            local pvNameLbl = mk("TextLabel", {
-                AnchorPoint = v2(0.5, 1),
-                Position = UDim2.fromOffset(46, -10),
-                Size = UDim2.fromOffset(110, 15),
-                BackgroundTransparency = 1,
-                Font = Enum.Font.GothamBold,
-                TextSize = 11,
-                TextColor3 = WHITE,
-                Text = "Enemy",
-                Visible = false,
-                ZIndex = 12,
-            }, dummy)
-            local pvSubLbl = mk("TextLabel", {
-                AnchorPoint = v2(0.5, 0),
-                Position = UDim2.fromOffset(46, 183),
-                Size = UDim2.fromOffset(130, 34),
-                BackgroundTransparency = 1,
-                Font = Enum.Font.Gotham,
-                TextSize = 10,
-                TextColor3 = TH.Text,
-                TextYAlignment = Enum.TextYAlignment.Top,
-                Text = "",
-                Visible = false,
-                ZIndex = 12,
-            }, dummy)
+            local function sanitizeAndMountClone(mdl)
+                if not mdl then return end
+                if rigModel then pcall(function() rigModel:Destroy() end) rigModel = nil end
+                table.clear(rigParts)
+                table.clear(rigJoints)
+                rigEdges = {}
+                rigHead = nil
+                chamsApplied = false
 
-            conn(RunService.RenderStepped, function()
-                if not (win._visible and previewWin.Visible) then return end
-                local e = cfg().ESP
-                local espOn = e.Enabled
-                pToggle.Text = espOn and "ВКЛ" or "ВЫКЛ"
-                pToggle.BackgroundColor3 = espOn and TH.Accent or TH.CtrlBg
-                pToggle.TextColor3 = espOn and WHITE or TH.SubText
-                pvFooter.Text = espOn and ("Рамка: " .. tostring(e.BoxType) .. (e.Chams and "  •  Чамсы" or "")) or "Нажмите ВКЛ для запуска ВХ"
-
-                local col = e.Rainbow and rainbow or e.Colors.Enemy
-                -- Chams preview tint on dummy parts
-                for _, dp in ipairs(dummyParts) do
-                    if espOn and e.Chams then
-                        dp.BackgroundColor3 = e.Colors.ChamsVis
-                        dp.BackgroundTransparency = clamp(e.ChamsTransparency or 0.45, 0.1, 0.85)
-                    else
-                        dp.BackgroundColor3 = rgb(248, 250, 254)
-                        dp.BackgroundTransparency = 0.08
+                for _, d in ipairs(mdl:GetDescendants()) do
+                    if d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("BillboardGui") or d:IsA("ScreenGui")
+                        or d:IsA("SurfaceGui") or d:IsA("ForceField") or d:IsA("Highlight")
+                        or d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam")
+                        or d:IsA("Light") or d:IsA("Animator") or string.sub(d.Name, 1, 7) == "Glupost" then
+                        pcall(function() d:Destroy() end)
+                    elseif d:IsA("Humanoid") then
+                        pcall(function()
+                            d.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                            d.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+                            d.PlatformStand = true
+                        end)
                     end
                 end
-                -- ChinaHat preview (floating animation)
-                local ch = cfg().ChinaHat
-                pvHalo.Visible = ch.Enabled
-                if ch.Enabled then
-                    pvHalo.Position = UDim2.fromOffset(46, -2 + sin(clock() * 2.6) * 2)
-                    pvHaloSt.Color = ch.Color or rgb(95, 200, 255)
+
+                local root = mdl:FindFirstChild("HumanoidRootPart") or mdl:FindFirstChild("UpperTorso") or mdl:FindFirstChild("Torso") or mdl:FindFirstChildWhichIsA("BasePart")
+                if not root then
+                    pcall(function() mdl:Destroy() end)
+                    return
+                end
+                local rootPos = root.CFrame.Position
+                local invRot = (root.CFrame - rootPos):Inverse()
+                local minX, minY, minZ = 1e6, 1e6, 1e6
+                local maxX, maxY, maxZ = -1e6, -1e6, -1e6
+                local cMinX, cMinY, cMinZ = 1e6, 1e6, 1e6
+                local cMaxX, cMaxY, cMaxZ = -1e6, -1e6, -1e6
+                local hasCore = false
+
+                local allParts = {}
+                for _, d in ipairs(mdl:GetDescendants()) do
+                    if d:IsA("BasePart") then
+                        d.Anchored = true
+                        d.CanCollide = false
+                        d.CanTouch = false
+                        d.CanQuery = false
+                        d.CFrame = invRot * (d.CFrame - rootPos)
+                        allParts[#allParts + 1] = d
+                        local p, hs = d.Position, d.Size * 0.5
+                        minX = min(minX, p.X - hs.X); maxX = max(maxX, p.X + hs.X)
+                        minY = min(minY, p.Y - hs.Y); maxY = max(maxY, p.Y + hs.Y)
+                        minZ = min(minZ, p.Z - hs.Z); maxZ = max(maxZ, p.Z + hs.Z)
+                        if CORE_BODY[d.Name] and d.Name ~= "HumanoidRootPart" then
+                            hasCore = true
+                            cMinX = min(cMinX, p.X - hs.X); cMaxX = max(cMaxX, p.X + hs.X)
+                            cMinY = min(cMinY, p.Y - hs.Y); cMaxY = max(cMaxY, p.Y + hs.Y)
+                            cMinZ = min(cMinZ, p.Z - hs.Z); cMaxZ = max(cMaxZ, p.Z + hs.Z)
+                        end
+                    end
                 end
 
-                if not espOn then
-                    pvFill.Visible, pvFillGrad.Visible, pvFillBar.Visible, pvGlowBox.Visible = false, false, false, false
-                    pvHpBg.Visible, pvHeadDot.Visible, pvNameBg.Visible, pvNameLbl.Visible, pvSubLbl.Visible = false, false, false, false, false
-                    for i = 1, #pvSegs do pvSegs[i].Visible = false end
-                    for i = 1, #pvBones do pvBones[i].Visible = false end
-                    for i = 1, #pvJoints do pvJoints[i].Visible = false end
+                if #allParts == 0 then
+                    pcall(function() mdl:Destroy() end)
                     return
                 end
 
+                local shiftY = -minY
+                for _, d in ipairs(allParts) do
+                    d.CFrame = d.CFrame + v3(0, shiftY, 0)
+                    rigParts[#rigParts + 1] = {
+                        part = d, col = d.Color, mat = d.Material, tr = d.Transparency, refl = d.Reflectance,
+                    }
+                    if d.Name == "Head" then rigHead = d end
+                    if CORE_BODY[d.Name] and d.Name ~= "HumanoidRootPart" then
+                        rigJoints[d.Name] = d
+                    end
+                end
+
+                if hasCore then
+                    rigBMin = v3(cMinX, cMinY + shiftY, cMinZ)
+                    rigBMax = v3(cMaxX, cMaxY + shiftY, cMaxZ)
+                else
+                    rigBMin = v3(minX, minY + shiftY, minZ)
+                    rigBMax = v3(maxX, maxY + shiftY, maxZ)
+                end
+
+                local fullH = max(3.5, (maxY - minY))
+                local fullW = max(2.2, (maxX - minX))
+                rigCenterY = (rigBMin.Y + rigBMax.Y) * 0.52
+                rigBaseDist = clamp(max(fullH * 1.48, fullW * 1.85), 5.8, 12.5)
+                rigEdges = rigJoints.UpperTorso and R15_EDGES or R6_EDGES
+                mdl.Parent = vpWorld
+                rigModel = mdl
+            end
+
+            local function clonePlayerRig()
+                buildToken += 1
+                local tok = buildToken
+                local char = LP and LP.Character
+                if char then
+                    local oldArch = char.Archivable
+                    pcall(function() char.Archivable = true end)
+                    local okC, cl = pcall(char.Clone, char)
+                    pcall(function() char.Archivable = oldArch end)
+                    if okC and cl and cl:FindFirstChildWhichIsA("BasePart") then
+                        sanitizeAndMountClone(cl)
+                        return
+                    elseif cl then
+                        pcall(function() cl:Destroy() end)
+                    end
+                end
+                sanitizeAndMountClone(makeFallbackR15())
+                if LP and LP.UserId and LP.UserId > 0 then
+                    task.spawn(function()
+                        local okU, uMdl = pcall(Players.CreateHumanoidModelFromUserId, Players, LP.UserId)
+                        if lib._unloaded or buildToken ~= tok then
+                            if okU and uMdl then pcall(function() uMdl:Destroy() end) end
+                            return
+                        end
+                        if okU and uMdl then
+                            sanitizeAndMountClone(uMdl)
+                        end
+                    end)
+                end
+            end
+
+            clonePlayerRig()
+            if LP then
+                conn(LP.CharacterAdded, function()
+                    task.delay(1.1, function()
+                        if not lib._unloaded then clonePlayerRig() end
+                    end)
+                end)
+            end
+            conn(pRefresh.MouseButton1Click, function()
+                clonePlayerRig()
+            end)
+
+            -- 3D Camera Orbit & Zoom Interaction
+            local yaw, pitch, zoomMult = 0.28, 0.08, 1.0
+            local orbitDragging, lastMX, lastMY = false, 0, 0
+            conn(pOrbit.MouseButton1Click, function()
+                autoSpin = not autoSpin
+                pOrbit.BackgroundColor3 = autoSpin and TH.AccentSoft or TH.CtrlBg
+                pOrbit.TextColor3 = autoSpin and TH.Accent or TH.SubText
+                pOrbitSt.Color = autoSpin and TH.Accent or TH.Border
+                pOrbitSt.Transparency = autoSpin and 0.6 or 0
+            end)
+            conn(stage.InputBegan, function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    orbitDragging = true
+                    lastMX, lastMY = inp.Position.X, inp.Position.Y
+                end
+            end)
+            conn(stage.InputChanged, function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseWheel then
+                    zoomMult = clamp(zoomMult - inp.Position.Z * 0.09, 0.58, 1.70)
+                end
+            end)
+            conn(UIS.InputChanged, function(inp)
+                if orbitDragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+                    local dx, dy = inp.Position.X - lastMX, inp.Position.Y - lastMY
+                    lastMX, lastMY = inp.Position.X, inp.Position.Y
+                    yaw -= dx * 0.012
+                    pitch = clamp(pitch + dy * 0.009, -0.45, 0.62)
+                end
+            end)
+            conn(UIS.InputEnded, function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    orbitDragging = false
+                end
+            end)
+
+            -- Reusable 3D SelfFX Preview Parts inside WorldModel
+            local fxHatParts, fxAuraParts, fxWingParts = {}, {}, {}
+            local fxBuiltMode = { hat = "", aura = false, wing = "" }
+
+            local function clearArr(arr)
+                for i = #arr, 1, -1 do
+                    pcall(function() arr[i]:Destroy() end)
+                    arr[i] = nil
+                end
+            end
+            local function mkFxPart(sz, col, mat, shape)
+                local p = Instance.new("Part")
+                p.Size = sz
+                p.Color = col or WHITE
+                p.Material = mat or Enum.Material.Neon
+                p.Shape = shape or Enum.PartType.Block
+                p.Anchored = true
+                p.CanCollide = false
+                p.TopSurface = Enum.SurfaceType.Smooth
+                p.BottomSurface = Enum.SurfaceType.Smooth
+                p.Parent = fxFolder
+                return p
+            end
+
+            -- 2D ESP Overlay Elements inside ov2d
+            local pvFill = mk("Frame", { Name = "NoPanelBg", BorderSizePixel = 0, Visible = false, ZIndex = 8 }, ov2d)
+            local pvFillBar = mk("Frame", { Name = "NoPanelBg", Size = UDim2.new(1, 0, 0, 2), BorderSizePixel = 0, Visible = false, ZIndex = 9 }, ov2d)
+            local pvGlowBox = mk("Frame", { Name = "NoPanelBg", BackgroundTransparency = 1, Visible = false, ZIndex = 8 }, ov2d)
+            local pvGlowSt = stroke(pvGlowBox, TH.Accent, 3, 0.65)
+            local pvSegs = {}
+            for i = 1, 24 do
+                pvSegs[i] = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0.5, 0.5), BorderSizePixel = 0, Visible = false, ZIndex = 10 }, ov2d)
+            end
+            local pvLookLine = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0.5, 0.5), BorderSizePixel = 0, Visible = false, ZIndex = 11 }, ov2d)
+            local pvHpBg = mk("Frame", { Name = "NoPanelBg", BackgroundColor3 = rgb(18, 22, 30), Visible = false, ZIndex = 10 }, ov2d)
+            corner(pvHpBg, 2)
+            local pvHpTrail = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0, 1), Position = UDim2.fromScale(0, 1), BackgroundColor3 = rgb(255, 115, 130), BorderSizePixel = 0, ZIndex = 11 }, pvHpBg)
+            local pvHpFill = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0, 1), Position = UDim2.fromScale(0, 1), BackgroundColor3 = HP_GREEN, BorderSizePixel = 0, ZIndex = 12 }, pvHpBg)
+            local pvHeadDot = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0.5, 0.5), Size = UDim2.fromOffset(7, 7), Visible = false, ZIndex = 12 }, ov2d)
+            corner(pvHeadDot, 99)
+            local pvHeadSt = stroke(pvHeadDot, BLACK, 1.2, 0.2)
+
+            local pvBones, pvJointFrames = {}, {}
+            for i = 1, 10 do
+                pvBones[i] = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0.5, 0.5), BorderSizePixel = 0, Visible = false, ZIndex = 10 }, ov2d)
+            end
+            for i = 1, 11 do
+                local jf = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0.5, 0.5), Size = UDim2.fromOffset(4, 4), BorderSizePixel = 0, Visible = false, ZIndex = 11 }, ov2d)
+                corner(jf, 99)
+                pvJointFrames[i] = jf
+            end
+
+            local pvNameBg = mk("Frame", { Name = "NoPanelBg", AnchorPoint = v2(0.5, 1), BackgroundColor3 = rgb(16, 18, 26), BackgroundTransparency = 0.20, Visible = false, ZIndex = 11 }, ov2d)
+            corner(pvNameBg, 4)
+            local pvNameBar = mk("Frame", { Name = "NoPanelBg", Position = UDim2.new(0, 1, 1, -2), Size = UDim2.new(1, -2, 0, 2), BorderSizePixel = 0, ZIndex = 12 }, pvNameBg)
+            local pvNameLbl = mk("TextLabel", {
+                AnchorPoint = v2(0.5, 1),
+                Size = UDim2.fromOffset(130, 15),
+                BackgroundTransparency = 1,
+                Font = F_BOLD,
+                TextSize = 11,
+                TextColor3 = WHITE,
+                Text = "glupost",
+                Visible = false,
+                ZIndex = 13,
+            }, ov2d)
+            local pvSubLbl = mk("TextLabel", {
+                AnchorPoint = v2(0.5, 0),
+                Size = UDim2.fromOffset(160, 20),
+                BackgroundTransparency = 1,
+                Font = F_MONO,
+                TextSize = 9,
+                TextColor3 = TH.Text,
+                TextStrokeColor3 = WHITE,
+                TextStrokeTransparency = 0.25,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                Text = "",
+                Visible = false,
+                ZIndex = 13,
+            }, ov2d)
+
+            local halfTanFov = math.tan(math.rad(36 * 0.5))
+            local function projVP(wp, camCF, W, H, aspect)
+                local rel = camCF:PointToObjectSpace(wp)
+                if rel.Z >= -0.08 then return nil end
+                local d = -rel.Z
+                local hh = d * halfTanFov
+                local hw = hh * aspect
+                return v2((0.5 + rel.X / (2 * hw)) * W, (0.5 - rel.Y / (2 * hh)) * H)
+            end
+
+            conn(RunService.RenderStepped, function(dt)
+                if not (win._visible and previewWin.Visible) then return end
+                local tNow = clock()
+                if autoSpin and not orbitDragging then
+                    yaw += min(dt or 0.016, 0.05) * 0.55
+                end
+
+                local target = v3(0, rigCenterY, 0)
+                local dist = rigBaseDist * zoomMult
+                local rotCF = cfAng(0, yaw, 0) * cfAng(pitch, 0, 0)
+                local camPos = target + rotCF:VectorToWorldSpace(v3(0, 0, -dist))
+                local camCF = cfNew(camPos, target)
+                vpCam.CFrame = camCF
+                stageDisc.Color = TH.Border:Lerp(TH.WinBg, 0.35)
+
+                local e = cfg().ESP
+                local sc = cfg().SelfChams
+                local ch = cfg().ChinaHat
+                local pa = cfg().PlayerAura
+                local aw = cfg().AnimeWings
+                local espOn = e.Enabled
+
+                pToggle.Text = "ВХ"
+                pToggle.BackgroundColor3 = espOn and TH.Accent or TH.CtrlBg
+                pToggle.TextColor3 = espOn and WHITE or TH.SubText
+                pToggleSt.Color = espOn and TH.Accent or TH.Border
+
+                -- 1) Live 3D Skin Tint (SelfChams or ESP.Chams)
+                if sc.Enabled or (espOn and e.Chams) then
+                    local cCol = sc.Enabled and (styleColors(sc.Style, sc.FillColor, sc.AnimationSpeed or 0.9) or sc.FillColor) or e.Colors.ChamsVis
+                    local cTr = sc.Enabled and clamp(sc.FillTransparency or 0.55, 0.05, 0.85) or clamp(e.ChamsTransparency or 0.45, 0.05, 0.85)
+                    local cMat = sc.Enabled and Enum.Material.Glass or Enum.Material.SmoothPlastic
+                    local cRefl = sc.Enabled and clamp(sc.Reflectance or 0.35, 0, 0.8) or 0.05
+                    for _, rp in ipairs(rigParts) do
+                        if rp.part and rp.part.Parent and rp.tr < 0.95 then
+                            rp.part.Color = cCol
+                            rp.part.Material = cMat
+                            rp.part.Reflectance = cRefl
+                            rp.part.Transparency = max(rp.tr, cTr * 0.55)
+                        end
+                    end
+                    chamsApplied = true
+                elseif chamsApplied then
+                    for _, rp in ipairs(rigParts) do
+                        if rp.part and rp.part.Parent then
+                            rp.part.Color = rp.col
+                            rp.part.Material = rp.mat
+                            rp.part.Reflectance = rp.refl
+                            rp.part.Transparency = rp.tr
+                        end
+                    end
+                    chamsApplied = false
+                end
+
+                -- 2) Live 3D ChinaHat Preview inside WorldModel
+                local wantHat = ch.Enabled and (ch.Shape or "Halo") or ""
+                if fxBuiltMode.hat ~= wantHat then
+                    clearArr(fxHatParts)
+                    fxBuiltMode.hat = wantHat
+                    if wantHat == "Cone" or wantHat == "Oni Crown" then
+                        for i = 1, 12 do
+                            fxHatParts[i] = mkFxPart(v3(0.42, 0.08, 1.05), WHITE, Enum.Material.Neon)
+                        end
+                        if wantHat == "Oni Crown" then
+                            fxHatParts[13] = mkFxPart(v3(0.14, 0.55, 0.14), WHITE, Enum.Material.Neon)
+                            fxHatParts[14] = mkFxPart(v3(0.14, 0.55, 0.14), WHITE, Enum.Material.Neon)
+                        end
+                    elseif wantHat == "Crown" then
+                        for i = 1, 10 do
+                            fxHatParts[i] = mkFxPart(v3(0.16, 0.36, 0.16), WHITE, Enum.Material.Neon)
+                        end
+                    elseif wantHat == "Crystal" then
+                        fxHatParts[1] = mkFxPart(v3(0.48, 0.72, 0.48), WHITE, Enum.Material.Neon)
+                    elseif wantHat == "Cat Ears" or wantHat == "Horns" then
+                        fxHatParts[1] = mkFxPart(v3(0.24, 0.54, 0.24), WHITE, Enum.Material.Neon)
+                        fxHatParts[2] = mkFxPart(v3(0.24, 0.54, 0.24), WHITE, Enum.Material.Neon)
+                    elseif wantHat ~= "" then
+                        for i = 1, 14 do
+                            fxHatParts[i] = mkFxPart(v3(0.44, 0.09, 0.10), WHITE, Enum.Material.Neon)
+                        end
+                    end
+                end
+                if wantHat ~= "" and rigHead then
+                    local hCol, hCol2 = styleColors(ch.Style, ch.Color, 1.4)
+                    local hBase = rigHead.Position + v3(0, 0.65 + (ch.Height or 0.55) * 0.4 + sin(tNow * 2.4) * 0.05, 0)
+                    local r = clamp(ch.Size or 1.45, 0.7, 2.2) * 0.72
+                    local tr = 1 - clamp(ch.Opacity or 0.65, 0.2, 0.95)
+                    if wantHat == "Cone" or wantHat == "Oni Crown" then
+                        for i = 1, 12 do
+                            local a = (i / 12) * math.pi * 2 + tNow * 0.5
+                            local cf = cfNew(hBase) * cfAng(0, a, 0) * cfNew(0, 0, -r * 0.48) * cfAng(math.rad(-26), 0, 0)
+                            fxHatParts[i].CFrame = cf
+                            fxHatParts[i].Color = (i % 2 == 0) and hCol or hCol2
+                            fxHatParts[i].Transparency = tr
+                        end
+                        if wantHat == "Oni Crown" and fxHatParts[13] then
+                            fxHatParts[13].CFrame = cfNew(hBase + v3(-0.48, 0.24, -0.25)) * cfAng(math.rad(-18), 0, math.rad(22))
+                            fxHatParts[14].CFrame = cfNew(hBase + v3(0.48, 0.24, -0.25)) * cfAng(math.rad(-18), 0, math.rad(-22))
+                            fxHatParts[13].Color = hCol2; fxHatParts[14].Color = hCol2
+                        end
+                    elseif wantHat == "Crystal" and fxHatParts[1] then
+                        fxHatParts[1].CFrame = cfNew(hBase + v3(0, 0.25, 0)) * cfAng(math.rad(45), tNow * 1.8, math.rad(35))
+                        fxHatParts[1].Color = hCol; fxHatParts[1].Transparency = tr
+                    elseif (wantHat == "Cat Ears" or wantHat == "Horns") and fxHatParts[1] then
+                        local tilt = wantHat == "Horns" and 0.35 or 0.2
+                        fxHatParts[1].CFrame = cfNew(rigHead.Position + v3(-0.46, 0.62, 0)) * cfAng(0, 0, tilt)
+                        fxHatParts[2].CFrame = cfNew(rigHead.Position + v3(0.46, 0.62, 0)) * cfAng(0, 0, -tilt)
+                        fxHatParts[1].Color = hCol; fxHatParts[2].Color = hCol2
+                    elseif wantHat == "Crown" then
+                        for i = 1, #fxHatParts do
+                            local a = (i / #fxHatParts) * math.pi * 2 + tNow * 0.45
+                            fxHatParts[i].CFrame = cfNew(hBase + v3(cos(a) * r * 0.68, 0.08, sin(a) * r * 0.68)) * cfAng(0, -a, 0)
+                            fxHatParts[i].Color = (i % 2 == 0) and hCol or hCol2
+                            fxHatParts[i].Transparency = tr
+                        end
+                    else
+                        for i = 1, #fxHatParts do
+                            local a = (i / #fxHatParts) * math.pi * 2 + tNow * 0.6
+                            fxHatParts[i].CFrame = cfNew(hBase + v3(cos(a) * r, 0, sin(a) * r)) * cfAng(0, -a + math.pi * 0.5, 0)
+                            fxHatParts[i].Color = hCol
+                            fxHatParts[i].Transparency = tr
+                        end
+                    end
+                end
+
+                -- 3) Live 3D PlayerAura Preview
+                local wantAura = pa.Enabled and true or false
+                if fxBuiltMode.aura ~= wantAura then
+                    clearArr(fxAuraParts)
+                    fxBuiltMode.aura = wantAura
+                    if wantAura then
+                        for i = 1, 14 do
+                            fxAuraParts[i] = mkFxPart(v3(0.48, 0.06, 0.08), WHITE, Enum.Material.Neon)
+                        end
+                        for i = 15, 17 do
+                            fxAuraParts[i] = mkFxPart(v3(0.24, 0.24, 0.24), WHITE, Enum.Material.Neon, Enum.PartType.Ball)
+                        end
+                    end
+                end
+                if wantAura then
+                    local aCol, aCol2 = styleColors(pa.Style, pa.Color, 1.3)
+                    local ar = clamp(pa.Size or 2.6, 1.4, 3.8) * 0.68
+                    local ay = rigBMin.Y + 0.35
+                    for i = 1, 14 do
+                        local a = (i / 14) * math.pi * 2 + tNow * 0.8
+                        fxAuraParts[i].CFrame = cfNew(cos(a) * ar, ay, sin(a) * ar) * cfAng(0, -a + math.pi * 0.5, 0)
+                        fxAuraParts[i].Color = aCol
+                        fxAuraParts[i].Transparency = 0.25
+                    end
+                    for i = 15, 17 do
+                        local idx = i - 14
+                        local a = (idx / 3) * math.pi * 2 + tNow * 1.9
+                        fxAuraParts[i].CFrame = cfNew(cos(a) * (ar * 0.92), rigCenterY + sin(tNow * 2.2 + idx * 2) * 0.95, sin(a) * (ar * 0.92))
+                        fxAuraParts[i].Color = aCol2
+                        fxAuraParts[i].Transparency = 0.15
+                    end
+                end
+
+                -- 4) Live 3D AnimeWings Preview
+                local wantWing = aw.Enabled and (aw.Shape or "Seraph") or ""
+                if fxBuiltMode.wing ~= wantWing then
+                    clearArr(fxWingParts)
+                    fxBuiltMode.wing = wantWing
+                    if wantWing ~= "" then
+                        for i = 1, 8 do
+                            fxWingParts[i] = mkFxPart(v3(0.14, 1.45, 0.34), WHITE, Enum.Material.Neon)
+                        end
+                    end
+                end
+                if wantWing ~= "" then
+                    local wCol, wCol2 = styleColors(aw.Style, aw.Color, 1.4)
+                    local flap = sin(tNow * (aw.FlapSpeed or 1.4) * 2.2) * 0.26
+                    local scW = clamp(aw.Size or 1.15, 0.7, 1.6)
+                    local baseY = (rigBMin.Y + rigBMax.Y) * 0.60
+                    for side = 0, 1 do
+                        local dir = (side == 0) and -1 or 1
+                        for f = 1, 4 do
+                            local p = fxWingParts[side * 4 + f]
+                            local fan = (f - 2.5) * 0.26
+                            p.Size = v3(0.10, (1.55 - (f - 1) * 0.18) * scW, 0.28 * scW)
+                            local cf = cfNew(dir * 0.45, baseY + (2.5 - f) * 0.18, 0.58)
+                                * cfAng(0, dir * (0.35 + flap), dir * (0.55 + fan))
+                                * cfNew(dir * (0.55 * scW), 0.35 * scW, 0)
+                            p.CFrame = cf
+                            p.Color = (f % 2 == 1) and wCol or wCol2
+                            p.Transparency = clamp(aw.Transparency or 0.18, 0.05, 0.75)
+                        end
+                    end
+                end
+
+                -- Footer readout
+                local modeTags = {}
+                if espOn then tinsert(modeTags, tostring(e.BoxType)) end
+                if espOn and e.Skeleton then tinsert(modeTags, "Скелет") end
+                if sc.Enabled or (espOn and e.Chams) then tinsert(modeTags, "Чамсы") end
+                if ch.Enabled then tinsert(modeTags, "Шляпа") end
+                if aw.Enabled then tinsert(modeTags, "Крылья") end
+                pvFooter.Text = (#modeTags > 0) and (table.concat(modeTags, " · ") .. string.format("  %.1fx", 1 / zoomMult)) or "ЛКМ: вращать · Колесо: зум"
+
+                -- 5) 2D ESP Overlay Projected From Real 3D Rig
+                if not espOn then
+                    pvFill.Visible, pvFillBar.Visible, pvGlowBox.Visible = false, false, false
+                    pvHpBg.Visible, pvHeadDot.Visible, pvLookLine.Visible = false, false, false
+                    pvNameBg.Visible, pvNameLbl.Visible, pvSubLbl.Visible = false, false, false
+                    for i = 1, #pvSegs do pvSegs[i].Visible = false end
+                    for i = 1, #pvBones do pvBones[i].Visible = false end
+                    for i = 1, #pvJointFrames do pvJointFrames[i].Visible = false end
+                    return
+                end
+
+                local W, H = ov2d.AbsoluteSize.X, ov2d.AbsoluteSize.Y
+                if W < 20 or H < 20 then return end
+                local aspect = W / H
+
+                local cPts = {}
+                local xs, ys = { rigBMin.X, rigBMax.X }, { rigBMin.Y, rigBMax.Y }
+                local zs = { rigBMin.Z, rigBMax.Z }
+                local minSX, minSY, maxSX, maxSY = 1e6, 1e6, -1e6, -1e6
+                for xi = 1, 2 do
+                    for yi = 1, 2 do
+                        for zi = 1, 2 do
+                            local pt = projVP(v3(xs[xi], ys[yi], zs[zi]), camCF, W, H, aspect)
+                            if pt then
+                                cPts[#cPts + 1] = pt
+                                if pt.X < minSX then minSX = pt.X end
+                                if pt.Y < minSY then minSY = pt.Y end
+                                if pt.X > maxSX then maxSX = pt.X end
+                                if pt.Y > maxSY then maxSY = pt.Y end
+                            end
+                        end
+                    end
+                end
+                if #cPts < 4 then return end
+
+                local bw, bh = max(12, maxSX - minSX), max(24, maxSY - minSY)
+                local col = e.Rainbow and rainbow or e.Colors.Enemy
                 local bt = e.BoxType
+
                 pvFill.Visible = e.BoxFill and bt ~= "3D" and bt ~= "3D Corner"
-                pvFillGrad.Visible = pvFill.Visible
                 pvFillBar.Visible = pvFill.Visible
                 if pvFill.Visible then
-                    pvFill.BackgroundColor3 = rgb(10, 12, 18):Lerp(col, 0.28)
-                    pvFill.BackgroundTransparency = 1 - clamp(e.FillOpacity * 0.95, 0.05, 0.78)
-                    pvFillGrad.BackgroundColor3 = col:Lerp(WHITE, 0.14)
-                    pvFillGrad.BackgroundTransparency = 1 - clamp(e.FillOpacity * 0.55, 0.04, 0.5)
+                    pvFill.Position = UDim2.fromOffset(minSX, minSY)
+                    pvFill.Size = UDim2.fromOffset(bw, bh)
+                    pvFill.BackgroundColor3 = rgb(12, 16, 24):Lerp(col, 0.30)
+                    pvFill.BackgroundTransparency = 1 - clamp(e.FillOpacity * 0.95, 0.06, 0.72)
+                    pvFillBar.Position = UDim2.fromOffset(minSX + 1, minSY + 1)
+                    pvFillBar.Size = UDim2.fromOffset(max(2, bw - 2), 2)
                     pvFillBar.BackgroundColor3 = col:Lerp(WHITE, 0.35)
                 end
 
-                pvGlowBox.Visible = e.BoxGlow
-                if e.BoxGlow then
+                pvGlowBox.Visible = e.BoxGlow and bt ~= "3D" and bt ~= "3D Corner"
+                if pvGlowBox.Visible then
+                    pvGlowBox.Position = UDim2.fromOffset(minSX - 2, minSY - 2)
+                    pvGlowBox.Size = UDim2.fromOffset(bw + 4, bh + 4)
                     pvGlowSt.Color = col:Lerp(WHITE, 0.25)
-                    pvGlowSt.Transparency = 0.62 + sin(clock() * 3.2) * 0.14
+                    pvGlowSt.Transparency = 0.60 + sin(tNow * 3.0) * 0.14
                 end
 
-                local w, h = 92, 178
                 local th = clamp(e.BoxThickness, 1, 3)
-                local usedSegs = 0
-                local function seg(x1, y1, x2, y2)
-                    usedSegs += 1
-                    if usedSegs <= #pvSegs then
-                        drawLineFrame(pvSegs[usedSegs], x1, y1, x2, y2, col, th, 0)
+                local used = 0
+                local function seg(p1, p2)
+                    if not (p1 and p2) then return end
+                    used += 1
+                    if used <= #pvSegs then
+                        drawLineFrame(pvSegs[used], p1.X, p1.Y, p2.X, p2.Y, col, th, 0)
                     end
                 end
-                if bt == "Corner" then
-                    local arm = 22
-                    seg(0, 0, arm, 0); seg(0, 0, 0, arm)
-                    seg(w, 0, w - arm, 0); seg(w, 0, w, arm)
-                    seg(0, h, arm, h); seg(0, h, 0, h - arm)
-                    seg(w, h, w - arm, h); seg(w, h, w, h - arm)
-                elseif bt == "3D" then
-                    local ox, oy = 13, -10
-                    seg(0, 0, w, 0); seg(w, 0, w, h); seg(w, h, 0, h); seg(0, h, 0, 0)
-                    seg(ox, oy, w + ox, oy); seg(w + ox, oy, w + ox, h + oy); seg(w + ox, h + oy, ox, h + oy); seg(ox, h + oy, ox, oy)
-                    seg(0, 0, ox, oy); seg(w, 0, w + ox, oy); seg(w, h, w + ox, h + oy); seg(0, h, ox, h + oy)
-                elseif bt == "3D Corner" then
-                    local ox, oy, arm = 12, -9, 16
-                    seg(0, 0, arm, 0); seg(0, 0, 0, arm); seg(0, 0, ox, oy)
-                    seg(w, 0, w - arm, 0); seg(w, 0, w, arm); seg(w, 0, w + ox, oy)
-                    seg(0, h, arm, h); seg(0, h, 0, h - arm); seg(0, h, ox, h + oy)
-                    seg(w, h, w - arm, h); seg(w, h, w, h - arm); seg(w, h, w + ox, h + oy)
+                if bt == "3D" and #cPts == 8 then
+                    -- cPts order: (1:000, 2:001, 3:010, 4:011, 5:100, 6:101, 7:110, 8:111)
+                    local ed3 = { {1,2},{2,6},{6,5},{5,1}, {3,4},{4,8},{8,7},{7,3}, {1,3},{2,4},{5,7},{6,8} }
+                    for _, ed in ipairs(ed3) do seg(cPts[ed[1]], cPts[ed[2]]) end
+                elseif bt == "3D Corner" and #cPts == 8 then
+                    local ed3 = { {1,2},{2,6},{6,5},{5,1}, {3,4},{4,8},{8,7},{7,3}, {1,3},{2,4},{5,7},{6,8} }
+                    for _, ed in ipairs(ed3) do
+                        local a, b = cPts[ed[1]], cPts[ed[2]]
+                        seg(a, a:Lerp(b, 0.28))
+                        seg(b, b:Lerp(a, 0.28))
+                    end
+                elseif bt == "Corner" then
+                    local armX, armY = bw * 0.26, bh * 0.18
+                    seg(v2(minSX, minSY), v2(minSX + armX, minSY)); seg(v2(minSX, minSY), v2(minSX, minSY + armY))
+                    seg(v2(maxSX, minSY), v2(maxSX - armX, minSY)); seg(v2(maxSX, minSY), v2(maxSX, minSY + armY))
+                    seg(v2(minSX, maxSY), v2(minSX + armX, maxSY)); seg(v2(minSX, maxSY), v2(minSX, maxSY - armY))
+                    seg(v2(maxSX, maxSY), v2(maxSX - armX, maxSY)); seg(v2(maxSX, maxSY), v2(maxSX, maxSY - armY))
                 else
-                    seg(0, 0, w, 0); seg(w, 0, w, h); seg(w, h, 0, h); seg(0, h, 0, 0)
+                    seg(v2(minSX, minSY), v2(maxSX, minSY))
+                    seg(v2(maxSX, minSY), v2(maxSX, maxSY))
+                    seg(v2(maxSX, maxSY), v2(minSX, maxSY))
+                    seg(v2(minSX, maxSY), v2(minSX, minSY))
                 end
-                for i = usedSegs + 1, #pvSegs do pvSegs[i].Visible = false end
+                for i = used + 1, #pvSegs do pvSegs[i].Visible = false end
 
                 pvHpBg.Visible = e.HealthBar
                 if e.HealthBar then
-                    local hpP = 0.78 + sin(clock() * 1.6) * 0.12
+                    local hpP = 0.78 + sin(tNow * 1.5) * 0.12
+                    pvHpBg.Position = UDim2.fromOffset(minSX - 7, minSY)
+                    pvHpBg.Size = UDim2.fromOffset(3, bh)
                     pvHpFill.Size = UDim2.fromScale(1, hpP)
                     pvHpFill.BackgroundColor3 = healthColor(hpP)
                     pvHpTrail.Visible = e.HealthTrail
                     pvHpTrail.Size = UDim2.fromScale(1, min(1, hpP + 0.12))
                 end
 
-                pvHeadDot.Visible = e.HeadDot
-                if e.HeadDot then
+                local headPos2 = rigHead and projVP(rigHead.Position, camCF, W, H, aspect)
+                pvHeadDot.Visible = e.HeadDot and headPos2 ~= nil
+                if pvHeadDot.Visible then
+                    pvHeadDot.Position = UDim2.fromOffset(headPos2.X, headPos2.Y)
                     pvHeadDot.BackgroundColor3 = e.HeadDotFilled and col or WHITE
                     pvHeadDot.BackgroundTransparency = e.HeadDotFilled and 0 or 1
                     pvHeadSt.Color = e.HeadDotFilled and BLACK or col
                 end
 
-                for i = 1, #SK_ED do
-                    if e.Skeleton then
-                        local a, b = SK_PTS[SK_ED[i][1]], SK_PTS[SK_ED[i][2]]
-                        drawLineFrame(pvBones[i], a[1], a[2], b[1], b[2], e.Colors.Skeleton, clamp(e.SkeletonThickness, 1, 2.5), 0.1)
+                local lookEnd2 = rigHead and projVP(rigHead.Position + rigHead.CFrame.LookVector * 2.4, camCF, W, H, aspect)
+                if e.LookLine and headPos2 and lookEnd2 then
+                    drawLineFrame(pvLookLine, headPos2.X, headPos2.Y, lookEnd2.X, lookEnd2.Y, e.Colors.Look, 1.5, 0.1)
+                else
+                    pvLookLine.Visible = false
+                end
+
+                -- 3D Projected Rig Skeleton
+                local jUsed = {}
+                for i = 1, #pvBones do
+                    local ed = rigEdges[i]
+                    local paPart = ed and rigJoints[ed[1]]
+                    local pbPart = ed and rigJoints[ed[2]]
+                    if e.Skeleton and paPart and pbPart then
+                        local p1 = projVP(paPart.Position, camCF, W, H, aspect)
+                        local p2 = projVP(pbPart.Position, camCF, W, H, aspect)
+                        if p1 and p2 then
+                            drawLineFrame(pvBones[i], p1.X, p1.Y, p2.X, p2.Y, e.Colors.Skeleton, clamp(e.SkeletonThickness, 1, 2.5), 0.1)
+                            jUsed[ed[1]] = p1
+                            jUsed[ed[2]] = p2
+                        else
+                            pvBones[i].Visible = false
+                        end
                     else
                         pvBones[i].Visible = false
                     end
                 end
-                for i = 1, #pvJoints do
-                    pvJoints[i].Visible = e.Skeleton and e.SkeletonJoints and not (i == 1 and e.HeadDot)
-                    if pvJoints[i].Visible then
-                        pvJoints[i].BackgroundColor3 = WHITE:Lerp(e.Colors.Skeleton, 0.38)
+                local jIdx = 0
+                if e.Skeleton and e.SkeletonJoints then
+                    for jName, jp in pairs(jUsed) do
+                        if not (jName == "Head" and e.HeadDot) then
+                            jIdx += 1
+                            if jIdx <= #pvJointFrames then
+                                pvJointFrames[jIdx].Position = UDim2.fromOffset(jp.X, jp.Y)
+                                pvJointFrames[jIdx].BackgroundColor3 = WHITE:Lerp(e.Colors.Skeleton, 0.35)
+                                pvJointFrames[jIdx].Visible = true
+                            end
+                        end
                     end
                 end
+                for i = jIdx + 1, #pvJointFrames do pvJointFrames[i].Visible = false end
 
+                local cx = (minSX + maxSX) * 0.5
                 pvNameLbl.Visible = e.ShowName
                 pvNameBg.Visible = e.ShowName and e.NamePlate
                 if e.ShowName then
-                    pvNameLbl.Text = (e.PriorityTarget and "★ " or "") .. "glupost"
+                    local disp = (LP and LP.DisplayName) or "glupost"
+                    pvNameLbl.Text = (e.PriorityTarget and "★ " or "") .. disp
+                    pvNameLbl.Position = UDim2.fromOffset(cx, minSY - 6)
                     pvNameLbl.TextColor3 = e.NamePlate and WHITE:Lerp(col, 0.25) or col
                     pvNameLbl.TextStrokeTransparency = e.TextOutline and 0.35 or 1
+                    pvNameBg.Position = UDim2.fromOffset(cx, minSY - 4)
+                    pvNameBg.Size = UDim2.fromOffset(max(64, #disp * 7 + 14), 17)
                     pvNameBar.BackgroundColor3 = col:Lerp(WHITE, 0.25)
                 end
 
@@ -9042,7 +9554,8 @@ Library, SaveManager = (function()
                 if e.ShowTool then tinsert(subParts, "[Katana]") end
                 pvSubLbl.Visible = #subParts > 0
                 if pvSubLbl.Visible then
-                    pvSubLbl.Text = table.concat(subParts, "  •  ")
+                    pvSubLbl.Position = UDim2.fromOffset(cx, maxSY + 4)
+                    pvSubLbl.Text = table.concat(subParts, " · ")
                 end
             end)
         end
@@ -9067,7 +9580,7 @@ Library, SaveManager = (function()
                 o = o or {}
                 local val = o.Default and true or false
                 local row = mk("TextButton", {
-                    Size = UDim2.new(1, 0, 0, 26),
+                    Size = UDim2.new(1, 0, 0, 24),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundColor3 = TH.CtrlBg,
                     BackgroundTransparency = 1,
@@ -9075,15 +9588,15 @@ Library, SaveManager = (function()
                     AutoButtonColor = false,
                     ZIndex = 6,
                 }, parentContainer)
-                corner(row, 6)
-                pad(row, 2, 2, 3, 3)
-                mk("UISizeConstraint", { MinSize = v2(0, 26) }, row)
+                corner(row, 4)
+                pad(row, 3, 3, 2, 2)
+                mk("UISizeConstraint", { MinSize = v2(0, 24) }, row)
                 local lbl = mk("TextLabel", {
                     Position = UDim2.fromOffset(0, 0),
-                    Size = UDim2.new(1, -42, 0, 20),
+                    Size = UDim2.new(1, -38, 0, 20),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.GothamMedium,
+                    Font = F_MED,
                     TextSize = 12,
                     TextColor3 = TH.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -9094,31 +9607,26 @@ Library, SaveManager = (function()
                 local sw = mk("Frame", {
                     AnchorPoint = v2(1, 0.5),
                     Position = UDim2.new(1, 0, 0.5, 0),
-                    Size = UDim2.fromOffset(34, 18),
-                    BackgroundColor3 = val and TH.Accent or TH.Border,
+                    Size = UDim2.fromOffset(30, 16),
+                    BackgroundColor3 = val and TH.Accent or TH.BorderStrong,
                     BorderSizePixel = 0,
                     ZIndex = 7,
                 }, row)
                 corner(sw, 99)
                 local knob = mk("Frame", {
                     AnchorPoint = v2(0, 0.5),
-                    Position = UDim2.new(0, val and 18 or 2, 0.5, 0),
-                    Size = UDim2.fromOffset(14, 14),
+                    Position = UDim2.new(0, val and 16 or 2, 0.5, 0),
+                    Size = UDim2.fromOffset(12, 12),
                     BackgroundColor3 = WHITE,
                     BorderSizePixel = 0,
                     ZIndex = 8,
                 }, sw)
                 corner(knob, 99)
-                stroke(knob, TH.BorderStrong, 0.8, 0.4)
 
                 local obj = { Value = val, _cbs = {} }
-                local function refresh(animImpulse)
-                    tw(sw, 0.16, { BackgroundColor3 = obj.Value and TH.Accent or TH.Border })
-                    twS(knob, 0.20, Enum.EasingStyle.Back, { Position = UDim2.new(0, obj.Value and 18 or 2, 0.5, 0) })
-                    if animImpulse then
-                        knob.Size = UDim2.fromOffset(18, 12)
-                        twS(knob, 0.22, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(14, 14) })
-                    end
+                local function refresh()
+                    tw(sw, 0.14, { BackgroundColor3 = obj.Value and TH.Accent or TH.BorderStrong })
+                    tw(knob, 0.14, { Position = UDim2.new(0, obj.Value and 16 or 2, 0.5, 0) })
                     lbl.TextColor3 = obj.Value and TH.Text or TH.SubText
                 end
                 tinsert(lib._accentRefs, {
@@ -9138,17 +9646,15 @@ Library, SaveManager = (function()
                     nv = nv and true or false
                     if obj.Value == nv then return end
                     obj.Value = nv
-                    refresh(true)
+                    refresh()
                     if o.Callback then o.Callback(nv) end
                     for _, fn in ipairs(obj._cbs) do pcall(fn, nv) end
                 end
-                conn(row.MouseEnter, function() tw(row, 0.12, { BackgroundTransparency = 0.40 }) end)
-                conn(row.MouseLeave, function() tw(row, 0.12, { BackgroundTransparency = 1 }) end)
-                conn(row.MouseButton1Click, function()
-                    obj:SetValue(not obj.Value)
-                end)
+                conn(row.MouseEnter, function() tw(row, 0.10, { BackgroundTransparency = 0.45 }) end)
+                conn(row.MouseLeave, function() tw(row, 0.10, { BackgroundTransparency = 1 }) end)
+                conn(row.MouseButton1Click, function() obj:SetValue(not obj.Value) end)
                 bindTooltip(row, o.Tooltip)
-                refresh(false)
+                refresh()
                 lib.Toggles[idx] = obj
                 regS(o.Text, o.Tooltip)
                 return obj
@@ -9167,15 +9673,15 @@ Library, SaveManager = (function()
                 local val = clamp(tonumber(o.Default) or mn, mn, mx)
 
                 local wrap = mk("Frame", {
-                    Size = UDim2.new(1, 0, 0, 40),
+                    Size = UDim2.new(1, 0, 0, 34),
                     BackgroundTransparency = 1,
                     ZIndex = 6,
                 }, parentContainer)
-                local lbl = mk("TextLabel", {
+                mk("TextLabel", {
                     Position = UDim2.fromOffset(2, 0),
-                    Size = UDim2.new(1, -60, 0, 16),
+                    Size = UDim2.new(1, -56, 0, 15),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.GothamMedium,
+                    Font = F_MED,
                     TextSize = 12,
                     TextColor3 = TH.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -9186,21 +9692,21 @@ Library, SaveManager = (function()
                 local valBox = mk("TextBox", {
                     AnchorPoint = v2(1, 0),
                     Position = UDim2.new(1, -2, 0, 0),
-                    Size = UDim2.fromOffset(52, 17),
+                    Size = UDim2.fromOffset(48, 16),
                     BackgroundColor3 = TH.CtrlBg,
-                    Font = Enum.Font.GothamBold,
-                    TextSize = 11,
+                    Font = F_MONO,
+                    TextSize = 10,
                     TextColor3 = TH.Text,
                     Text = fmtVal(val),
                     ClearTextOnFocus = false,
                     ZIndex = 7,
                 }, wrap)
-                corner(valBox, 5)
+                corner(valBox, 4)
                 stroke(valBox, TH.Border, 1, 0)
 
                 local hit = mk("TextButton", {
-                    Position = UDim2.fromOffset(2, 20),
-                    Size = UDim2.new(1, -4, 0, 16),
+                    Position = UDim2.fromOffset(2, 18),
+                    Size = UDim2.new(1, -4, 0, 14),
                     BackgroundTransparency = 1,
                     Text = "",
                     AutoButtonColor = false,
@@ -9209,13 +9715,13 @@ Library, SaveManager = (function()
                 local track = mk("Frame", {
                     AnchorPoint = v2(0, 0.5),
                     Position = UDim2.fromScale(0, 0.5),
-                    Size = UDim2.new(1, 0, 0, 5),
+                    Size = UDim2.new(1, 0, 0, 4),
                     BackgroundColor3 = TH.CtrlBg,
                     BorderSizePixel = 0,
                     ZIndex = 7,
                 }, hit)
                 corner(track, 99)
-                stroke(track, TH.Border, 0.8, 0.3)
+                stroke(track, TH.Border, 1, 0.25)
                 local fill = mk("Frame", {
                     Name = "NoPanelBg",
                     Size = UDim2.fromScale(0.5, 1),
@@ -9228,7 +9734,7 @@ Library, SaveManager = (function()
                 local knob = mk("Frame", {
                     AnchorPoint = v2(0.5, 0.5),
                     Position = UDim2.fromScale(0.5, 0.5),
-                    Size = UDim2.fromOffset(12, 12),
+                    Size = UDim2.fromOffset(10, 10),
                     BackgroundColor3 = WHITE,
                     BorderSizePixel = 0,
                     ZIndex = 9,
@@ -9240,8 +9746,8 @@ Library, SaveManager = (function()
                 local obj = { Value = val, Min = mn, Max = mx, _cbs = {} }
                 local function refresh()
                     local p = (mx > mn) and clamp((obj.Value - mn) / (mx - mn), 0, 1) or 0
-                    tw(fill, 0.08, { Size = UDim2.fromScale(p, 1) })
-                    tw(knob, 0.08, { Position = UDim2.fromScale(p, 0.5) })
+                    tw(fill, 0.06, { Size = UDim2.fromScale(p, 1) })
+                    tw(knob, 0.06, { Position = UDim2.fromScale(p, 0.5) })
                     valBox.Text = fmtVal(obj.Value)
                 end
                 function obj:OnChanged(fn) tinsert(obj._cbs, fn) end
@@ -9262,12 +9768,12 @@ Library, SaveManager = (function()
                     local p = clamp((px - ax) / aw, 0, 1)
                     obj:SetValue(mn + (mx - mn) * p)
                 end
-                conn(hit.MouseEnter, function() twS(knob, 0.14, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(15, 15) }) end)
-                conn(hit.MouseLeave, function() if not dragging then tw(knob, 0.14, { Size = UDim2.fromOffset(12, 12) }) end end)
+                conn(hit.MouseEnter, function() tw(knob, 0.12, { Size = UDim2.fromOffset(12, 12) }) end)
+                conn(hit.MouseLeave, function() if not dragging then tw(knob, 0.12, { Size = UDim2.fromOffset(10, 10) }) end end)
                 conn(hit.InputBegan, function(inp)
                     if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                         dragging = true
-                        twS(knob, 0.14, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(15, 15) })
+                        tw(knob, 0.10, { Size = UDim2.fromOffset(12, 12) })
                         updateFromX(inp.Position.X)
                     end
                 end)
@@ -9279,7 +9785,7 @@ Library, SaveManager = (function()
                 conn(UIS.InputEnded, function(inp)
                     if inp.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
                         dragging = false
-                        tw(knob, 0.14, { Size = UDim2.fromOffset(12, 12) })
+                        tw(knob, 0.12, { Size = UDim2.fromOffset(10, 10) })
                     end
                 end)
                 conn(valBox.FocusLost, function()
@@ -9297,15 +9803,15 @@ Library, SaveManager = (function()
                 local vals = o.Values or {}
                 local val = o.Default ~= nil and o.Default or vals[1] or ""
                 local wrap = mk("Frame", {
-                    Size = UDim2.new(1, 0, 0, 44),
+                    Size = UDim2.new(1, 0, 0, 41),
                     BackgroundTransparency = 1,
                     ZIndex = 6,
                 }, parentContainer)
                 mk("TextLabel", {
                     Position = UDim2.fromOffset(2, 0),
-                    Size = UDim2.new(1, -4, 0, 16),
+                    Size = UDim2.new(1, -4, 0, 15),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.GothamMedium,
+                    Font = F_MED,
                     TextSize = 12,
                     TextColor3 = TH.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -9314,20 +9820,20 @@ Library, SaveManager = (function()
                     ZIndex = 7,
                 }, wrap)
                 local btn = mk("TextButton", {
-                    Position = UDim2.fromOffset(2, 18),
-                    Size = UDim2.new(1, -4, 0, 24),
+                    Position = UDim2.fromOffset(2, 17),
+                    Size = UDim2.new(1, -4, 0, 23),
                     BackgroundColor3 = TH.CtrlBg,
                     Text = "",
                     AutoButtonColor = false,
                     ZIndex = 7,
                 }, wrap)
-                corner(btn, 6)
+                corner(btn, 5)
                 local bStroke = stroke(btn, TH.Border, 1, 0)
                 local valLbl = mk("TextLabel", {
                     Position = UDim2.fromOffset(8, 0),
-                    Size = UDim2.new(1, -28, 1, 0),
+                    Size = UDim2.new(1, -26, 1, 0),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.Gotham,
+                    Font = F_REG,
                     TextSize = 11,
                     TextColor3 = TH.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -9337,10 +9843,10 @@ Library, SaveManager = (function()
                 }, btn)
                 local arrowLbl = mk("TextLabel", {
                     AnchorPoint = v2(1, 0.5),
-                    Position = UDim2.new(1, -8, 0.5, 0),
+                    Position = UDim2.new(1, -7, 0.5, 0),
                     Size = UDim2.fromOffset(12, 12),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.GothamBold,
+                    Font = F_BOLD,
                     TextSize = 10,
                     TextColor3 = TH.SubText,
                     Text = "▾",
@@ -9359,8 +9865,8 @@ Library, SaveManager = (function()
                     for _, fn in ipairs(obj._cbs) do pcall(fn, nv) end
                 end
 
-                conn(btn.MouseEnter, function() tw(bStroke, 0.12, { Color = TH.BorderStrong }) tw(btn, 0.12, { BackgroundColor3 = TH.CtrlHover }) end)
-                conn(btn.MouseLeave, function() tw(bStroke, 0.12, { Color = TH.Border }) tw(btn, 0.12, { BackgroundColor3 = TH.CtrlBg }) end)
+                conn(btn.MouseEnter, function() tw(bStroke, 0.10, { Color = TH.BorderStrong }) tw(btn, 0.10, { BackgroundColor3 = TH.CtrlHover }) end)
+                conn(btn.MouseLeave, function() tw(bStroke, 0.10, { Color = TH.Border }) tw(btn, 0.10, { BackgroundColor3 = TH.CtrlBg }) end)
                 conn(btn.MouseButton1Click, function()
                     if activePopup and activePopup.Name == "Drop_" .. idx then
                         closeActivePopup()
@@ -9370,8 +9876,8 @@ Library, SaveManager = (function()
                     local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
                     local curCam = workspace.CurrentCamera
                     local cvp = curCam and curCam.ViewportSize or v2(1280, 720)
-                    local itemH = 24
-                    local listH = clamp(#obj.Values * (itemH + 2) + 8, 32, 196)
+                    local itemH = 23
+                    local listH = clamp(#obj.Values * (itemH + 2) + 8, 30, 196)
                     local py = bp.Y + bs.Y + 4
                     if py + listH > cvp.Y - 12 then py = max(8, bp.Y - listH - 4) end
 
@@ -9380,7 +9886,7 @@ Library, SaveManager = (function()
                         Position = UDim2.fromOffset(bp.X, py),
                         Size = UDim2.fromOffset(bs.X, 12),
                         BackgroundColor3 = TH.CardBg,
-                        BackgroundTransparency = 0.02,
+                        BackgroundTransparency = 0,
                         ScrollBarThickness = 2,
                         ScrollBarImageColor3 = TH.BorderStrong,
                         CanvasSize = UDim2.fromOffset(0, 0),
@@ -9388,17 +9894,17 @@ Library, SaveManager = (function()
                         ClipsDescendants = true,
                         ZIndex = 72,
                     }, overlay)
-                    corner(pop, 7)
+                    corner(pop, 6)
                     stroke(pop, TH.BorderStrong, 1, 0)
                     pad(pop, 4, 4, 4, 4)
                     mk("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, pop)
-                    twS(pop, 0.18, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(bs.X, listH) })
-                    twS(arrowLbl, 0.18, Enum.EasingStyle.Back, { Rotation = 180 })
+                    twS(pop, 0.15, Enum.EasingStyle.Quart, { Size = UDim2.fromOffset(bs.X, listH) })
+                    tw(arrowLbl, 0.14, { Rotation = 180 })
                     activePopup = pop
                     activePopupTrigger = btn
                     openedPopupAt = clock()
                     closePopupFn = function()
-                        if arrowLbl and arrowLbl.Parent then twS(arrowLbl, 0.16, Enum.EasingStyle.Quad, { Rotation = 0 }) end
+                        if arrowLbl and arrowLbl.Parent then tw(arrowLbl, 0.12, { Rotation = 0 }) end
                     end
 
                     for _, vItem in ipairs(obj.Values) do
@@ -9407,7 +9913,7 @@ Library, SaveManager = (function()
                             Size = UDim2.new(1, 0, 0, itemH),
                             BackgroundColor3 = isCur and TH.AccentSoft or TH.CardBg,
                             BackgroundTransparency = isCur and 0 or 1,
-                            Font = isCur and Enum.Font.GothamBold or Enum.Font.Gotham,
+                            Font = isCur and F_BOLD or F_REG,
                             TextSize = 11,
                             TextColor3 = isCur and TH.Accent or TH.Text,
                             TextXAlignment = Enum.TextXAlignment.Left,
@@ -9415,7 +9921,7 @@ Library, SaveManager = (function()
                             AutoButtonColor = false,
                             ZIndex = 73,
                         }, pop)
-                        corner(opt, 5)
+                        corner(opt, 4)
                         conn(opt.MouseEnter, function()
                             if vItem ~= obj.Value then tw(opt, 0.08, { BackgroundTransparency = 0, BackgroundColor3 = TH.CtrlBg }) end
                         end)
@@ -9438,15 +9944,15 @@ Library, SaveManager = (function()
                 o = o or {}
                 local val = tostring(o.Default or "")
                 local wrap = mk("Frame", {
-                    Size = UDim2.new(1, 0, 0, 44),
+                    Size = UDim2.new(1, 0, 0, 41),
                     BackgroundTransparency = 1,
                     ZIndex = 6,
                 }, parentContainer)
                 mk("TextLabel", {
                     Position = UDim2.fromOffset(2, 0),
-                    Size = UDim2.new(1, -4, 0, 16),
+                    Size = UDim2.new(1, -4, 0, 15),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.GothamMedium,
+                    Font = F_MED,
                     TextSize = 12,
                     TextColor3 = TH.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -9455,18 +9961,18 @@ Library, SaveManager = (function()
                     ZIndex = 7,
                 }, wrap)
                 local tbWrap = mk("Frame", {
-                    Position = UDim2.fromOffset(2, 18),
-                    Size = UDim2.new(1, -4, 0, 24),
+                    Position = UDim2.fromOffset(2, 17),
+                    Size = UDim2.new(1, -4, 0, 23),
                     BackgroundColor3 = TH.CtrlBg,
                     ZIndex = 7,
                 }, wrap)
-                corner(tbWrap, 6)
+                corner(tbWrap, 5)
                 local tStroke = stroke(tbWrap, TH.Border, 1, 0)
                 local tb = mk("TextBox", {
                     Position = UDim2.fromOffset(8, 0),
                     Size = UDim2.new(1, -16, 1, 0),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.Gotham,
+                    Font = F_REG,
                     TextSize = 11,
                     TextColor3 = TH.Text,
                     PlaceholderColor3 = TH.Muted,
@@ -9486,9 +9992,9 @@ Library, SaveManager = (function()
                     if o.Callback then o.Callback(nv) end
                     for _, fn in ipairs(obj._cbs) do pcall(fn, nv) end
                 end
-                conn(tb.Focused, function() tStroke.Color = TH.Accent end)
+                conn(tb.Focused, function() tw(tStroke, 0.12, { Color = TH.Accent }) end)
                 conn(tb.FocusLost, function()
-                    tStroke.Color = TH.Border
+                    tw(tStroke, 0.12, { Color = TH.Border })
                     if o.Finished ~= false then obj:SetValue(tb.Text) end
                 end)
                 if o.Finished == false then
@@ -9505,46 +10011,30 @@ Library, SaveManager = (function()
             function box:AddButton(o)
                 o = o or {}
                 local btn = mk("TextButton", {
-                    Size = UDim2.new(1, 0, 0, 28),
+                    Size = UDim2.new(1, 0, 0, 26),
                     BackgroundColor3 = TH.CtrlBg,
-                    Font = Enum.Font.GothamBold,
+                    Font = F_MED,
                     TextSize = 12,
                     TextColor3 = TH.Text,
                     TextTruncate = Enum.TextTruncate.AtEnd,
                     Text = tostring(o.Text or "Button"),
                     AutoButtonColor = false,
-                    ClipsDescendants = true,
                     ZIndex = 7,
                 }, parentContainer)
-                corner(btn, 7)
+                corner(btn, 5)
                 local st = stroke(btn, TH.Border, 1, 0)
                 local bScale = mk("UIScale", { Scale = 1 }, btn)
-                local bShine = mk("Frame", {
-                    Name = "NoPanelBg",
-                    Position = UDim2.fromScale(-0.4, 0),
-                    Size = UDim2.fromScale(0.35, 1),
-                    BackgroundColor3 = WHITE,
-                    BackgroundTransparency = 0.35,
-                    BorderSizePixel = 0,
-                    Visible = false,
-                    ZIndex = 8,
-                }, btn)
-                mk("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.1), NumberSequenceKeypoint.new(1, 1) }) }, bShine)
                 conn(btn.MouseEnter, function()
-                    tw(btn, 0.12, { BackgroundColor3 = TH.CtrlHover })
-                    tw(st, 0.12, { Color = TH.BorderStrong })
+                    tw(btn, 0.10, { BackgroundColor3 = TH.CtrlHover })
+                    tw(st, 0.10, { Color = TH.BorderStrong })
                 end)
                 conn(btn.MouseLeave, function()
-                    tw(btn, 0.12, { BackgroundColor3 = TH.CtrlBg })
-                    tw(st, 0.12, { Color = TH.Border })
+                    tw(btn, 0.10, { BackgroundColor3 = TH.CtrlBg })
+                    tw(st, 0.10, { Color = TH.Border })
                 end)
                 conn(btn.MouseButton1Click, function()
-                    bScale.Scale = 0.96
-                    twS(bScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
-                    bShine.Position = UDim2.fromScale(-0.4, 0)
-                    bShine.Visible = true
-                    twS(bShine, 0.30, Enum.EasingStyle.Quad, { Position = UDim2.fromScale(1.15, 0) })
-                    task.delay(0.32, function() if bShine and bShine.Parent then bShine.Visible = false end end)
+                    bScale.Scale = 0.98
+                    tw(bScale, 0.12, { Scale = 1 })
                     if o.Func then o.Func() end
                 end)
                 bindTooltip(btn, o.Tooltip)
@@ -9564,7 +10054,7 @@ Library, SaveManager = (function()
                     Size = UDim2.new(1, -4, 0, 18),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
-                    Font = doesWrap and Enum.Font.Gotham or Enum.Font.GothamMedium,
+                    Font = doesWrap and F_REG or F_MED,
                     TextSize = doesWrap and 11 or 12,
                     TextColor3 = doesWrap and TH.SubText or TH.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -9578,23 +10068,22 @@ Library, SaveManager = (function()
 
                 function lObj:AddColorPicker(idx, co)
                     co = co or {}
-                    lbl.Size = UDim2.new(1, -40, 0, 18)
+                    lbl.Size = UDim2.new(1, -38, 0, 18)
                     lbl.TextWrapped = true
                     local curCol = co.Default or WHITE
                     local swatch = mk("TextButton", {
                         AnchorPoint = v2(1, 0.5),
                         Position = UDim2.new(1, -2, 0.5, 0),
-                        Size = UDim2.fromOffset(30, 16),
+                        Size = UDim2.fromOffset(26, 15),
                         BackgroundColor3 = curCol,
                         Text = "",
                         AutoButtonColor = false,
                         ZIndex = 7,
                     }, row)
-                    corner(swatch, 5)
-                    stroke(swatch, TH.BorderStrong, 1, 0)
-                    local swScale = mk("UIScale", { Scale = 1 }, swatch)
-                    conn(swatch.MouseEnter, function() twS(swScale, 0.14, Enum.EasingStyle.Back, { Scale = 1.12 }) end)
-                    conn(swatch.MouseLeave, function() tw(swScale, 0.12, { Scale = 1 }) end)
+                    corner(swatch, 4)
+                    local swStroke = stroke(swatch, TH.BorderStrong, 1, 0)
+                    conn(swatch.MouseEnter, function() tw(swStroke, 0.10, { Color = TH.Accent }) end)
+                    conn(swatch.MouseLeave, function() tw(swStroke, 0.10, { Color = TH.BorderStrong }) end)
 
                     local cObj = { Value = curCol, _cbs = {} }
                     function cObj:OnChanged(fn) tinsert(cObj._cbs, fn) end
@@ -9624,13 +10113,13 @@ Library, SaveManager = (function()
                             Position = UDim2.fromOffset(px, py),
                             Size = UDim2.fromOffset(216, 198),
                             BackgroundColor3 = TH.CardBg,
-                            BackgroundTransparency = 0.02,
+                            BackgroundTransparency = 0,
                             ZIndex = 75,
                         }, overlay)
-                        corner(pop, 9)
+                        corner(pop, 6)
                         stroke(pop, TH.BorderStrong, 1, 0)
-                        local colScale = mk("UIScale", { Scale = 0.90 }, pop)
-                        twS(colScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
+                        local colScale = mk("UIScale", { Scale = 0.96 }, pop)
+                        tw(colScale, 0.12, { Scale = 1 })
                         activePopup = pop
                         activePopupTrigger = swatch
                         openedPopupAt = clock()
@@ -9645,17 +10134,17 @@ Library, SaveManager = (function()
                             AutoButtonColor = false,
                             ZIndex = 76,
                         }, pop)
-                        corner(svBox, 6)
+                        corner(svBox, 4)
                         local wGrad = mk("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 77 }, svBox)
-                        corner(wGrad, 6)
+                        corner(wGrad, 4)
                         mk("UIGradient", { Transparency = NumberSequence.new(0, 1) }, wGrad)
                         local bGrad = mk("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = BLACK, BorderSizePixel = 0, ZIndex = 78 }, svBox)
-                        corner(bGrad, 6)
+                        corner(bGrad, 4)
                         mk("UIGradient", { Rotation = 90, Transparency = NumberSequence.new(1, 0) }, bGrad)
                         local svDot = mk("Frame", {
                             AnchorPoint = v2(0.5, 0.5),
                             Position = UDim2.fromScale(cs, 1 - cv),
-                            Size = UDim2.fromOffset(10, 10),
+                            Size = UDim2.fromOffset(9, 9),
                             BackgroundColor3 = WHITE,
                             ZIndex = 79,
                         }, svBox)
@@ -9670,7 +10159,7 @@ Library, SaveManager = (function()
                             AutoButtonColor = false,
                             ZIndex = 76,
                         }, pop)
-                        corner(hueBar, 6)
+                        corner(hueBar, 4)
                         mk("UIGradient", {
                             Rotation = 90,
                             Color = ColorSequence.new({
@@ -9699,21 +10188,21 @@ Library, SaveManager = (function()
                             BackgroundColor3 = cObj.Value,
                             ZIndex = 76,
                         }, pop)
-                        corner(prevSw, 5)
+                        corner(prevSw, 4)
                         stroke(prevSw, TH.BorderStrong, 1, 0)
 
                         local hexBox = mk("TextBox", {
                             Position = UDim2.fromOffset(48, 162),
                             Size = UDim2.fromOffset(156, 24),
                             BackgroundColor3 = TH.CtrlBg,
-                            Font = Enum.Font.GothamBold,
+                            Font = F_MONO,
                             TextSize = 11,
                             TextColor3 = TH.Text,
                             Text = "#" .. cObj.Value:ToHex(),
                             ClearTextOnFocus = false,
                             ZIndex = 76,
                         }, pop)
-                        corner(hexBox, 5)
+                        corner(hexBox, 4)
                         stroke(hexBox, TH.Border, 1, 0)
 
                         local function applyHSV()
@@ -9773,22 +10262,22 @@ Library, SaveManager = (function()
 
                 function lObj:AddKeyPicker(idx, ko)
                     ko = ko or {}
-                    lbl.Size = UDim2.new(1, -74, 0, 18)
+                    lbl.Size = UDim2.new(1, -68, 0, 18)
                     lbl.TextWrapped = true
                     local curKey = tostring(ko.Default or "None")
                     local kbBtn = mk("TextButton", {
                         AnchorPoint = v2(1, 0.5),
                         Position = UDim2.new(1, -2, 0.5, 0),
-                        Size = UDim2.fromOffset(66, 18),
+                        Size = UDim2.fromOffset(60, 17),
                         BackgroundColor3 = TH.CtrlBg,
-                        Font = Enum.Font.GothamBold,
+                        Font = F_MONO,
                         TextSize = 10,
                         TextColor3 = TH.Text,
                         Text = curKey,
                         AutoButtonColor = false,
                         ZIndex = 7,
                     }, row)
-                    corner(kbBtn, 5)
+                    corner(kbBtn, 4)
                     local kStroke = stroke(kbBtn, TH.Border, 1, 0)
 
                     local kObj = { Value = curKey, Mode = ko.Mode or "Toggle", _cbs = {} }
@@ -9805,23 +10294,23 @@ Library, SaveManager = (function()
                     end
 
                     local listening = false
-                    conn(kbBtn.MouseEnter, function() if not listening then tw(kbBtn, 0.12, { BackgroundColor3 = TH.CtrlHover }) end end)
-                    conn(kbBtn.MouseLeave, function() if not listening then tw(kbBtn, 0.12, { BackgroundColor3 = TH.CtrlBg }) end end)
+                    conn(kbBtn.MouseEnter, function() if not listening then tw(kbBtn, 0.10, { BackgroundColor3 = TH.CtrlHover }) end end)
+                    conn(kbBtn.MouseLeave, function() if not listening then tw(kbBtn, 0.10, { BackgroundColor3 = TH.CtrlBg }) end end)
                     conn(kbBtn.MouseButton1Click, function()
                         if listening then return end
                         if lib._cancelKeyListen then pcall(lib._cancelKeyListen) end
                         listening = true
                         lib._listeningKey = true
                         kbBtn.Text = "..."
-                        tw(kStroke, 0.12, { Color = TH.Accent })
-                        tw(kbBtn, 0.12, { BackgroundColor3 = TH.AccentSoft })
+                        tw(kStroke, 0.10, { Color = TH.Accent })
+                        tw(kbBtn, 0.10, { BackgroundColor3 = TH.AccentSoft })
                         local waitConn
                         local function finishListen(newK)
                             if waitConn then pcall(function() waitConn:Disconnect() end) waitConn = nil end
                             lib._cancelKeyListen = nil
                             listening = false
-                            tw(kStroke, 0.14, { Color = TH.Border })
-                            tw(kbBtn, 0.14, { BackgroundColor3 = TH.CtrlBg })
+                            tw(kStroke, 0.12, { Color = TH.Border })
+                            tw(kbBtn, 0.12, { BackgroundColor3 = TH.CtrlBg })
                             if newK ~= nil then
                                 kObj:SetValue(newK)
                             else
@@ -9862,22 +10351,15 @@ Library, SaveManager = (function()
                     Visible = true,
                     ZIndex = 6,
                 }, parentContainer)
-                local depScale = mk("UIScale", { Scale = 1 }, depFrame)
-                mk("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, depFrame)
+                mk("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, depFrame)
                 local depBox = makeGroupControls(depFrame, tabObj, groupTitle, cardStroke)
                 function depBox:SetupDependencies(deps)
-                    local wasVis = depFrame.Visible
                     local function eval()
                         local okAll = true
                         for _, d in ipairs(deps or {}) do
                             if d[1] and d[1].Value ~= d[2] then okAll = false break end
                         end
                         depFrame.Visible = okAll
-                        if okAll and not wasVis then
-                            depScale.Scale = 0.96
-                            twS(depScale, 0.18, Enum.EasingStyle.Back, { Scale = 1 })
-                        end
-                        wasVis = okAll
                     end
                     for _, d in ipairs(deps or {}) do
                         if d[1] and d[1].OnChanged then d[1]:OnChanged(eval) end
@@ -9895,9 +10377,9 @@ Library, SaveManager = (function()
             if order == 1 or order == 5 or order == 7 then
                 local secTxt = (order == 1 and "ВИЗУАЛЫ") or (order == 5 and "МИР И ПОИСК") or "СИСТЕМА"
                 mk("TextLabel", {
-                    Size = UDim2.new(1, 0, 0, 16),
+                    Size = UDim2.new(1, 0, 0, 18),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.GothamBold,
+                    Font = F_BOLD,
                     TextSize = 9,
                     TextColor3 = TH.Muted,
                     TextXAlignment = Enum.TextXAlignment.Left,
@@ -9908,7 +10390,7 @@ Library, SaveManager = (function()
             end
 
             local btn = mk("TextButton", {
-                Size = UDim2.new(1, 0, 0, 30),
+                Size = UDim2.new(1, 0, 0, 28),
                 BackgroundColor3 = TH.SideBg,
                 BackgroundTransparency = 1,
                 Text = "",
@@ -9916,12 +10398,12 @@ Library, SaveManager = (function()
                 LayoutOrder = order * 10,
                 ZIndex = 6,
             }, tabScroll)
-            corner(btn, 7)
+            corner(btn, 5)
 
             local bar = mk("Frame", {
                 AnchorPoint = v2(0, 0.5),
-                Position = UDim2.new(0, 3, 0.5, 0),
-                Size = UDim2.fromOffset(3, 16),
+                Position = UDim2.new(0, 2, 0.5, 0),
+                Size = UDim2.fromOffset(2, 16),
                 BackgroundColor3 = TH.Accent,
                 BorderSizePixel = 0,
                 Visible = false,
@@ -9931,13 +10413,13 @@ Library, SaveManager = (function()
             regAccent(bar, "BackgroundColor3", "solid")
 
             local ic = buildIcon(btn, iconKind, TH.SubText)
-            ic.box.Position = UDim2.fromOffset(12, 8)
+            ic.box.Position = UDim2.fromOffset(10, 7)
 
             local lbl = mk("TextLabel", {
-                Position = UDim2.fromOffset(32, 0),
-                Size = UDim2.new(1, -36, 1, 0),
+                Position = UDim2.fromOffset(30, 0),
+                Size = UDim2.new(1, -34, 1, 0),
                 BackgroundTransparency = 1,
-                Font = Enum.Font.GothamMedium,
+                Font = F_MED,
                 TextSize = 12,
                 TextColor3 = TH.SubText,
                 TextXAlignment = Enum.TextXAlignment.Left,
@@ -9957,42 +10439,38 @@ Library, SaveManager = (function()
                 Visible = false,
                 ZIndex = 4,
             }, pagesHolder)
-            pad(page, 12, 12, 12, 12)
+            pad(page, 10, 10, 10, 10)
 
             local leftCol = mk("Frame", {
-                Size = UDim2.new(0.5, -6, 0, 0),
+                Size = UDim2.new(0.5, -5, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 ZIndex = 5,
             }, page)
-            pad(leftCol, 0, 0, 0, 12)
-            mk("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, leftCol)
+            pad(leftCol, 0, 0, 0, 10)
+            mk("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, leftCol)
 
             local rightCol = mk("Frame", {
-                Position = UDim2.new(0.5, 6, 0, 0),
-                Size = UDim2.new(0.5, -6, 0, 0),
+                Position = UDim2.new(0.5, 5, 0, 0),
+                Size = UDim2.new(0.5, -5, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 ZIndex = 5,
             }, page)
-            pad(rightCol, 0, 0, 0, 12)
-            mk("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, rightCol)
+            pad(rightCol, 0, 0, 0, 10)
+            mk("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, rightCol)
 
             local tabObj = { name = name, btn = btn, bar = bar, lbl = lbl, icon = ic, page = page, leftCol = leftCol, rightCol = rightCol }
             tinsert(win._tabs, tabObj)
 
             conn(btn.MouseEnter, function()
                 if win._activeTab ~= tabObj then
-                    tw(btn, 0.14, { BackgroundColor3 = TH.CardBg, BackgroundTransparency = 0.50 })
-                    tw(lbl, 0.14, { Position = UDim2.fromOffset(35, 0) })
-                    tw(ic.box, 0.14, { Position = UDim2.fromOffset(14, 8) })
+                    tw(btn, 0.10, { BackgroundColor3 = TH.CtrlBg, BackgroundTransparency = 0.45 })
                 end
             end)
             conn(btn.MouseLeave, function()
                 if win._activeTab ~= tabObj then
-                    tw(btn, 0.14, { BackgroundTransparency = 1 })
-                    tw(lbl, 0.14, { Position = UDim2.fromOffset(32, 0) })
-                    tw(ic.box, 0.14, { Position = UDim2.fromOffset(12, 8) })
+                    tw(btn, 0.10, { BackgroundTransparency = 1 })
                 end
             end)
             conn(btn.MouseButton1Click, function() selectTab(tabObj) end)
@@ -10002,26 +10480,16 @@ Library, SaveManager = (function()
                     Size = UDim2.new(1, 0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundColor3 = TH.CardBg,
-                    BackgroundTransparency = 0.04,
+                    BackgroundTransparency = 0.02,
                     ZIndex = 5,
                 }, colFrame)
-                corner(card, 9)
+                corner(card, 6)
                 local cst = stroke(card, TH.Border, 1, 0)
                 local hdr = mk("Frame", {
-                    Size = UDim2.new(1, 0, 0, 30),
+                    Size = UDim2.new(1, 0, 0, 28),
                     BackgroundTransparency = 1,
-                    ClipsDescendants = true,
                     ZIndex = 6,
                 }, card)
-                local hdrFill = mk("Frame", {
-                    Name = "PanelBg",
-                    Size = UDim2.new(1, 0, 1, 10),
-                    BackgroundColor3 = TH.CardHead,
-                    BackgroundTransparency = 0.06,
-                    BorderSizePixel = 0,
-                    ZIndex = 6,
-                }, hdr)
-                corner(hdrFill, 9)
                 mk("Frame", {
                     Position = UDim2.new(0, 0, 1, -1),
                     Size = UDim2.new(1, 0, 0, 1),
@@ -10033,22 +10501,22 @@ Library, SaveManager = (function()
                     Position = UDim2.fromOffset(10, 0),
                     Size = UDim2.new(1, -20, 1, 0),
                     BackgroundTransparency = 1,
-                    Font = Enum.Font.GothamBold,
-                    TextSize = 12,
+                    Font = F_BOLD,
+                    TextSize = 11,
                     TextColor3 = TH.Text,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Text = tostring(title),
                     ZIndex = 7,
                 }, hdr)
                 local body = mk("Frame", {
-                    Position = UDim2.fromOffset(0, 30),
+                    Position = UDim2.fromOffset(0, 28),
                     Size = UDim2.new(1, 0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundTransparency = 1,
                     ZIndex = 6,
                 }, card)
-                pad(body, 10, 10, 8, 10)
-                mk("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+                pad(body, 9, 9, 7, 9)
+                mk("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, body)
                 return makeGroupControls(body, tabObj, title, cst)
             end
 
