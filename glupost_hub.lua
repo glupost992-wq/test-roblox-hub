@@ -2,7 +2,11 @@ local getgenv_ = getgenv or function() return shared end
 local gethui_ = gethui
 
 if getgenv_()._GlupostUnload then pcall(getgenv_()._GlupostUnload) end
-if getgenv_()._GlupostHubActive then return end
+if getgenv_()._GlupostScreenGui then
+    pcall(function() getgenv_()._GlupostScreenGui:Destroy() end)
+    getgenv_()._GlupostScreenGui = nil
+end
+getgenv_()._GlupostHubActive = false
 
 local hasDrawing = (function()
     local ok, f = pcall(function() return Drawing and Drawing.new end)
@@ -7918,6 +7922,7 @@ Library, SaveManager = (function()
         DisplayOrder = 999,
     }, getGuiParent())
     lib.ScreenGui = sg
+    getgenv_()._GlupostScreenGui = sg
 
     local overlay = mk("Frame", {
         Name = "OverlayLayer",
@@ -8131,6 +8136,7 @@ Library, SaveManager = (function()
         table.clear(lib._accentRefs)
         table.clear(lib._searchItems)
         if sg and sg.Parent then pcall(function() sg:Destroy() end) end
+        if getgenv_()._GlupostScreenGui == sg then getgenv_()._GlupostScreenGui = nil end
     end
 
     local function regAccent(inst, prop, kind)
@@ -8765,16 +8771,19 @@ Library, SaveManager = (function()
             if not col then return end
             local idx = 0
             for _, ch in ipairs(col:GetChildren()) do
-                local sc = ch:IsA("Frame") and ch:FindFirstChild("CardScale")
-                if sc then
+                if ch:IsA("Frame") and ch.Name == "PanelBg" then
                     idx += 1
-                    sc.Scale = 0.96
-                    local d = min(idx - 1, 5) * 0.025
-                    task.delay(d, function()
-                        if sc and sc.Parent then
-                            twS(sc, 0.20, Enum.EasingStyle.Quart, { Scale = 1 })
-                        end
-                    end)
+                    local hdr = ch:FindFirstChild("CardHdr")
+                    local pill = hdr and hdr:FindFirstChild("NoPanelBg")
+                    if pill then
+                        pill.Size = UDim2.fromOffset(3, 4)
+                        local d = min(idx - 1, 5) * 0.025
+                        task.delay(d, function()
+                            if pill and pill.Parent then
+                                twS(pill, 0.22, Enum.EasingStyle.Back, { Size = UDim2.fromOffset(3, 11) })
+                            end
+                        end)
+                    end
                 end
             end
         end
@@ -11099,21 +11108,14 @@ Library, SaveManager = (function()
                     ZIndex = 6,
                 }, parentContainer)
                 mk("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, depFrame)
-                local depScale = mk("UIScale", { Scale = 1 }, depFrame)
                 local depBox = makeGroupControls(depFrame, tabObj, groupTitle, cardStroke)
                 function depBox:SetupDependencies(deps)
-                    local prevVis = depFrame.Visible
                     local function eval()
                         local okAll = true
                         for _, d in ipairs(deps or {}) do
                             if d[1] and d[1].Value ~= d[2] then okAll = false break end
                         end
                         depFrame.Visible = okAll
-                        if okAll and not prevVis then
-                            depScale.Scale = 0.96
-                            twS(depScale, 0.18, Enum.EasingStyle.Quart, { Scale = 1 })
-                        end
-                        prevVis = okAll
                     end
                     for _, d in ipairs(deps or {}) do
                         if d[1] and d[1].OnChanged then d[1]:OnChanged(eval) end
@@ -11254,10 +11256,10 @@ Library, SaveManager = (function()
                 }, colFrame)
                 corner(card, 7)
                 local cst = stroke(card, TH.Border, 1, 0)
-                mk("UIScale", { Name = "CardScale", Scale = 1 }, card)
                 conn(card.MouseEnter, function() tw(cst, 0.14, { Color = TH.BorderStrong }) end)
                 conn(card.MouseLeave, function() tw(cst, 0.14, { Color = TH.Border }) end)
                 local hdr = mk("Frame", {
+                    Name = "CardHdr",
                     Size = UDim2.new(1, 0, 0, 28),
                     BackgroundColor3 = TH.CardHead,
                     BackgroundTransparency = 0.45,
@@ -11503,8 +11505,18 @@ local Tabs = {
 local SYNC = {}
 local isSyncingUI = false
 
-local UiBg = {}
-do
+local function safeSet(idx, value)
+    local o = (Toggles and Toggles[idx]) or (Options and Options[idx])
+    if not o then return end
+    pcall(function()
+        if typeof(value) == "Color3" and o.SetValueRGB then o:SetValueRGB(value)
+        elseif o.SetValue then o:SetValue(value) end
+    end)
+end
+
+local UiBg = (function()
+    local UiBg = {}
+    local TweenSvc = game:GetService("TweenService")
     local SCALE_MODES = {
         Crop = Enum.ScaleType.Crop,
         Stretch = Enum.ScaleType.Stretch,
@@ -12107,16 +12119,8 @@ do
         lastShownAsset, lastTargetTransp = nil, nil
         mainFrameRef, screenGuiRef = nil, nil
     end
-end
-
-local function safeSet(idx, value)
-    local o = (Toggles and Toggles[idx]) or (Options and Options[idx])
-    if not o then return end
-    pcall(function()
-        if typeof(value) == "Color3" and o.SetValueRGB then o:SetValueRGB(value)
-        elseif o.SetValue then o:SetValue(value) end
-    end)
-end
+    return UiBg
+end)()
 
 local function syncUI()
     if isSyncingUI then return end
